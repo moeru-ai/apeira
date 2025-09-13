@@ -6,6 +6,7 @@ export interface BaseAgentOptions {
 }
 
 export interface BaseAgentPlugin {
+  close?: () => Promise<void> | void
   name: string
   version: string
 }
@@ -40,6 +41,14 @@ export class BaseAgent<I = unknown, O = unknown, I2 = undefined> {
       clonedAgent.agents = this.agents.map(agent => agent.clone())
 
     return clonedAgent
+  }
+
+  public async close(): Promise<void> {
+    await Promise.all(this.plugins
+      .filter(plugin => 'close' in plugin)
+      .map(async plugin => plugin.close!()))
+
+    await Promise.all(this.agents.map(async agent => agent.close()))
   }
 
   public run(_task: I, _extraOptions?: I2): O {

@@ -1,5 +1,5 @@
 import type { ChatOptions, CommonContentPart, Message, Tool } from '@xsai/shared-chat'
-import type { StreamTextResult } from '@xsai/stream-text'
+import type { StreamTextOptions, StreamTextResult } from '@xsai/stream-text'
 
 import { streamText } from '@xsai/stream-text'
 
@@ -11,10 +11,12 @@ export interface ChatAgentOptions extends BaseAgentOptions {
   instruction: string
   llm: Omit<ChatOptions, 'messages' | 'tools'>
   tools?: Tool[]
-  transformMessages?: (message: Message[]) => Message[]
 }
 
 export interface ChatAgentPlugin extends BaseAgentPlugin {
+  onEvent?: StreamTextOptions['onEvent']
+  onFinish?: StreamTextOptions['onFinish']
+  onStepFinish?: StreamTextOptions['onStepFinish']
   tools?: Tool[]
   transformMessages?: (message: Message[]) => Message[]
 }
@@ -31,7 +33,6 @@ export class ChatAgent extends BaseAgent implements BaseAgent<
   public instruction: string
   public llm: Omit<ChatOptions, 'messages' | 'tools'>
   public tools?: Tool[]
-  public transformMessages?: (message: Message[]) => Message[]
 
   constructor(options: ChatAgentOptions) {
     super(options)
@@ -49,13 +50,9 @@ export class ChatAgent extends BaseAgent implements BaseAgent<
       role: 'system',
     }]
 
-    if (this.transformMessages)
-      messages = this.transformMessages(messages)
-
-    for (const plugin of this.plugins) {
-      if ('transformMessages' in plugin && (plugin as ChatAgentPlugin).transformMessages)
-        messages = (plugin as ChatAgentPlugin).transformMessages!(messages)
-    }
+    this.plugins
+      .filter(plugin => 'transformMessages' in plugin)
+      .forEach((plugin) => { messages = (plugin as ChatAgentPlugin).transformMessages!(messages) })
 
     return streamText({
       ...this.llm,
@@ -68,6 +65,16 @@ export class ChatAgent extends BaseAgent implements BaseAgent<
         },
       ],
       model: this.llm.model as string,
+      onEvent: event => this.plugins
+        .filter(plugin => 'onEvent' in plugin)
+        .forEach(plugin => (plugin as ChatAgentPlugin).onEvent!(event)),
+      onFinish: step => this.plugins
+        .filter(plugin => 'onFinish' in plugin)
+        .forEach(plugin => (plugin as ChatAgentPlugin).onFinish!(step)),
+      onStepFinish: step => this.plugins
+        .filter(plugin => 'onStepFinish' in plugin)
+        .forEach(plugin => (plugin as ChatAgentPlugin).onStepFinish!(step)),
+      tools: this.tools,
     })
   }
 }

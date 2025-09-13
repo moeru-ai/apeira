@@ -37,4 +37,5 @@ catch (error) {
 }
 finally {
   rl.close()
+  await agent.close()
 }
