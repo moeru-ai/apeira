@@ -2,7 +2,6 @@ import type { Message } from '@xsai/shared-chat'
 
 import { stdin as input, stdout as output } from 'node:process'
 import * as readline from 'node:readline/promises'
-import { Writable } from 'node:stream'
 
 import { ChatAgent } from '../src/agents/chat-agent'
 
@@ -10,7 +9,7 @@ const agent = new ChatAgent({
   instruction: 'You\'re a helpful assistant.',
   llm: {
     baseURL: 'http://localhost:11434/v1/',
-    model: 'gemma3n:e2b',
+    model: 'aya-expanse:32b',
   },
   name: 'chat-agent',
 })
@@ -21,13 +20,12 @@ let messages: Message[] | undefined
 
 try {
   while (true) {
-    const content = await rl.question('> Write a message...')
-
-    console.log('\n')
+    const content = await rl.question('> Write a message... ')
 
     const { messages: pm, textStream } = agent.run(content, { messages })
 
-    await textStream.pipeTo(Writable.toWeb(output) as WritableStream<string>)
+    for await (const textPart of textStream)
+      output.write(textPart)
 
     messages = await pm
 
