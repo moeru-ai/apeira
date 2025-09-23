@@ -56,7 +56,7 @@ export class ChatAgent extends BaseAgent implements BaseAgent<
 
     return streamText({
       ...this.llm,
-      baseURL: this.llm.baseURL as string,
+      baseURL: this.llm.baseURL,
       messages: [
         ...messages,
         {
@@ -64,7 +64,7 @@ export class ChatAgent extends BaseAgent implements BaseAgent<
           role: 'user',
         },
       ],
-      model: this.llm.model as string,
+      model: this.llm.model,
       onEvent: event => this.plugins
         .filter(plugin => 'onEvent' in plugin)
         .forEach(plugin => (plugin as ChatAgentPlugin).onEvent!(event)),
