@@ -4,18 +4,18 @@ packages:
   - packages/*
 
 catalog:
-  '@antfu/eslint-config': ^5.2.1
-  '@moeru/eslint-config': &std ^0.1.0-beta.9
+  '@antfu/eslint-config': ^5.4.1
+  '@moeru/eslint-config': &std ^0.1.0-beta.10
   '@moeru/tsconfig': *std
-  '@types/node': ^24.3.3
+  '@types/node': ^24.5.2
   bumpp: ^10.2.3
-  eslint: ^9.33.0
-  pkgroll: ^2.15.3
+  eslint: ^9.36.0
+  pkgroll: ^2.15.4
   tsx: ^4.20.5
   typescript: ~5.8.3
 
 catalogs:
   xsai:
-    '@xsai/generate-text': &xsai ^0.4.0-beta.3
+    '@xsai/generate-text': &xsai ^0.4.0-beta.4
     '@xsai/shared-chat': *xsai
     '@xsai/stream-text': *xsai
