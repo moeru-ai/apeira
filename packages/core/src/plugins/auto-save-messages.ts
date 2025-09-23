@@ -4,12 +4,12 @@ import type { ChatAgentPlugin } from '../agents/chat-agent'
 
 import pkg from '../../package.json'
 
-export interface AutoMessagesOptions {
+export interface AutoSaveMessagesOptions {
   load?: () => Message[] | Promise<Message[]>
   save?: (messages: Message[]) => Promise<void> | void
 }
 
-export const autoSaveMessages = (options: AutoMessagesOptions = {}): ChatAgentPlugin => {
+export const autoSaveMessages = (options: AutoSaveMessagesOptions = {}): ChatAgentPlugin => {
   let messages: Message[] = []
 
   return {

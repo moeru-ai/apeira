@@ -1,8 +1,9 @@
 import { stdin as input, stdout as output } from 'node:process'
-import * as readline from 'node:readline/promises'
+import { createInterface } from 'node:readline/promises'
 
 import { ChatAgent } from '../src/agents/chat-agent'
 import { autoSaveMessages } from '../src/plugins/auto-save-messages'
+import { trimMessages } from '../src/plugins/trim-messages'
 
 const agent = new ChatAgent({
   instruction: 'You\'re a helpful assistant.',
@@ -13,12 +14,13 @@ const agent = new ChatAgent({
   name: 'chat-agent',
   plugins: [
     autoSaveMessages(),
+    trimMessages(),
   ],
 })
 
 await agent.start()
 
-const rl = readline.createInterface({ input, output })
+const rl = createInterface({ input, output })
 
 try {
   while (true) {
