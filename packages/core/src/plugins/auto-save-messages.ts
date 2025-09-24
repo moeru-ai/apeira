@@ -16,11 +16,13 @@ export const autoSaveMessages = (options: AutoSaveMessagesOptions = {}): ChatAge
     close: async () => options.save?.(messages),
     name: '@apeira/core/auto-save-messages',
     onFinish: (step) => {
-      if (step?.text != null)
-        messages.push({ content: step.text, role: 'assistant' })
+      if (step?.text == null)
+        return
+
+      messages.push({ content: step.text, role: 'assistant' })
     },
     onRun: content => messages.push({ content, role: 'user' }),
-    start: async () => { messages = await options.load?.() ?? [] },
+    start: async () => { messages.push(...await options.load?.() ?? []) },
     transformMessages: (prev) => {
       if (prev.length === 1)
         messages = prev
