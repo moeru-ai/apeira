@@ -24,3 +24,6 @@ dist-ssr
 
 # demo messages
 demo.messages.json
+
+# codex
+.codex
