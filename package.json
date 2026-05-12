@@ -19,6 +19,7 @@
     "eslint": "catalog:",
     "pkgroll": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
