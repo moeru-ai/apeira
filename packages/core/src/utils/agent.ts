@@ -6,7 +6,7 @@ import type { ItemParam } from '../types/responses'
 
 import pLimit from 'p-limit'
 
-import { responses } from '@xsai-ext/responses'
+import { responses, stepCountAtLeast } from '@xsai-ext/responses'
 
 import { linkedAbort } from './linked-abort'
 
@@ -61,6 +61,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
         abortSignal: controller.signal,
         input: nextInput,
         instructions: options.instructions,
+        stopWhen: stepCountAtLeast(20),
       })
 
       for await (const event of result.eventStream) {
