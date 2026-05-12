@@ -64,6 +64,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
         stopWhen: stepCountAtLeast(20),
       })
 
+      void result.input.catch(() => undefined)
+      void result.steps.catch(() => undefined)
+      void result.usage.catch(() => undefined)
+      void result.totalUsage.catch(() => undefined)
+
       for await (const event of result.eventStream) {
         emit(id, event)
       }
