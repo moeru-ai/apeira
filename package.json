@@ -1,4 +1,5 @@
 {
+  "name": "@apeira/workspace",
   "type": "module",
   "version": "0.0.1",
   "private": true,
@@ -18,6 +19,7 @@
     "eslint": "catalog:",
     "pkgroll": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

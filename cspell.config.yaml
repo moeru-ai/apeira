@@ -9,7 +9,10 @@ words:
   - eslintcache
   - masknet
   - moeru
+  - ollama
   - pkgroll
+  - qwen
+  - vitest
   - xsai
 ignoreWords: []
 import: []
