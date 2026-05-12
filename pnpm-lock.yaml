@@ -24,6 +24,9 @@ catalogs:
     eslint:
       specifier: ^10.3.0
       version: 10.3.0
+    p-limit:
+      specifier: ^7.3.0
+      version: 7.3.0
     pkgroll:
       specifier: ^2.27.0
       version: 2.27.0
@@ -37,13 +40,10 @@ catalogs:
     '@xsai-ext/responses':
       specifier: ^0.5.0-beta.4
       version: 0.5.0-beta.4
-    '@xsai/generate-text':
+    '@xsai/shared':
       specifier: ^0.5.0-beta.4
       version: 0.5.0-beta.4
     '@xsai/shared-chat':
-      specifier: ^0.5.0-beta.4
-      version: 0.5.0-beta.4
-    '@xsai/stream-text':
       specifier: ^0.5.0-beta.4
       version: 0.5.0-beta.4
 
@@ -84,15 +84,15 @@ importers:
       '@xsai-ext/responses':
         specifier: catalog:xsai
         version: 0.5.0-beta.4
-      '@xsai/generate-text':
+      '@xsai/shared':
         specifier: catalog:xsai
         version: 0.5.0-beta.4
       '@xsai/shared-chat':
         specifier: catalog:xsai
         version: 0.5.0-beta.4
-      '@xsai/stream-text':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.4
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.0
 
 packages:
 
@@ -983,9 +983,6 @@ packages:
   '@xsai-ext/responses@0.5.0-beta.4':
     resolution: {integrity: sha512-eZLZFys07PBLC7tK299ZJBpxTpZrY1grdVf8bWtBQiEoCl4p6cCUgOFoEIk6m3YmhkoHn76NXuuedOEHe9ivMw==}
 
-  '@xsai/generate-text@0.5.0-beta.4':
-    resolution: {integrity: sha512-ZrnJytWnYobuU1r739Wz5gFpGiQcNIIGNtM04d5/EZTLJqnsxvZUzLzVXpeLJHUOjYwie4ApufmRYnmhp1nHUA==}
-
   '@xsai/shared-chat@0.5.0-beta.4':
     resolution: {integrity: sha512-oGGj24Rs4lqeByEnSsFSogeJCaczwVYtpTSarmy1va0zJQZV099cHDb1fftpZh8GN1zTZc9asGaj9w+1DFYaYg==}
 
@@ -994,9 +991,6 @@ packages:
 
   '@xsai/shared@0.5.0-beta.4':
     resolution: {integrity: sha512-RzmJe7d8PAQGcVlrX8igKkdHR0z9mkUX1rC71JvBCoanmBQ7s/z7x9gAmmvmFSlvH5q6N2XQ+oExRK3I9lfM2A==}
-
-  '@xsai/stream-text@0.5.0-beta.4':
-    resolution: {integrity: sha512-ZGLvSXO+21BeMSUCsTVbvbOFkkUfOQ1Pl1qv80J1SLeA0OMy+j5RoyhvfisbLXiJj/D1YKZnJRHU4hb4xOccjA==}
 
   '@xsai/tool@0.5.0-beta.4':
     resolution: {integrity: sha512-x22Iv+y9Qezcb6pvQIWB1elg7IydvEUjOGU/RDPSvbHOy1zguGi6s48jYOIwoZQjUhyIFUibd+JckR0V6qQp2w==}
@@ -1845,6 +1839,10 @@ packages:
     resolution: {integrity: sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==}
     engines: {node: '>=10'}
 
+  p-limit@7.3.0:
+    resolution: {integrity: sha512-7cIXg/Z0M5WZRblrsOla88S4wAK+zOQQWeBYfV3qJuJXMr+LnbYjaadrFaS0JILfEDPVqHyKnZ1Z/1d6J9VVUw==}
+    engines: {node: '>=20'}
+
   p-locate@5.0.0:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
@@ -2197,6 +2195,10 @@ packages:
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
+
+  yocto-queue@1.2.2:
+    resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
+    engines: {node: '>=12.20'}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -2920,11 +2922,6 @@ snapshots:
       - zod
       - zod-to-json-schema
 
-  '@xsai/generate-text@0.5.0-beta.4':
-    dependencies:
-      '@xsai/shared': 0.5.0-beta.4
-      '@xsai/shared-chat': 0.5.0-beta.4
-
   '@xsai/shared-chat@0.5.0-beta.4':
     dependencies:
       '@xsai/shared': 0.5.0-beta.4
@@ -2934,12 +2931,6 @@ snapshots:
       '@xsai/shared': 0.5.0-beta.4
 
   '@xsai/shared@0.5.0-beta.4': {}
-
-  '@xsai/stream-text@0.5.0-beta.4':
-    dependencies:
-      '@xsai/shared': 0.5.0-beta.4
-      '@xsai/shared-chat': 0.5.0-beta.4
-      '@xsai/shared-stream': 0.5.0-beta.4
 
   '@xsai/tool@0.5.0-beta.4':
     dependencies:
@@ -4052,6 +4043,10 @@ snapshots:
     dependencies:
       yocto-queue: 0.1.0
 
+  p-limit@7.3.0:
+    dependencies:
+      yocto-queue: 1.2.2
+
   p-locate@5.0.0:
     dependencies:
       p-limit: 3.1.0
@@ -4380,5 +4375,7 @@ snapshots:
   yaml@2.8.4: {}
 
   yocto-queue@0.1.0: {}
+
+  yocto-queue@1.2.2: {}
 
   zwitch@2.0.4: {}

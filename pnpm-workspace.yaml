@@ -1,3 +1,7 @@
+shellEmulator: true
+
+trustPolicy: no-downgrade
+
 packages:
   - docs
   - examples/*
@@ -10,6 +14,7 @@ catalog:
   '@types/node': ^25.6.2
   bumpp: ^11.1.0
   eslint: ^10.3.0
+  p-limit: ^7.3.0
   pkgroll: ^2.27.0
   tsx: ^4.21.0
   typescript: ~6.0.3
@@ -17,6 +22,5 @@ catalog:
 catalogs:
   xsai:
     '@xsai-ext/responses': &xsai ^0.5.0-beta.4
-    '@xsai/generate-text': *xsai
+    '@xsai/shared': *xsai
     '@xsai/shared-chat': *xsai
-    '@xsai/stream-text': *xsai
