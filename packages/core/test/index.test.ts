@@ -74,7 +74,7 @@ describe('createAgent', () => {
     })
 
     const unsubscribe = agent.subscribe(event => events.push(event))
-    const turnId = agent.submit({
+    const turnId = agent.send({
       content: 'Say pong in one short response.',
       role: 'user',
       type: 'message',
@@ -119,12 +119,12 @@ describe('createAgent', () => {
     })
 
     const unsubscribe = agent.subscribe(event => events.push(event))
-    const firstTurnId = agent.submit({
+    const firstTurnId = agent.send({
       content: 'Answer with a short first response.',
       role: 'user',
       type: 'message',
     })
-    const secondTurnId = agent.submit({
+    const secondTurnId = agent.send({
       content: 'Answer with a short second response.',
       role: 'user',
       type: 'message',
@@ -176,7 +176,7 @@ describe('createAgent', () => {
       }
     })
 
-    turnId = agent.submit({
+    turnId = agent.send({
       content: 'Start a response that can be aborted.',
       role: 'user',
       type: 'message',
@@ -223,12 +223,12 @@ describe('createAgent', () => {
       }
     })
 
-    firstTurnId = agent.submit({
+    firstTurnId = agent.send({
       content: 'Start a response that will be cleared.',
       role: 'user',
       type: 'message',
     })
-    const secondTurnId = agent.submit({
+    const secondTurnId = agent.send({
       content: 'This queued response should be cleared before it starts.',
       role: 'user',
       type: 'message',

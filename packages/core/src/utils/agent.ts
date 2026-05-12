@@ -13,11 +13,11 @@ import { linkedAbort } from './linked-abort'
 export interface Agent {
   abort: (reason?: unknown) => void
   clear: () => void
-  submit: (input: ItemParam, signal?: AbortSignal) => string
+  send: (input: ItemParam, signal?: AbortSignal) => string
   subscribe: (eventListener: AgentEventListener) => (() => boolean)
 }
 
-export interface AgentRunningTask {
+export interface AgentRunningTurn {
   controller: AbortController
   id: string
   input: ItemParam
@@ -34,7 +34,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const eventListeners = new Set<AgentEventListener>()
   const pending = pLimit(1)
 
-  let running: AgentRunningTask | undefined
+  let running: AgentRunningTurn | undefined
   let history: ItemParam[] = options.input ?? []
   let historyVersion = 0
 
@@ -69,13 +69,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       void result.usage.catch(() => undefined)
       void result.totalUsage.catch(() => undefined)
 
-      for await (const event of result.eventStream) {
+      for await (const event of result.eventStream)
         emit(id, event)
-      }
 
-      if (version === historyVersion) {
+      if (version === historyVersion)
         history = await result.input
-      }
 
       emit(id, { type: 'turn.done' })
     }
@@ -90,7 +88,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     }
   }
 
-  const submit: Agent['submit'] = (input, signal) => {
+  const send: Agent['send'] = (input, signal) => {
     const id = crypto.randomUUID()
 
     void pending(async () => turn(id, input, signal))
@@ -103,9 +101,8 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     return () => eventListeners.delete(eventListener)
   }
 
-  const abort: Agent['abort'] = (reason) => {
+  const abort: Agent['abort'] = reason =>
     running?.controller.abort(reason)
-  }
 
   const clear: Agent['clear'] = () => {
     abort('cleared')
@@ -120,7 +117,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   return {
     abort,
     clear,
-    submit,
+    send,
     subscribe,
   }
 }
