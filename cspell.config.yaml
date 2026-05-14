@@ -18,5 +18,6 @@ words:
   - vitepress
   - vitest
   - xsai
+  - yocto
 ignoreWords: []
 import: []
