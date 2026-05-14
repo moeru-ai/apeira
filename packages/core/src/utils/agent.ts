@@ -99,7 +99,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
   }
 
   const drainLivePendingInput = () =>
-    pendingInput.drain().filter(item => item.signal?.aborted !== true)
+    Array.from(pendingInput.drain()).filter(item => item.signal?.aborted !== true)
 
   const runRegularTask = async ({ id, input, signal }: AgentTurnJob) => {
     const controller = linkedAbort(signal)
@@ -137,7 +137,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
       emit(id, { type: 'turn.done' })
     }
     catch (error) {
-      pendingInput.drain()
+      pendingInput.clear()
 
       if (acceptingInputTurnId === id)
         acceptingInputTurnId = undefined
@@ -179,7 +179,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
     finally {
       pumping = false
 
-      if (pendingTurns.hasPending())
+      if (pendingTurns.size > 0)
         void pumpTurns()
     }
   }
@@ -252,7 +252,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
   const clear: Agent<T>['clear'] = () => {
     abort('cleared')
 
-    pendingInput.drain()
+    pendingInput.clear()
 
     for (const job of pendingTurns.drain())
       emit(job.id, { reason: 'cleared', type: 'turn.aborted' })

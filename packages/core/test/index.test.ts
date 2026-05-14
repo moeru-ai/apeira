@@ -172,12 +172,10 @@ describe('createQueue', () => {
 
     expect(queue.enqueue({ value: 1 })).toBe(1)
     expect(queue.enqueue({ value: 2 })).toBe(2)
-    expect(queue.size()).toBe(2)
-    expect(queue.hasPending()).toBe(true)
+    expect(queue.size).toBe(2)
     expect(queue.dequeue()).toEqual({ value: 1 })
-    expect(queue.drain()).toEqual([{ value: 2 }])
-    expect(queue.hasPending()).toBe(false)
-    expect(queue.size()).toBe(0)
+    expect(Array.from(queue.drain())).toEqual([{ value: 2 }])
+    expect(queue.size).toBe(0)
   })
 })
 
