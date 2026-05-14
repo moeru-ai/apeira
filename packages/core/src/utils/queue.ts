@@ -1,7 +1,7 @@
 import YoctoQueue from 'yocto-queue'
 
 export interface Queue<T> {
-  clear: () => void
+  dequeue: () => T | undefined
   drain: () => T[]
   enqueue: (item: T) => number
   hasPending: () => boolean
@@ -18,12 +18,12 @@ export const createQueue = <T extends NonNullable<unknown>>(): Queue<T> => {
     return seq
   }
 
-  const clear = (): void =>
-    queue.clear()
+  const dequeue = (): T | undefined =>
+    queue.dequeue()
 
   const drain = (): T[] => {
     const result = Array.from(queue)
-    clear()
+    queue.clear()
     return result
   }
 
@@ -32,7 +32,7 @@ export const createQueue = <T extends NonNullable<unknown>>(): Queue<T> => {
   const size = (): number => queue.size
 
   return {
-    clear,
+    dequeue,
     drain,
     enqueue,
     hasPending,

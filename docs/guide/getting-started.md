@@ -80,8 +80,9 @@ console.log(turnId)
 unsubscribe()
 ```
 
-`send()` uses the same runtime path as `run()`. It just does not return a
-per-turn stream.
+If no turn is active or scheduled, `send()` creates a new top-level turn. If a
+turn is already active or scheduled, it queues the input for that turn and
+returns the existing turn id.
 
 ## Abort a turn
 
@@ -110,4 +111,3 @@ controller.abort('cancelled')
 
 Canceling a `ReadableStream` reader only stops reading events. It does not abort
 the running turn.
-

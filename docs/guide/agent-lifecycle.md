@@ -34,8 +34,8 @@ const agent = createAgent({
 
 ## Queueing
 
-Submitted turns are serialized. If `run()` or `send()` is called while another
-turn is running, the new turn waits until the running turn finishes.
+Top-level turns submitted with `run()` are serialized. If `run()` is called while
+another turn is running, the new turn waits until the running turn finishes.
 
 ```ts
 const first = agent.run({
@@ -52,6 +52,11 @@ const second = agent.run({
 ```
 
 `second` will not start until `first` is done, failed, or aborted.
+
+`send()` is a fire-and-forget input entrypoint. If no turn is active or
+scheduled, it creates a new top-level turn. If a turn is already active or
+scheduled, the input is queued for that turn and drained after the current model
+response completes.
 
 ## Clear
 
@@ -89,4 +94,3 @@ const context = agent.getContext()
 
 The current core does not automatically pass this context into xsAI tool
 execution. Tool execution context is planned as a runtime extension point.
-

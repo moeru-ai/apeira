@@ -44,8 +44,9 @@ const turnId = agent.send({
 })
 ```
 
-`send()` returns the turn id immediately. Turn progress is reported through
-subscribed events.
+`send()` returns a turn id immediately. If a turn is already active or scheduled,
+the input is queued for that turn and the returned id is the existing turn id.
+Turn progress is reported through subscribed events.
 
 ### Agent Lifecycle
 
@@ -54,12 +55,16 @@ the new input is appended to the current history and passed to
 `@xsai-ext/responses`. When the turn completes successfully, the returned input
 state becomes the next history.
 
-Submitted turns run one at a time. If `run()` or `send()` is called while another
-turn is running, the new turn waits until the running turn finishes.
+Top-level turns submitted with `run()` run one at a time. If `send()` is called
+while a turn is active or scheduled, the new input is drained into that turn
+after the current model response completes.
 
 The agent emits Apeira lifecycle events:
 
+- `turn.queued`
 - `turn.start`
+- `turn.input_queued`
+- `turn.input_drained`
 - `turn.done`
 - `turn.failed`
 - `turn.aborted`

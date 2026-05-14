@@ -41,8 +41,6 @@
     "@xsai-ext/responses": "catalog:xsai",
     "@xsai/shared": "catalog:xsai",
     "@xsai/shared-chat": "catalog:xsai",
-    "p-limit": "catalog:",
-    "p-queue": "^9.2.0",
-    "yocto-queue": "^1.2.2"
+    "yocto-queue": "catalog:"
   }
 }

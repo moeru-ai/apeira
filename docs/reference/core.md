@@ -66,7 +66,7 @@ The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
 
 ### send()
 
-Submits a turn and returns its id immediately.
+Submits input and returns a turn id immediately.
 
 ```ts
 const turnId = agent.send({
@@ -75,6 +75,10 @@ const turnId = agent.send({
   type: 'message',
 })
 ```
+
+If no turn is active or scheduled, `send()` creates a new top-level turn. If a
+turn is active or scheduled, the input is queued for that turn and the returned
+id is the existing turn id.
 
 Use `subscribe()` to observe progress.
 

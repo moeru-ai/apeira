@@ -10,7 +10,14 @@ export type AgentEvent = WithTurnId<ApeiraEvent | XSAIEvent>
 //   type: 'agent.start'
 // }
 
-export type ApeiraEvent = TurnAbortedEvent | TurnDoneEvent | TurnFailedEvent | TurnStartEvent
+export type ApeiraEvent
+  = | TurnAbortedEvent
+    | TurnDoneEvent
+    | TurnFailedEvent
+    | TurnInputDrainedEvent
+    | TurnInputQueuedEvent
+    | TurnQueuedEvent
+    | TurnStartEvent
 
 export interface TurnAbortedEvent {
   reason?: unknown
@@ -24,6 +31,19 @@ export interface TurnDoneEvent {
 export interface TurnFailedEvent {
   error: unknown
   type: 'turn.failed'
+}
+
+export interface TurnInputDrainedEvent {
+  count: number
+  type: 'turn.input_drained'
+}
+
+export interface TurnInputQueuedEvent {
+  type: 'turn.input_queued'
+}
+
+export interface TurnQueuedEvent {
+  type: 'turn.queued'
 }
 
 export interface TurnStartEvent {

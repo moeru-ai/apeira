@@ -15,9 +15,12 @@ Apeira emits these lifecycle events:
 
 ```ts
 type ApeiraEvent
-  = | { error: unknown, type: 'turn.failed' }
+  = | { count: number, type: 'turn.input_drained' }
+    | { error: unknown, type: 'turn.failed' }
     | { reason?: unknown, type: 'turn.aborted' }
     | { type: 'turn.done' }
+    | { type: 'turn.input_queued' }
+    | { type: 'turn.queued' }
     | { type: 'turn.start' }
 ```
 
