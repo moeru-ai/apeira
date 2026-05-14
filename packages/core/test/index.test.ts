@@ -309,6 +309,52 @@ describe('createAgent', () => {
       event.turnId === secondTurnId && event.type === 'turn.queued')).toBe(true)
   })
 
+  it('injects send input into the next queued turn from a terminal event', async () => {
+    const events: AgentEvent[] = []
+    const { agent, inputs } = createTestAgent(2)
+    let firstTurnId: string | undefined
+    let secondTurnId: string | undefined
+    let injectedTurnId: string | undefined
+
+    const unsubscribe = agent.subscribe((event) => {
+      events.push(event)
+
+      if (event.type === 'turn.queued') {
+        firstTurnId ??= event.turnId
+
+        if (event.turnId !== firstTurnId)
+          secondTurnId ??= event.turnId
+      }
+
+      if (
+        event.turnId === firstTurnId
+        && event.type === 'turn.done'
+        && injectedTurnId == null
+      ) {
+        injectedTurnId = agent.send(message('Queued follow up.'))
+      }
+    })
+
+    const first = readEventStream(agent.run(message('First turn.')))
+    const second = readEventStream(agent.run(message('Second queued turn.')))
+
+    try {
+      await Promise.all([first, second])
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(firstTurnId).toEqual(expect.any(String))
+    expect(secondTurnId).toEqual(expect.any(String))
+    expect(injectedTurnId).toBe(secondTurnId)
+    expect(events.some(event =>
+      event.turnId === secondTurnId && event.type === 'turn.input_queued')).toBe(true)
+    expect(inputs).toHaveLength(3)
+    expect(inputs[1]?.at(-1)).toMatchObject({ content: 'Second queued turn.' })
+    expect(inputs[2]?.at(-1)).toMatchObject({ content: 'Queued follow up.' })
+  })
+
   it('aborts the running turn without clearing queued top-level turns', async () => {
     const { agent } = createTestAgent(2)
     let aborted = false
