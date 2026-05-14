@@ -70,29 +70,33 @@ const runResponse = async <T>(
   for await (const event of result.eventStream)
     options.emit(options.turn.id, event)
 
+  const resolvedInput = await result.input
+
   if (options.version === options.history.version)
-    options.history.items = await result.input
+    options.history.items = resolvedInput
 }
 
 export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion> => {
   try {
     options.emit(options.turn.id, { type: 'turn.start' })
 
-    const runInputBatch = async (input: ItemParam[]): Promise<TurnCompletion> => {
-      await runResponse(options, input)
+    let nextInput = [options.turn.input]
+
+    while (true) {
+      await runResponse(options, nextInput)
 
       if (options.controller.signal.aborted)
         throw options.controller.signal.reason
 
       const drained = options.drainInput()
       if (drained.length === 0)
-        return { type: 'done' }
+        break
 
       options.emit(options.turn.id, { count: drained.length, type: 'turn.input_drained' })
-      return runInputBatch(drained.map(item => item.input))
+      nextInput = drained.map(item => item.input)
     }
 
-    return await runInputBatch([options.turn.input])
+    return { type: 'done' }
   }
   catch (error) {
     if (options.controller.signal.aborted)
