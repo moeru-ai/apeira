@@ -16,15 +16,24 @@ export interface Agent<T> {
   subscribe: (eventListener: AgentEventListener) => (() => boolean)
 }
 
-export interface CreateAgentOptions<T> {
-  context?: AgentContext<T>
+export type CreateAgentOptions<T = unknown> = CreateAgentBaseOptions<T> & CreateAgentContextOptions<T>
+
+interface CreateAgentBaseOptions<T> {
   input?: ItemParam[]
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   name: string
   options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
 }
 
-export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
+type CreateAgentContextOptions<T> = [RequiredKeys<T>] extends [never]
+  ? { context?: AgentContext<T> }
+  : { context: AgentContext<T> }
+
+type RequiredKeys<T> = {
+  [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? never : K
+}[keyof T]
+
+export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<T> => {
   const eventListeners = new Set<AgentEventListener>()
 
   const context: AgentContext<T> = options.context ?? {} as AgentContext<T>

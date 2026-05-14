@@ -93,6 +93,10 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const runQueuedTurn = async (turn: QueuedTurn) => {
     const controller = linkedAbort(turn.signal)
     const version = history.version
+    let completion: TurnCompletion = {
+      error: new Error('Turn did not complete.'),
+      type: 'failed',
+    }
 
     activeTurn = {
       controller,
@@ -102,15 +106,18 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     acceptingInputTurnId = turn.id
 
     try {
-      const completion = await runTurn({
+      completion = await runTurn({
         ...turnOptions,
         controller,
         drainInput: drainLivePendingInput,
         turn,
         version,
       })
-
-      completeTurn(turn.id, completion)
+    }
+    catch (error) {
+      completion = controller.signal.aborted
+        ? { reason: controller.signal.reason, type: 'aborted' }
+        : { error, type: 'failed' }
     }
     finally {
       if (activeTurn?.id === turn.id)
@@ -119,6 +126,8 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       if (acceptingInputTurnId === turn.id)
         acceptingInputTurnId = undefined
     }
+
+    completeTurn(turn.id, completion)
   }
 
   const pumpTurns = async () => {
