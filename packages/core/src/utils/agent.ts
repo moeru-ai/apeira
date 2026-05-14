@@ -52,7 +52,6 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
   let pumping = false
   let acceptingInputTurnId: string | undefined
   let running: AgentRunningTurn | undefined
-  let scheduledTurnId: string | undefined
   let history: ItemParam[] = [...(options.input ?? [])]
   let historyVersion = 0
 
@@ -164,16 +163,10 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
     try {
       while (true) {
         const job = pendingTurns.dequeue()
-        if (job == null) {
-          scheduledTurnId = undefined
+        if (job == null)
           break
-        }
 
-        scheduledTurnId = job.id
         await runRegularTask(job)
-
-        if (scheduledTurnId === job.id)
-          scheduledTurnId = undefined
       }
     }
     finally {
@@ -185,9 +178,6 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
   }
 
   const enqueueTurn = (id: string, input: ItemParam, signal?: AbortSignal) => {
-    if (running == null && scheduledTurnId == null)
-      scheduledTurnId = id
-
     emit(id, { type: 'turn.queued' })
     pendingTurns.enqueue({ id, input, signal })
 
@@ -195,7 +185,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
   }
 
   const send: Agent<T>['send'] = (input, signal) => {
-    const targetTurnId = acceptingInputTurnId ?? (running == null ? scheduledTurnId : undefined)
+    const targetTurnId = acceptingInputTurnId ?? pendingTurns.peek()?.id
 
     if (targetTurnId != null) {
       pendingInput.enqueue({ input, signal })
@@ -250,14 +240,13 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent<T> => {
     running?.controller.abort(reason)
 
   const clear: Agent<T>['clear'] = () => {
+    acceptingInputTurnId = undefined
     abort('cleared')
 
     pendingInput.clear()
 
     for (const job of pendingTurns.drain())
       emit(job.id, { reason: 'cleared', type: 'turn.aborted' })
-
-    scheduledTurnId = running?.id
 
     history = [...(options.input ?? [])]
     historyVersion += 1
