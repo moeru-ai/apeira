@@ -156,8 +156,11 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const id = threadOptions.id ?? crypto.randomUUID()
     const existing = threads.get(id)
     if (existing != null) {
-      if (threadOptions.context != null || threadOptions.input != null)
+      if (threadOptions.input != null)
         throw new Error(`Thread already exists: ${id}`)
+
+      if (threadOptions.context != null)
+        existing.setContext(threadOptions.context)
 
       return existing
     }

@@ -129,6 +129,10 @@ thread.run(input, {
 persists for later turns on that thread. Run context only applies to that
 submitted input.
 
+Calling `agent.thread()` with an existing `id` returns that thread and merges
+the provided context overlay. The `input` option only applies when creating a
+new thread.
+
 ### Abort And Clear
 
 Abort the currently running turn:

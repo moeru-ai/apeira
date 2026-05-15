@@ -132,7 +132,9 @@ thread.run({
 ```
 
 Each thread has its own queue, interrupt state, in-memory history, and context
-overlay. Different threads can run concurrently.
+overlay. Different threads can run concurrently. Calling `thread()` with an
+existing `id` returns that thread and merges the provided context overlay. The
+`input` option only applies when creating a new thread.
 
 ### setContext()
 

@@ -325,6 +325,60 @@ describe('createAgent', () => {
     })
   })
 
+  it('merges context into an existing thread by id without replacing history', async () => {
+    interface Context {
+      locale: string
+      product: string
+      userId?: string
+    }
+
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent<Context>({
+      context: {
+        locale: 'en-US',
+        product: 'docs',
+      },
+      instructions: context => JSON.stringify(context),
+      name: 'context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+
+    const thread = agent.thread({
+      context: { userId: 'u_123' },
+      id: 'existing-thread',
+    })
+    const sameThread = agent.thread({
+      context: { locale: 'zh-CN' },
+      id: 'existing-thread',
+    })
+
+    expect(sameThread).toBe(thread)
+
+    await readEventStream(thread.run(message('Use updated thread context.')))
+
+    expect(JSON.parse(String(responsesFetch.instructions[0]))).toMatchObject({
+      locale: 'zh-CN',
+      product: 'docs',
+      userId: 'u_123',
+    })
+  })
+
+  it('throws when initial input is provided for an existing thread', () => {
+    const { agent } = createTestAgent()
+
+    agent.thread({ id: 'existing-thread' })
+
+    expect(() => agent.thread({
+      id: 'existing-thread',
+      input: [message('initial input')],
+    })).toThrow('Thread already exists: existing-thread')
+  })
+
   it('runs different threads with isolated queues and contexts', async () => {
     interface Context {
       locale: string
