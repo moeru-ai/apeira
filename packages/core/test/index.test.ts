@@ -464,6 +464,38 @@ describe('createAgent', () => {
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Interrupting input.' })
   })
 
+  it('drops interrupted input when its signal is already aborted', async () => {
+    const events: AgentEvent[] = []
+    const { agent, inputs } = createTestAgent(2)
+    const controller = new AbortController()
+    let interrupted = false
+    const unsubscribe = agent.subscribe((event) => {
+      events.push(event)
+
+      if (event.type !== 'turn.start' || interrupted)
+        return
+
+      interrupted = true
+      queueMicrotask(() => {
+        controller.abort('stale interrupt')
+        agent.interrupt(message('Stale interrupting input.'), 'test interrupt', controller.signal)
+      })
+    })
+
+    const first = readEventStream(agent.run(message('Interrupted turn.')))
+    const second = readEventStream(agent.run(message('Queued turn.')))
+    await Promise.all([first, second])
+    unsubscribe()
+
+    expect(events.map(event => event.type)).toContain('turn.interrupted')
+    expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Queued turn.' })
+    expect(inputs.flat().some(item =>
+      typeof item === 'object'
+      && item != null
+      && 'content' in item
+      && item.content === 'Stale interrupting input.')).toBe(false)
+  })
+
   it('clears the running turn, queued turns, and pending input', async () => {
     const { agent } = createTestAgent(2)
     let cleared = false
