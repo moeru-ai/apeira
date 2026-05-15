@@ -2,9 +2,10 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext } from '../types/context'
 import type { ItemParam } from '../types/responses'
-import type { EmitTurnEvent, QueuedInput, QueuedTurn, ResponseHistory, TurnCompletion, TurnOptions } from './turn-runner'
+import type { EmitTurnEvent, QueuedTurn, ResponseHistory, TurnCompletion, TurnOptions } from './turn-runner'
 
 import { linkedAbort } from './linked-abort'
+import { createPendingInput } from './pending-input'
 import { createQueue } from './queue'
 import { runTurn } from './turn-runner'
 
@@ -31,7 +32,7 @@ interface ActiveTurn {
 
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime => {
   const initialInput = [...(options.input ?? [])]
-  const pendingInput = createQueue<QueuedInput>()
+  const pendingInput = createPendingInput()
   const pendingTurns = createQueue<QueuedTurn>()
 
   const history: ResponseHistory = {
@@ -68,8 +69,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   }
 
   const completeTurn = (id: string, completion: TurnCompletion) => {
-    if (completion.type !== 'done')
-      pendingInput.clear()
+    pendingInput.delete(id)
 
     if (acceptingInputTurnId === id)
       acceptingInputTurnId = undefined
@@ -86,9 +86,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
     options.emit(id, { error: completion.error, type: 'turn.failed' })
   }
-
-  const drainLivePendingInput = () =>
-    Array.from(pendingInput.drain()).filter(item => item.signal?.aborted !== true)
 
   const runQueuedTurn = async (turn: QueuedTurn) => {
     const controller = linkedAbort(turn.signal)
@@ -109,7 +106,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       completion = await runTurn({
         ...turnOptions,
         controller,
-        drainInput: drainLivePendingInput,
+        drainInput: () => pendingInput.drain(turn.id),
         turn,
         version,
       })
@@ -164,7 +161,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     const targetTurnId = acceptingInputTurnId ?? pendingTurns.peek()?.id
 
     if (targetTurnId != null) {
-      pendingInput.enqueue({ input, signal })
+      pendingInput.enqueue(targetTurnId, { input, signal })
       options.emit(targetTurnId, { type: 'turn.input_queued' })
 
       return targetTurnId
