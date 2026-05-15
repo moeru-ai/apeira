@@ -63,9 +63,9 @@ scheduled turn. If no turn is scheduled, it creates a new turn.
 
 ## Interrupt
 
-`interrupt()` is a user-level replacement input. It emits `turn.interrupted` for
-the active turn, aborts that turn, and sends the replacement input to the next
-queued turn or a new turn.
+`interrupt()` is a user-level replacement input. It aborts the active turn,
+records a model-visible turn-aborted boundary, and sends the replacement input
+to the next queued turn or a new turn.
 
 ```ts
 agent.interrupt({

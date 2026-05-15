@@ -58,8 +58,8 @@ const turnId = agent.interrupt({
 })
 ```
 
-`interrupt()` emits `turn.interrupted` for the active turn, aborts it, and sends
-the replacement input to the next queued turn or a new turn.
+`interrupt()` aborts the active turn, records a model-visible turn-aborted
+boundary, and sends the replacement input to the next queued turn or a new turn.
 
 ### Agent Lifecycle
 
@@ -78,7 +78,6 @@ The agent emits Apeira lifecycle events:
 - `turn.start`
 - `turn.input_queued`
 - `turn.input_drained`
-- `turn.interrupted`
 - `turn.done`
 - `turn.failed`
 - `turn.aborted`
