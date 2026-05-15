@@ -48,6 +48,19 @@ const turnId = agent.send({
 the input is queued for that turn and the returned id is the existing turn id.
 Turn progress is reported through subscribed events.
 
+Interrupt the active turn with replacement input:
+
+```ts
+const turnId = agent.interrupt({
+  content: 'Actually, answer this instead.',
+  role: 'user',
+  type: 'message',
+})
+```
+
+`interrupt()` emits `turn.interrupted` for the active turn, aborts it, and sends
+the replacement input to the next queued turn or a new turn.
+
 ### Agent Lifecycle
 
 Each agent keeps an in-memory `history` of completed turns. When a turn starts,
@@ -65,6 +78,7 @@ The agent emits Apeira lifecycle events:
 - `turn.start`
 - `turn.input_queued`
 - `turn.input_drained`
+- `turn.interrupted`
 - `turn.done`
 - `turn.failed`
 - `turn.aborted`
@@ -79,6 +93,10 @@ Abort the currently running turn:
 ```ts
 agent.abort('user cancelled')
 ```
+
+Abort stops the active turn without submitting replacement input. Use
+`interrupt()` when a user wants to stop the active turn and continue with new
+input.
 
 Clear the session:
 

@@ -18,11 +18,16 @@ type ApeiraEvent
   = | { count: number, type: 'turn.input_drained' }
     | { error: unknown, type: 'turn.failed' }
     | { reason?: unknown, type: 'turn.aborted' }
+    | { reason?: unknown, type: 'turn.interrupted' }
     | { type: 'turn.done' }
     | { type: 'turn.input_queued' }
     | { type: 'turn.queued' }
     | { type: 'turn.start' }
 ```
+
+`turn.interrupted` is emitted before the interrupted turn is aborted. It marks a
+user-level replacement input; the replacement input is processed by the next
+queued turn or by a new turn.
 
 ## xsAI events
 

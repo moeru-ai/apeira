@@ -58,6 +58,23 @@ scheduled, it creates a new top-level turn. If a turn is already active or
 scheduled, the input is queued for that turn and drained after the current model
 response completes.
 
+If the active turn has already been aborted, new input is queued for the next
+scheduled turn. If no turn is scheduled, it creates a new turn.
+
+## Interrupt
+
+`interrupt()` is a user-level replacement input. It emits `turn.interrupted` for
+the active turn, aborts that turn, and sends the replacement input to the next
+queued turn or a new turn.
+
+```ts
+agent.interrupt({
+  content: 'Actually, answer this instead.',
+  role: 'user',
+  type: 'message',
+}, 'user interrupted')
+```
+
 ## Clear
 
 `clear()` aborts the running turn, clears queued turns, and resets in-memory

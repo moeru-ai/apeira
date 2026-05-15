@@ -44,6 +44,7 @@ interface Agent<T> {
   abort: (reason?: unknown) => void
   clear: () => void
   getContext: () => AgentContext<T>
+  interrupt: (input: ItemParam, reason?: unknown, signal?: AbortSignal) => string
   run: (input: ItemParam, signal?: AbortSignal) => ReadableStream<AgentEvent>
   send: (input: ItemParam, signal?: AbortSignal) => string
   subscribe: (eventListener: AgentEventListener) => () => boolean
@@ -80,7 +81,26 @@ If no turn is active or scheduled, `send()` creates a new top-level turn. If a
 turn is active or scheduled, the input is queued for that turn and the returned
 id is the existing turn id.
 
+If the active turn is already aborted, `send()` targets the next scheduled turn
+instead. If no turn is scheduled, it creates a new turn.
+
 Use `subscribe()` to observe progress.
+
+### interrupt()
+
+Interrupts the active turn with replacement input and returns the target turn id.
+
+```ts
+const turnId = agent.interrupt({
+  content: 'Actually, answer this instead.',
+  role: 'user',
+  type: 'message',
+}, 'user interrupted')
+```
+
+The active turn emits `turn.interrupted` and is aborted. The replacement input is
+sent to the next scheduled turn or to a new turn. Pass an `AbortSignal` as the
+third argument to make the replacement input cancelable.
 
 ### subscribe()
 

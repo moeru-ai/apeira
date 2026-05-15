@@ -84,6 +84,22 @@ If no turn is active or scheduled, `send()` creates a new top-level turn. If a
 turn is already active or scheduled, it queues the input for that turn and
 returns the existing turn id.
 
+## Interrupt a turn
+
+Use `interrupt()` when new input should stop the currently running turn and
+continue in the next turn.
+
+```ts
+const turnId = agent.interrupt({
+  content: 'Actually, answer this instead.',
+  role: 'user',
+  type: 'message',
+}, 'user interrupted')
+```
+
+The active turn emits `turn.interrupted` and then `turn.aborted`. The new input
+is sent to the next queued turn, or to a new turn if no turn is queued.
+
 ## Abort a turn
 
 Abort the currently running turn:
