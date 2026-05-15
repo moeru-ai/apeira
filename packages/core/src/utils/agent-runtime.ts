@@ -87,7 +87,35 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     options.emit(id, { error: completion.error, type: 'turn.failed' })
   }
 
+  const abortQueuedTurn = (turn: QueuedTurn<T>) =>
+    completeTurn(turn.id, {
+      reason: turn.signal?.reason,
+      type: 'aborted',
+    })
+
+  const pruneAbortedPendingTurns = () => {
+    let targetTurnId: string | undefined
+    const turns = Array.from(pendingTurns.drain())
+
+    for (const turn of turns) {
+      if (turn.signal?.aborted === true) {
+        abortQueuedTurn(turn)
+        continue
+      }
+
+      targetTurnId ??= turn.id
+      pendingTurns.enqueue(turn)
+    }
+
+    return targetTurnId
+  }
+
   const runQueuedTurn = async (turn: QueuedTurn<T>) => {
+    if (turn.signal?.aborted === true) {
+      abortQueuedTurn(turn)
+      return
+    }
+
     const controller = linkedAbort(turn.signal)
     let completion: TurnCompletion = {
       error: new Error('Turn did not complete.'),
@@ -159,7 +187,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     const activeTurnId = activeTurn?.controller.signal.aborted === true
       ? undefined
       : acceptingInputTurnId
-    const targetTurnId = activeTurnId ?? pendingTurns.peek()?.id
+    const targetTurnId = activeTurnId ?? pruneAbortedPendingTurns()
 
     if (targetTurnId != null) {
       pendingInput.enqueue(targetTurnId, input)

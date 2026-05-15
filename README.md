@@ -104,8 +104,8 @@ thread.run({
 })
 ```
 
-Agent context is the complete default context. Thread and run contexts are
-partial overlays. Instructions receive the merged context:
+Agent context starts as the complete default context. Agent, thread, and run
+context updates are partial overlays. Instructions receive the merged context:
 
 ```ts
 const agent = createAgent({
@@ -125,8 +125,9 @@ thread.run(input, {
 })
 ```
 
-`thread.setContext()` persists for later turns on that thread. Run context only
-applies to that submitted input.
+`agent.setContext()` persists as the agent default. `thread.setContext()`
+persists for later turns on that thread. Run context only applies to that
+submitted input.
 
 ### Abort And Clear
 

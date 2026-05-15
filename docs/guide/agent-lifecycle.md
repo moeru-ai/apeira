@@ -92,8 +92,8 @@ Queued turns are removed before they start.
 
 ## Context
 
-Agent context is the complete default context. Thread and run contexts are
-partial overlays. Instructions receive the merged context.
+Agent context starts as the complete default context. Agent, thread, and run
+context updates are partial overlays. Instructions receive the merged context.
 
 ```ts
 const agent = createAgent({

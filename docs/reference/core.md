@@ -47,7 +47,7 @@ interface Agent<T> {
   interrupt: (input: ItemParam, reason?: unknown, options?: AgentRunOptions<T>) => string
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
-  setContext: (context: AgentContext<T>) => void
+  setContext: (context: Partial<AgentContext<T>>) => void
   subscribe: (eventListener: AgentEventListener) => () => boolean
   thread: (options?: ThreadOptions<T>) => AgentThread<T>
 }
@@ -136,8 +136,8 @@ overlay. Different threads can run concurrently.
 
 ### setContext()
 
-Agent context is the complete default context. Thread context is a partial
-overlay. Run context is a partial overlay for that single submitted input.
+Agent context starts as the complete default context. Agent, thread, and run
+context updates are partial overlays.
 
 ```ts
 agent.setContext({
@@ -156,8 +156,8 @@ Instructions receive the merged context:
 const effectiveContext = merge(agentContext, threadContext, runContext)
 ```
 
-`thread.setContext()` persists for later turns on that thread. Run context does
-not persist.
+`agent.setContext()` persists as the agent default. `thread.setContext()`
+persists for later turns on that thread. Run context does not persist.
 
 ### subscribe()
 

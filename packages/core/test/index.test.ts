@@ -278,7 +278,7 @@ describe('createAgent', () => {
     })
   })
 
-  it('keeps thread setContext persistent and run context transient', async () => {
+  it('keeps agent and thread setContext persistent and run context transient', async () => {
     interface Context {
       locale: string
       product: string
@@ -302,6 +302,7 @@ describe('createAgent', () => {
     })
     const thread = agent.thread()
 
+    agent.setContext({ product: 'help' })
     thread.setContext({ locale: 'ja-JP' })
 
     await readEventStream(thread.run(message('Run with request context.'), {
@@ -315,12 +316,12 @@ describe('createAgent', () => {
     })
     expect(JSON.parse(String(responsesFetch.instructions[1]))).toMatchObject({
       locale: 'ja-JP',
-      product: 'docs',
+      product: 'help',
     })
     expect(JSON.parse(String(responsesFetch.instructions[1]))).not.toHaveProperty('requestId')
     expect(agent.getContext()).toEqual({
       locale: 'en-US',
-      product: 'docs',
+      product: 'help',
     })
   })
 
@@ -611,6 +612,54 @@ describe('createAgent', () => {
     expect(events.some(event =>
       event.turnId === secondTurnId && event.type === 'turn.input_drained')).toBe(true)
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'After abort.' })
+  })
+
+  it('does not send input to an already aborted queued turn', async () => {
+    const events: AgentEvent[] = []
+    const { agent, inputs } = createTestAgent(2)
+    const controller = new AbortController()
+    let firstTurnId: string | undefined
+    let sentTurnId: string | undefined
+    controller.abort('stale queued turn')
+
+    const unsubscribe = agent.subscribe((event) => {
+      events.push(event)
+      firstTurnId ??= event.turnId
+
+      if (
+        event.turnId === firstTurnId
+        && event.type === 'turn.done'
+        && sentTurnId == null
+      ) {
+        sentTurnId = agent.send(message('After stale queued turn.'))
+      }
+    })
+
+    const first = readEventStream(agent.run(message('First turn.')))
+    const second = readEventStream(agent.run(message('Already aborted queued turn.'), {
+      signal: controller.signal,
+    }))
+
+    try {
+      const [, secondEvents] = await Promise.all([first, second])
+      expect(sentTurnId).toEqual(expect.any(String))
+      await waitForTurnDone(events, sentTurnId!)
+
+      const secondEventTypes = secondEvents.map(event => event.type)
+      expect(secondEventTypes).toEqual(['turn.queued', 'turn.aborted'])
+      expect(sentTurnId).not.toBe(secondEvents[0]?.turnId)
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(inputs).toHaveLength(2)
+    expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'After stale queued turn.' })
+    expect(inputs.flat().some(item =>
+      typeof item === 'object'
+      && item != null
+      && 'content' in item
+      && item.content === 'Already aborted queued turn.')).toBe(false)
   })
 
   it('interrupts the active turn and sends input to the next turn', async () => {

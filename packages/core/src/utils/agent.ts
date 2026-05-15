@@ -10,8 +10,7 @@ import { merge } from '@moeru/std/merge'
 
 import { createAgentRuntime } from './agent-runtime'
 
-export interface Agent<T> extends Omit<AgentThread<T>, 'id' | 'setContext'> {
-  setContext: (context: AgentContext<T>) => void
+export interface Agent<T> extends Omit<AgentThread<T>, 'id'> {
   thread: (options?: ThreadOptions<T>) => AgentThread<T>
 }
 
@@ -57,9 +56,8 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
   const getContext: Agent<T>['getContext'] = () => context
 
-  const setContext: Agent<T>['setContext'] = (nextContext) => {
-    context = nextContext
-  }
+  const setContext: Agent<T>['setContext'] = nextContext =>
+    context = merge(context, nextContext)
 
   const subscribe: Agent<T>['subscribe'] = (eventListener) => {
     eventListeners.add(eventListener)

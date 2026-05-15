@@ -42,10 +42,8 @@ export const agentContextTypeChecks = () => {
   })
 
   typedAgent.setContext({ locale: 'zh-CN' })
-  typedAgent.run(input, { context: { requestId: 'req_123' } })
-
-  // @ts-expect-error agent context must be complete.
   typedAgent.setContext({ requestId: 'req_123' })
+  typedAgent.run(input, { context: { requestId: 'req_123' } })
 
   const typedThread = typedAgent.thread({
     context: { requestId: 'req_456' },
