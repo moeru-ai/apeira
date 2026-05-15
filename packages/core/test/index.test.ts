@@ -487,11 +487,10 @@ describe('createAgent', () => {
     const secondTurnId = secondEvents[0]?.turnId
 
     expect(interruptedTurnId).toBe(secondTurnId)
-    expect(firstEvents.map(event => event.type)).toContain('turn.interrupted')
     expect(firstEvents.map(event => event.type)).toContain('turn.aborted')
-    const interruptedEvent = events.find(event =>
-      event.turnId === firstTurnId && event.type === 'turn.interrupted')
-    expect(interruptedEvent?.type === 'turn.interrupted' && interruptedEvent.reason).toBe('test interrupt')
+    const abortedEvent = events.find(event =>
+      event.turnId === firstTurnId && event.type === 'turn.aborted')
+    expect(abortedEvent?.type === 'turn.aborted' && abortedEvent.reason).toBe('test interrupt')
     expect(events.some(event =>
       event.turnId === secondTurnId && event.type === 'turn.input_drained')).toBe(true)
     expect(inputs.at(-1)?.at(0)).toMatchObject({
@@ -523,7 +522,7 @@ describe('createAgent', () => {
     await Promise.all([first, second])
     unsubscribe()
 
-    expect(events.map(event => event.type)).toContain('turn.interrupted')
+    expect(events.map(event => event.type)).toContain('turn.aborted')
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Queued turn.' })
     expect(inputs.flat().some(item =>
       typeof item === 'object'

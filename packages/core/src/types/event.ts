@@ -16,7 +16,6 @@ export type ApeiraEvent
     | TurnFailedEvent
     | TurnInputDrainedEvent
     | TurnInputQueuedEvent
-    | TurnInterruptedEvent
     | TurnQueuedEvent
     | TurnStartEvent
 
@@ -41,11 +40,6 @@ export interface TurnInputDrainedEvent {
 
 export interface TurnInputQueuedEvent {
   type: 'turn.input_queued'
-}
-
-export interface TurnInterruptedEvent {
-  reason?: unknown
-  type: 'turn.interrupted'
 }
 
 export interface TurnQueuedEvent {

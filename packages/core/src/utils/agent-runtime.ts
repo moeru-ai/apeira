@@ -179,7 +179,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     const turn = activeTurn
 
     if (turn != null && turn.controller.signal.aborted !== true) {
-      options.emit(turn.id, { reason, type: 'turn.interrupted' })
       thread.append([createTurnAbortedBoundary()])
       turn.controller.abort(reason)
     }
