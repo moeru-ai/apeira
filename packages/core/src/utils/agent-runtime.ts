@@ -94,20 +94,17 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     })
 
   const pruneAbortedPendingTurns = () => {
-    let targetTurnId: string | undefined
-    const turns = Array.from(pendingTurns.drain())
+    while (pendingTurns.size > 0) {
+      const turn = pendingTurns.peek()
 
-    for (const turn of turns) {
-      if (turn.signal?.aborted === true) {
-        abortQueuedTurn(turn)
-        continue
-      }
+      if (turn?.signal?.aborted !== true)
+        return turn?.id
 
-      targetTurnId ??= turn.id
-      pendingTurns.enqueue(turn)
+      pendingTurns.dequeue()
+      abortQueuedTurn(turn)
     }
 
-    return targetTurnId
+    return undefined
   }
 
   const runQueuedTurn = async (turn: QueuedTurn<T>) => {
