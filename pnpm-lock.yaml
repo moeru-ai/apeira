@@ -12,6 +12,9 @@ catalogs:
     '@moeru/eslint-config':
       specifier: ^0.1.0-beta.18
       version: 0.1.0-beta.18
+    '@moeru/std':
+      specifier: ^0.1.0-beta.18
+      version: 0.1.0-beta.18
     '@moeru/tsconfig':
       specifier: ^0.1.0-beta.18
       version: 0.1.0-beta.18
@@ -100,7 +103,7 @@ importers:
   packages/core:
     dependencies:
       '@moeru/std':
-        specifier: 0.1.0-beta.18
+        specifier: 'catalog:'
         version: 0.1.0-beta.18
       '@xsai-ext/responses':
         specifier: catalog:xsai
