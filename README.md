@@ -63,14 +63,14 @@ boundary, and sends the replacement input to the next queued turn or a new turn.
 
 ### Agent Lifecycle
 
-Each agent keeps an in-memory `history` of completed turns. When a turn starts,
-the new input is appended to the current history and passed to
+Each thread keeps an in-memory `history` of completed turns. When a turn starts,
+the new input is appended to the thread history and passed to
 `@xsai-ext/responses`. When the turn completes successfully, the returned input
-state becomes the next history.
+state becomes the next thread history.
 
-Top-level turns submitted with `run()` run one at a time. If `send()` is called
-while a turn is active or scheduled, the new input is drained into that turn
-after the current model response completes.
+Top-level turns submitted to the same thread with `run()` run one at a time. If
+`send()` is called while a turn is active or scheduled on that thread, the new
+input is drained into that turn after the current model response completes.
 
 The agent emits Apeira lifecycle events:
 
@@ -83,7 +83,50 @@ The agent emits Apeira lifecycle events:
 - `turn.aborted`
 
 It also forwards streaming events from `@xsai-ext/responses`, with `turnId`
-attached to every event.
+and `threadId` attached to every event.
+
+### Threads And Context
+
+The root agent methods use a default thread. Create explicit threads when one
+agent definition should serve multiple conversations:
+
+```ts
+const thread = agent.thread({
+  context: {
+    userId: 'user_123',
+  },
+})
+
+thread.run({
+  content: 'Say hello.',
+  role: 'user',
+  type: 'message',
+})
+```
+
+Agent context is the complete default context. Thread and run contexts are
+partial overlays. Instructions receive the merged context:
+
+```ts
+const agent = createAgent({
+  context: {
+    locale: 'en-US',
+    product: 'docs',
+  },
+  instructions: context => `Use locale ${context.locale}.`,
+  name: 'assistant',
+  options,
+})
+
+thread.setContext({ locale: 'zh-CN' })
+
+thread.run(input, {
+  context: { requestId: 'req_123' },
+})
+```
+
+`thread.setContext()` persists for later turns on that thread. Run context only
+applies to that submitted input.
 
 ### Abort And Clear
 
@@ -117,7 +160,9 @@ agent.run(
     role: 'user',
     type: 'message',
   },
-  controller.signal,
+  {
+    signal: controller.signal,
+  },
 )
 
 controller.abort('cancelled')

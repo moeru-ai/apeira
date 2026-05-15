@@ -1,10 +1,11 @@
 # Events
 
-Apeira is event-driven. Every emitted event includes the `turnId` of the turn it
-belongs to.
+Apeira is event-driven. Every emitted event includes the `threadId` of the
+thread and the `turnId` of the turn it belongs to.
 
 ```ts
 type AgentEvent = (ApeiraEvent | XSAIEvent) & {
+  threadId: string
   turnId: string
 }
 ```
@@ -27,7 +28,7 @@ type ApeiraEvent
 ## xsAI events
 
 Apeira forwards streaming events from `@xsai-ext/responses` and attaches the
-same `turnId`.
+same `threadId` and `turnId`.
 
 This includes events such as:
 

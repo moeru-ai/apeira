@@ -119,7 +119,9 @@ agent.run(
     role: 'user',
     type: 'message',
   },
-  controller.signal,
+  {
+    signal: controller.signal,
+  },
 )
 
 controller.abort('cancelled')

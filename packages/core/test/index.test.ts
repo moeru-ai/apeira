@@ -84,6 +84,7 @@ const createResponseStream = (
 
 const createResponsesFetch = (delayMs = 0) => {
   const inputs: unknown[][] = []
+  const instructions: unknown[] = []
 
   const fetch: typeof globalThis.fetch = async (_url, init) => {
     const signal = init?.signal instanceof AbortSignal
@@ -93,8 +94,9 @@ const createResponsesFetch = (delayMs = 0) => {
     if (signal?.aborted)
       throw signal.reason ?? new DOMException('Aborted', 'AbortError')
 
-    const body = JSON.parse(String(init?.body)) as { input: unknown[] }
+    const body = JSON.parse(String(init?.body)) as { input: unknown[], instructions?: unknown }
     inputs.push(body.input)
+    instructions.push(body.instructions)
 
     return createResponseStream(`response ${inputs.length}`, delayMs, signal)
   }
@@ -102,6 +104,7 @@ const createResponsesFetch = (delayMs = 0) => {
   return {
     fetch,
     inputs,
+    instructions,
   }
 }
 
@@ -123,6 +126,7 @@ const createTestAgent = (delayMs = 0) => {
   return {
     agent,
     inputs: responsesFetch.inputs,
+    instructions: responsesFetch.instructions,
   }
 }
 
@@ -230,6 +234,154 @@ describe('createThreadStore', () => {
 })
 
 describe('createAgent', () => {
+  it('merges agent, thread, and run context for instructions', async () => {
+    interface Context {
+      locale: string
+      product: string
+      requestId?: string
+      userId?: string
+    }
+
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent<Context>({
+      context: {
+        locale: 'en-US',
+        product: 'docs',
+      },
+      instructions: context => JSON.stringify(context),
+      name: 'context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+    const thread = agent.thread({
+      context: {
+        locale: 'zh-CN',
+        userId: 'u_123',
+      },
+    })
+
+    await readEventStream(thread.run(message('Use merged context.'), {
+      context: {
+        requestId: 'req_123',
+      },
+    }))
+
+    expect(JSON.parse(String(responsesFetch.instructions[0]))).toEqual({
+      locale: 'zh-CN',
+      product: 'docs',
+      requestId: 'req_123',
+      userId: 'u_123',
+    })
+  })
+
+  it('keeps thread setContext persistent and run context transient', async () => {
+    interface Context {
+      locale: string
+      product: string
+      requestId?: string
+    }
+
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent<Context>({
+      context: {
+        locale: 'en-US',
+        product: 'docs',
+      },
+      instructions: context => JSON.stringify(context),
+      name: 'context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+    const thread = agent.thread()
+
+    thread.setContext({ locale: 'ja-JP' })
+
+    await readEventStream(thread.run(message('Run with request context.'), {
+      context: { requestId: 'req_123' },
+    }))
+    await readEventStream(thread.run(message('Run without request context.')))
+
+    expect(JSON.parse(String(responsesFetch.instructions[0]))).toMatchObject({
+      locale: 'ja-JP',
+      requestId: 'req_123',
+    })
+    expect(JSON.parse(String(responsesFetch.instructions[1]))).toMatchObject({
+      locale: 'ja-JP',
+      product: 'docs',
+    })
+    expect(JSON.parse(String(responsesFetch.instructions[1]))).not.toHaveProperty('requestId')
+    expect(agent.getContext()).toEqual({
+      locale: 'en-US',
+      product: 'docs',
+    })
+  })
+
+  it('runs different threads with isolated queues and contexts', async () => {
+    interface Context {
+      locale: string
+      product: string
+      userId?: string
+    }
+
+    const events: AgentEvent[] = []
+    const responsesFetch = createResponsesFetch(2)
+    const agent = createAgent<Context>({
+      context: {
+        locale: 'en-US',
+        product: 'docs',
+      },
+      instructions: context => JSON.stringify(context),
+      name: 'multi-thread-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+    const unsubscribe = agent.subscribe(event => events.push(event))
+    const first = agent.thread({
+      context: { userId: 'first' },
+      id: 'first-thread',
+    })
+    const second = agent.thread({
+      context: { userId: 'second' },
+      id: 'second-thread',
+    })
+
+    try {
+      await Promise.all([
+        readEventStream(first.run(message('First thread.'))),
+        readEventStream(second.run(message('Second thread.'))),
+      ])
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(new Set(events.map(event => event.threadId))).toEqual(new Set([
+      'first-thread',
+      'second-thread',
+    ]))
+    const userIds = responsesFetch.instructions.map((value) => {
+      const context = JSON.parse(String(value)) as Context
+      return context.userId
+    }).sort((left, right) => String(left).localeCompare(String(right)))
+
+    expect(userIds).toEqual([
+      'first',
+      'second',
+    ])
+  })
+
   it('runs a turn and returns a stream for run', async () => {
     const { agent } = createTestAgent()
 
@@ -513,7 +665,9 @@ describe('createAgent', () => {
       interrupted = true
       queueMicrotask(() => {
         controller.abort('stale interrupt')
-        agent.interrupt(message('Stale interrupting input.'), 'test interrupt', controller.signal)
+        agent.interrupt(message('Stale interrupting input.'), 'test interrupt', {
+          signal: controller.signal,
+        })
       })
     })
 

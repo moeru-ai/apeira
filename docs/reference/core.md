@@ -44,10 +44,12 @@ interface Agent<T> {
   abort: (reason?: unknown) => void
   clear: () => void
   getContext: () => AgentContext<T>
-  interrupt: (input: ItemParam, reason?: unknown, signal?: AbortSignal) => string
-  run: (input: ItemParam, signal?: AbortSignal) => ReadableStream<AgentEvent>
-  send: (input: ItemParam, signal?: AbortSignal) => string
+  interrupt: (input: ItemParam, reason?: unknown, options?: AgentRunOptions<T>) => string
+  run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
+  send: (input: ItemParam, options?: AgentRunOptions<T>) => string
+  setContext: (context: AgentContext<T>) => void
   subscribe: (eventListener: AgentEventListener) => () => boolean
+  thread: (options?: ThreadOptions<T>) => AgentThread<T>
 }
 ```
 
@@ -64,6 +66,15 @@ const stream = agent.run({
 ```
 
 The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
+
+Pass run options with a transient context overlay or `AbortSignal`:
+
+```ts
+agent.run(input, {
+  context: { requestId: 'req_123' },
+  signal,
+})
+```
 
 ### send()
 
@@ -102,6 +113,51 @@ The active turn is aborted and a model-visible turn-aborted boundary is recorded
 before the replacement input is sent to the next scheduled turn or to a new
 turn. Pass an `AbortSignal` as the third argument to make the replacement input
 cancelable.
+
+### threads
+
+The root agent methods use a default thread. Create or address explicit threads
+when one agent definition should serve multiple conversations:
+
+```ts
+const thread = agent.thread({
+  context: { userId: 'user_123' },
+})
+
+thread.run({
+  content: 'Say hello.',
+  role: 'user',
+  type: 'message',
+})
+```
+
+Each thread has its own queue, interrupt state, in-memory history, and context
+overlay. Different threads can run concurrently.
+
+### setContext()
+
+Agent context is the complete default context. Thread context is a partial
+overlay. Run context is a partial overlay for that single submitted input.
+
+```ts
+agent.setContext({
+  locale: 'en-US',
+  product: 'docs',
+})
+
+thread.setContext({
+  locale: 'zh-CN',
+})
+```
+
+Instructions receive the merged context:
+
+```ts
+const effectiveContext = merge(agentContext, threadContext, runContext)
+```
+
+`thread.setContext()` persists for later turns on that thread. Run context does
+not persist.
 
 ### subscribe()
 
@@ -147,4 +203,9 @@ type AgentEvent = WithTurnId<ApeiraEvent | XSAIEvent>
 type AgentEventListener = (event: AgentEvent) => unknown
 
 type ItemParam = Exclude<ResponsesOptions['input'], string>[number]
+
+type WithTurnId<T> = T & {
+  threadId: string
+  turnId: string
+}
 ```

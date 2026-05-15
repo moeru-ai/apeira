@@ -1,11 +1,12 @@
 # Agent Lifecycle
 
-An Apeira agent keeps an in-memory history and runs submitted turns one at a
-time.
+An Apeira agent owns one or more threads. Each thread keeps an in-memory history
+and runs submitted turns one at a time.
 
 ## History
 
-Each agent starts with the optional `input` passed to `createAgent()`.
+The default thread starts with the optional `input` passed to `createAgent()`.
+Explicit threads can also receive their own initial `input`.
 
 When a turn starts, Apeira appends the new input item to the current history and
 passes that full input state to `@xsai-ext/responses`.
@@ -34,8 +35,9 @@ const agent = createAgent({
 
 ## Queueing
 
-Top-level turns submitted with `run()` are serialized. If `run()` is called while
-another turn is running, the new turn waits until the running turn finishes.
+Top-level turns submitted to the same thread with `run()` are serialized. If
+`run()` is called while another turn is running on that thread, the new turn
+waits until the running turn finishes. Different threads can run concurrently.
 
 ```ts
 const first = agent.run({
@@ -90,11 +92,13 @@ Queued turns are removed before they start.
 
 ## Context
 
-`context` is stored on the agent and can be read with `getContext()`.
+Agent context is the complete default context. Thread and run contexts are
+partial overlays. Instructions receive the merged context.
 
 ```ts
 const agent = createAgent({
   context: {
+    locale: 'en-US',
     userId: 'user_123',
   },
   instructions: context => `You are helping ${context.userId}.`,
@@ -109,5 +113,31 @@ const agent = createAgent({
 const context = agent.getContext()
 ```
 
-The current core does not automatically pass this context into xsAI tool
-execution. Tool execution context is planned as a runtime extension point.
+Use `setContext()` to update agent or thread context:
+
+```ts
+agent.setContext({
+  locale: 'en-US',
+  userId: 'user_123',
+})
+
+const thread = agent.thread({
+  context: {
+    userId: 'user_456',
+  },
+})
+
+thread.setContext({
+  locale: 'zh-CN',
+})
+```
+
+Run context only applies to the submitted input:
+
+```ts
+thread.run(input, {
+  context: {
+    requestId: 'req_123',
+  },
+})
+```

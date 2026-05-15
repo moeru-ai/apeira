@@ -2,7 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext } from '../types/context'
 import type { ItemParam } from '../types/responses'
-import type { EmitTurnEvent, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
+import type { EmitTurnEvent, QueuedInput, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
 
 import { linkedAbort } from './linked-abort'
 import { createPendingInput } from './pending-input'
@@ -10,17 +10,17 @@ import { createQueue } from './queue'
 import { createThreadStore } from './thread-store'
 import { runTurn } from './turn-runner'
 
-export interface AgentRuntime {
+export interface AgentRuntime<T = unknown> {
   abort: (reason?: unknown) => void
   clear: () => void
-  enqueueTurn: (id: string, input: ItemParam, signal?: AbortSignal) => void
-  interrupt: (input: ItemParam, reason?: unknown, signal?: AbortSignal) => string
-  send: (input: ItemParam, signal?: AbortSignal) => string
+  enqueueTurn: (turn: QueuedTurn<T>) => void
+  interrupt: (input: QueuedInput<T>, reason?: unknown) => string
+  send: (input: QueuedInput<T>) => string
 }
 
 export interface AgentRuntimeOptions<T> {
-  context: AgentContext<T>
   emit: EmitTurnEvent
+  getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
   input?: ItemParam[]
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
@@ -38,15 +38,15 @@ const createTurnAbortedBoundary = (): ItemParam => ({
   type: 'message',
 })
 
-export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime => {
+export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const initialInput = [...(options.input ?? [])]
-  const pendingInput = createPendingInput()
-  const pendingTurns = createQueue<QueuedTurn>()
+  const pendingInput = createPendingInput<T>()
+  const pendingTurns = createQueue<QueuedTurn<T>>()
   const thread = createThreadStore(initialInput)
 
   const turnOptions: TurnOptions<T> = {
-    context: options.context,
     emit: options.emit,
+    getContext: options.getContext,
     instructions: options.instructions,
     responseOptions: options.responseOptions,
     thread,
@@ -56,10 +56,10 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   let activeTurn: ActiveTurn | undefined
   let pumping = false
 
-  const abort: AgentRuntime['abort'] = reason =>
+  const abort: AgentRuntime<T>['abort'] = reason =>
     activeTurn?.controller.abort(reason)
 
-  const clear: AgentRuntime['clear'] = () => {
+  const clear: AgentRuntime<T>['clear'] = () => {
     acceptingInputTurnId = undefined
     abort('cleared')
 
@@ -87,7 +87,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     options.emit(id, { error: completion.error, type: 'turn.failed' })
   }
 
-  const runQueuedTurn = async (turn: QueuedTurn) => {
+  const runQueuedTurn = async (turn: QueuedTurn<T>) => {
     const controller = linkedAbort(turn.signal)
     let completion: TurnCompletion = {
       error: new Error('Turn did not complete.'),
@@ -148,21 +148,21 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     }
   }
 
-  const enqueueTurn: AgentRuntime['enqueueTurn'] = (id, input, signal) => {
-    options.emit(id, { type: 'turn.queued' })
-    pendingTurns.enqueue({ id, input, signal })
+  const enqueueTurn = (turn: QueuedTurn<T>) => {
+    options.emit(turn.id, { type: 'turn.queued' })
+    pendingTurns.enqueue(turn)
 
     void pumpTurns()
   }
 
-  const send: AgentRuntime['send'] = (input, signal) => {
+  const send = (input: QueuedInput<T>) => {
     const activeTurnId = activeTurn?.controller.signal.aborted === true
       ? undefined
       : acceptingInputTurnId
     const targetTurnId = activeTurnId ?? pendingTurns.peek()?.id
 
     if (targetTurnId != null) {
-      pendingInput.enqueue(targetTurnId, { input, signal })
+      pendingInput.enqueue(targetTurnId, input)
       options.emit(targetTurnId, { type: 'turn.input_queued' })
 
       return targetTurnId
@@ -170,12 +170,12 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
     const id = crypto.randomUUID()
 
-    enqueueTurn(id, input, signal)
+    enqueueTurn({ ...input, id })
 
     return id
   }
 
-  const interrupt: AgentRuntime['interrupt'] = (input, reason = 'interrupted', signal) => {
+  const interrupt = (input: QueuedInput<T>, reason: unknown = 'interrupted') => {
     const turn = activeTurn
 
     if (turn != null && turn.controller.signal.aborted !== true) {
@@ -183,7 +183,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       turn.controller.abort(reason)
     }
 
-    return send(input, signal)
+    return send(input)
   }
 
   return {

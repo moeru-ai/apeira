@@ -1,8 +1,11 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { CreateAgentOptions } from '../src/index'
+import type { CreateAgentOptions, ItemParam } from '../src/index'
+
+import { createAgent } from '../src/index'
 
 declare const responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
+declare const input: ItemParam
 
 export const noContextOptions: CreateAgentOptions = {
   instructions: 'test',
@@ -28,4 +31,26 @@ export const missingRequiredContextOptions: CreateAgentOptions<{ value: string }
   instructions: 'test',
   name: 'test',
   options: responseOptions,
+}
+
+export const agentContextTypeChecks = () => {
+  const typedAgent = createAgent<{ locale: string, requestId?: string }>({
+    context: { locale: 'en-US' },
+    instructions: context => context.locale,
+    name: 'typed',
+    options: responseOptions,
+  })
+
+  typedAgent.setContext({ locale: 'zh-CN' })
+  typedAgent.run(input, { context: { requestId: 'req_123' } })
+
+  // @ts-expect-error agent context must be complete.
+  typedAgent.setContext({ requestId: 'req_123' })
+
+  const typedThread = typedAgent.thread({
+    context: { requestId: 'req_456' },
+  })
+
+  typedThread.setContext({ requestId: 'req_789' })
+  typedThread.run(input, { context: { requestId: 'req_000' } })
 }

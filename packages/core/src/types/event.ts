@@ -4,7 +4,7 @@ import type { Event as XSAIEvent } from '@xsai-ext/responses'
 //   type: 'agent.end'
 // }
 
-export type AgentEvent = WithTurnId<ApeiraEvent | XSAIEvent>
+export type AgentEvent = WithId<ApeiraEvent | XSAIEvent>
 
 // export interface AgentStartEvent {
 //   type: 'agent.start'
@@ -50,6 +50,7 @@ export interface TurnStartEvent {
   type: 'turn.start'
 }
 
-export type WithTurnId<T> = T & {
+export type WithId<T> = T & {
+  threadId: string
   turnId: string
 }

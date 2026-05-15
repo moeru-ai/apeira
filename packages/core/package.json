@@ -38,6 +38,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@moeru/std": "catalog:",
     "@xsai-ext/responses": "catalog:xsai",
     "@xsai/shared": "catalog:xsai",
     "@xsai/shared-chat": "catalog:xsai",
