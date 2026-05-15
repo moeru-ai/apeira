@@ -6,6 +6,7 @@ export interface ThreadSnapshot {
 }
 
 export interface ThreadStore {
+  append: (items: ItemParam[]) => void
   commit: (version: number, items: ItemParam[]) => boolean
   reset: () => void
   snapshot: () => ThreadSnapshot
@@ -17,6 +18,13 @@ export const createThreadStore = (initialItems: ItemParam[] = []): ThreadStore =
   let version = 0
 
   return {
+    append: (nextItems) => {
+      if (nextItems.length === 0)
+        return
+
+      items = [...items, ...nextItems]
+      version += 1
+    },
     commit: (expectedVersion, nextItems) => {
       if (expectedVersion !== version)
         return false

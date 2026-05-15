@@ -213,6 +213,20 @@ describe('createThreadStore', () => {
     expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
     expect(store.snapshot().items).toEqual([message('next')])
   })
+
+  it('appends items and invalidates stale snapshots', () => {
+    const store = createThreadStore([message('initial')])
+    const snapshot = store.snapshot()
+
+    store.append([message('appended')])
+
+    expect(store.snapshot()).toEqual({
+      items: [message('initial'), message('appended')],
+      version: snapshot.version + 1,
+    })
+    expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
+    expect(store.snapshot().items).toEqual([message('initial'), message('appended')])
+  })
 })
 
 describe('createAgent', () => {
@@ -480,6 +494,9 @@ describe('createAgent', () => {
     expect(interruptedEvent?.type === 'turn.interrupted' && interruptedEvent.reason).toBe('test interrupt')
     expect(events.some(event =>
       event.turnId === secondTurnId && event.type === 'turn.input_drained')).toBe(true)
+    expect(inputs.at(-1)?.at(0)).toMatchObject({
+      content: '<turn_aborted>\nThe previous turn was interrupted on purpose. Any tool calls that were running may have partially executed.\n</turn_aborted>',
+    })
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Interrupting input.' })
   })
 
