@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { createAgent } from '../src/index'
 import { createPendingInput } from '../src/utils/pending-input'
 import { createQueue } from '../src/utils/queue'
+import { createThreadStore } from '../src/utils/thread-store'
 
 const wait = async (ms = 0) => {
   await new Promise<void>((resolve) => {
@@ -193,6 +194,24 @@ describe('createPendingInput', () => {
     expect(store.drain('second').map(item => item.input)).toEqual([message('second')])
     expect(store.drain('first').map(item => item.input)).toEqual([message('first')])
     expect(store.drain('second')).toEqual([])
+  })
+})
+
+describe('createThreadStore', () => {
+  it('commits by version and isolates stored items from caller mutations', () => {
+    const store = createThreadStore([message('initial')])
+    const snapshot = store.snapshot()
+    const nextItems = [message('next')]
+
+    expect(store.commit(snapshot.version, nextItems)).toBe(true)
+    nextItems.push(message('mutated'))
+
+    expect(store.snapshot()).toEqual({
+      items: [message('next')],
+      version: snapshot.version + 1,
+    })
+    expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
+    expect(store.snapshot().items).toEqual([message('next')])
   })
 })
 

@@ -21,7 +21,8 @@ export const createThreadStore = (initialItems: ItemParam[] = []): ThreadStore =
       if (expectedVersion !== version)
         return false
 
-      items = nextItems
+      items = [...nextItems]
+      version += 1
       return true
     },
     reset: () => {
