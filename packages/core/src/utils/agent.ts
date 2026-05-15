@@ -11,6 +11,7 @@ export interface Agent<T> {
   abort: (reason?: unknown) => void
   clear: () => void
   getContext: () => AgentContext<T>
+  interrupt: (input: ItemParam, reason?: unknown) => string
   run: (input: ItemParam, signal?: AbortSignal) => ReadableStream<AgentEvent>
   send: (input: ItemParam, signal?: AbortSignal) => string
   subscribe: (eventListener: AgentEventListener) => (() => boolean)
@@ -95,6 +96,9 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const clear: Agent<T>['clear'] = () =>
     runtime.clear()
 
+  const interrupt: Agent<T>['interrupt'] = (input, reason) =>
+    runtime.interrupt(input, reason)
+
   const send: Agent<T>['send'] = (input, signal) =>
     runtime.send(input, signal)
 
@@ -102,6 +106,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     abort,
     clear,
     getContext,
+    interrupt,
     run,
     send,
     subscribe,
