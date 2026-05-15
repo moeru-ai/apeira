@@ -32,6 +32,12 @@ interface ActiveTurn {
   input: ItemParam
 }
 
+const createTurnAbortedBoundary = (): ItemParam => ({
+  content: '<turn_aborted>\nThe previous turn was interrupted on purpose. Any tool calls that were running may have partially executed.\n</turn_aborted>',
+  role: 'user',
+  type: 'message',
+})
+
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime => {
   const initialInput = [...(options.input ?? [])]
   const pendingInput = createPendingInput()
@@ -173,7 +179,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     const turn = activeTurn
 
     if (turn != null && turn.controller.signal.aborted !== true) {
-      options.emit(turn.id, { reason, type: 'turn.interrupted' })
+      thread.append([createTurnAbortedBoundary()])
       turn.controller.abort(reason)
     }
 

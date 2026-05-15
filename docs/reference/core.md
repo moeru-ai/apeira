@@ -98,9 +98,10 @@ const turnId = agent.interrupt({
 }, 'user interrupted')
 ```
 
-The active turn emits `turn.interrupted` and is aborted. The replacement input is
-sent to the next scheduled turn or to a new turn. Pass an `AbortSignal` as the
-third argument to make the replacement input cancelable.
+The active turn is aborted and a model-visible turn-aborted boundary is recorded
+before the replacement input is sent to the next scheduled turn or to a new
+turn. Pass an `AbortSignal` as the third argument to make the replacement input
+cancelable.
 
 ### subscribe()
 

@@ -213,6 +213,20 @@ describe('createThreadStore', () => {
     expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
     expect(store.snapshot().items).toEqual([message('next')])
   })
+
+  it('appends items and invalidates stale snapshots', () => {
+    const store = createThreadStore([message('initial')])
+    const snapshot = store.snapshot()
+
+    store.append([message('appended')])
+
+    expect(store.snapshot()).toEqual({
+      items: [message('initial'), message('appended')],
+      version: snapshot.version + 1,
+    })
+    expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
+    expect(store.snapshot().items).toEqual([message('initial'), message('appended')])
+  })
 })
 
 describe('createAgent', () => {
@@ -473,13 +487,15 @@ describe('createAgent', () => {
     const secondTurnId = secondEvents[0]?.turnId
 
     expect(interruptedTurnId).toBe(secondTurnId)
-    expect(firstEvents.map(event => event.type)).toContain('turn.interrupted')
     expect(firstEvents.map(event => event.type)).toContain('turn.aborted')
-    const interruptedEvent = events.find(event =>
-      event.turnId === firstTurnId && event.type === 'turn.interrupted')
-    expect(interruptedEvent?.type === 'turn.interrupted' && interruptedEvent.reason).toBe('test interrupt')
+    const abortedEvent = events.find(event =>
+      event.turnId === firstTurnId && event.type === 'turn.aborted')
+    expect(abortedEvent?.type === 'turn.aborted' && abortedEvent.reason).toBe('test interrupt')
     expect(events.some(event =>
       event.turnId === secondTurnId && event.type === 'turn.input_drained')).toBe(true)
+    expect(inputs.at(-1)?.at(0)).toMatchObject({
+      content: '<turn_aborted>\nThe previous turn was interrupted on purpose. Any tool calls that were running may have partially executed.\n</turn_aborted>',
+    })
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Interrupting input.' })
   })
 
@@ -506,7 +522,7 @@ describe('createAgent', () => {
     await Promise.all([first, second])
     unsubscribe()
 
-    expect(events.map(event => event.type)).toContain('turn.interrupted')
+    expect(events.map(event => event.type)).toContain('turn.aborted')
     expect(inputs.at(-1)?.at(-1)).toMatchObject({ content: 'Queued turn.' })
     expect(inputs.flat().some(item =>
       typeof item === 'object'

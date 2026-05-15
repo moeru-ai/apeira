@@ -97,8 +97,8 @@ const turnId = agent.interrupt({
 }, 'user interrupted')
 ```
 
-The active turn emits `turn.interrupted` and then `turn.aborted`. The new input
-is sent to the next queued turn, or to a new turn if no turn is queued.
+The active turn emits `turn.aborted`. The new input is sent to the next queued
+turn, or to a new turn if no turn is queued.
 
 ## Abort a turn
 
