@@ -3,6 +3,7 @@ import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
 import type { AgentContext } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
 import type { ItemParam } from '../types/responses'
+import type { ThreadStore } from './thread-store'
 
 import { responses, stepCountAtLeast } from '@xsai-ext/responses'
 
@@ -19,16 +20,10 @@ export interface QueuedTurn {
   signal?: AbortSignal
 }
 
-export interface ResponseHistory {
-  items: ItemParam[]
-  version: number
-}
-
 export interface RunTurnOptions {
   controller: AbortController
   drainInput: () => QueuedInput[]
   turn: QueuedTurn
-  version: number
 }
 
 export type RunTurnParams<T> = RunTurnOptions & TurnOptions<T>
@@ -41,16 +36,17 @@ export type TurnCompletion
 export interface TurnOptions<T> {
   context: AgentContext<T>
   emit: EmitTurnEvent
-  history: ResponseHistory
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
+  thread: ThreadStore
 }
 
 const runResponse = async <T>(
   options: RunTurnParams<T>,
   input: ItemParam[],
 ) => {
-  const responseInput = [...options.history.items, ...input]
+  const snapshot = options.thread.snapshot()
+  const responseInput = [...snapshot.items, ...input]
 
   const result = responses({
     ...options.responseOptions,
@@ -72,8 +68,7 @@ const runResponse = async <T>(
 
   const resolvedInput = await result.input
 
-  if (options.version === options.history.version)
-    options.history.items = resolvedInput
+  options.thread.commit(snapshot.version, resolvedInput)
 }
 
 export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion> => {

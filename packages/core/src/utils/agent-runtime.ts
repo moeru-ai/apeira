@@ -2,11 +2,12 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext } from '../types/context'
 import type { ItemParam } from '../types/responses'
-import type { EmitTurnEvent, QueuedTurn, ResponseHistory, TurnCompletion, TurnOptions } from './turn-runner'
+import type { EmitTurnEvent, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
 
 import { linkedAbort } from './linked-abort'
 import { createPendingInput } from './pending-input'
 import { createQueue } from './queue'
+import { createThreadStore } from './thread-store'
 import { runTurn } from './turn-runner'
 
 export interface AgentRuntime {
@@ -35,18 +36,14 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const initialInput = [...(options.input ?? [])]
   const pendingInput = createPendingInput()
   const pendingTurns = createQueue<QueuedTurn>()
-
-  const history: ResponseHistory = {
-    items: [...initialInput],
-    version: 0,
-  }
+  const thread = createThreadStore(initialInput)
 
   const turnOptions: TurnOptions<T> = {
     context: options.context,
     emit: options.emit,
-    history,
     instructions: options.instructions,
     responseOptions: options.responseOptions,
+    thread,
   }
 
   let acceptingInputTurnId: string | undefined
@@ -65,8 +62,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     for (const turn of pendingTurns.drain())
       options.emit(turn.id, { reason: 'cleared', type: 'turn.aborted' })
 
-    history.items = [...initialInput]
-    history.version += 1
+    thread.reset()
   }
 
   const completeTurn = (id: string, completion: TurnCompletion) => {
@@ -87,7 +83,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
   const runQueuedTurn = async (turn: QueuedTurn) => {
     const controller = linkedAbort(turn.signal)
-    const version = history.version
     let completion: TurnCompletion = {
       error: new Error('Turn did not complete.'),
       type: 'failed',
@@ -106,7 +101,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
         controller,
         drainInput: () => pendingInput.drain(turn.id),
         turn,
-        version,
       })
     }
     catch (error) {
