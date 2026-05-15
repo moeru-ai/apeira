@@ -71,9 +71,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const completeTurn = (id: string, completion: TurnCompletion) => {
     pendingInput.delete(id)
 
-    if (acceptingInputTurnId === id)
-      acceptingInputTurnId = undefined
-
     if (completion.type === 'done') {
       options.emit(id, { type: 'turn.done' })
       return
