@@ -50,16 +50,23 @@ export type PluginChannelListener<T = unknown> = (
   context: { channel: string, pluginApi: ApeiraPluginApi<T> },
 ) => void
 
-export interface ResolveToolsContext<T = unknown> extends TurnStartContext<T> {
+export interface ResolveToolsContext<T = unknown> extends ResponseContext<T> {
   tools: readonly Tool[]
 }
 
 export interface ResponseContext<T = unknown> {
   agentName: string
   context: AgentContext<T>
+  input: readonly ItemParam[]
   signal: AbortSignal
   threadId: string
   turnId: string
+  turnInput: ItemParam
+}
+
+export interface ThreadClearSaveContext<T = unknown> extends ThreadInitContext<T> {
+  reason: 'clear'
+  snapshot: ThreadSnapshot
 }
 
 export interface ThreadInitContext<T = unknown> {
@@ -72,11 +79,16 @@ export interface ThreadLoadContext<T = unknown> extends ThreadInitContext<T> {
   input: readonly ItemParam[]
 }
 
-export interface ThreadSaveContext<T = unknown> extends ThreadInitContext<T> {
+export interface ThreadResponseSaveContext<T = unknown> extends ResponseContext<T> {
+  reason: 'response'
   snapshot: ThreadSnapshot
 }
 
-export interface TurnDoneContext<T = unknown> extends TurnStartContext<T> {
+export type ThreadSaveContext<T = unknown>
+  = | ThreadClearSaveContext<T>
+    | ThreadResponseSaveContext<T>
+
+export interface TurnDoneContext<T = unknown> extends ResponseContext<T> {
   snapshot: ThreadSnapshot
 }
 

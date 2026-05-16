@@ -33,10 +33,10 @@ export interface RunTurnOptions<T> {
 
 export type RunTurnParams<T> = RunTurnOptions<T> & TurnOptions<T>
 
-export type TurnCompletion
-  = | { error: unknown, type: 'failed' }
+export type TurnCompletion<T = unknown>
+  = | { context: ResponseContext<T>, type: 'done' }
+    | { error: unknown, type: 'failed' }
     | { reason?: unknown, type: 'aborted' }
-    | { type: 'done' }
 
 export interface TurnOptions<T> {
   agentName: string
@@ -76,6 +76,20 @@ const createTurnStartContext = <T>(
   turnId: options.turn.id,
 })
 
+const createResponseContext = <T>(
+  options: RunTurnParams<T>,
+  context: AgentContext<T>,
+  input: ItemParam[],
+): ResponseContext<T> => ({
+  agentName: options.agentName,
+  context,
+  input,
+  signal: options.controller.signal,
+  threadId: options.threadId,
+  turnId: options.turn.id,
+  turnInput: options.turn.input,
+})
+
 const mergeTools = (tools: Tool[]): Tool[] => {
   const byName = new Map<string, Tool>()
 
@@ -87,7 +101,7 @@ const mergeTools = (tools: Tool[]): Tool[] => {
 
 const resolveTools = async <T>(
   options: RunTurnParams<T>,
-  context: AgentContext<T>,
+  context: ResponseContext<T>,
 ) => {
   let tools = [...(options.responseOptions.tools ?? [])]
 
@@ -95,10 +109,7 @@ const resolveTools = async <T>(
     if (plugin.resolveTools == null)
       continue
 
-    const resolvedTools = await plugin.resolveTools({
-      ...createTurnStartContext(options, context),
-      tools,
-    } satisfies ResolveToolsContext<T>)
+    const resolvedTools = await plugin.resolveTools({ ...context, tools } satisfies ResolveToolsContext<T>)
 
     if (resolvedTools != null)
       tools = mergeTools([...tools, ...resolvedTools])
@@ -177,18 +188,12 @@ const createPrepareStep = <T>(
 const runResponse = async <T>(
   options: RunTurnParams<T>,
   input: Array<QueuedInput<T> | QueuedTurn<T>>,
-) => {
+): Promise<ResponseContext<T>> => {
   const snapshot = options.thread.snapshot()
   const responseInput = [...snapshot.items, ...input.map(item => item.input)]
   const context = mergeRunContext(options.getContext(), input)
-  const responseContext: ResponseContext<T> = {
-    agentName: options.agentName,
-    context,
-    signal: options.controller.signal,
-    threadId: options.threadId,
-    turnId: options.turn.id,
-  }
-  const tools = await resolveTools(options, context)
+  const responseContext = createResponseContext(options, context, responseInput)
+  const tools = await resolveTools(options, responseContext)
 
   const result = responses({
     ...options.responseOptions,
@@ -218,13 +223,20 @@ const runResponse = async <T>(
     await options.saveThread({
       agentName: options.agentName,
       context,
+      input: responseInput,
+      reason: 'response',
+      signal: options.controller.signal,
       snapshot: options.thread.snapshot(),
       threadId: options.threadId,
+      turnId: options.turn.id,
+      turnInput: options.turn.input,
     })
   }
+
+  return responseContext
 }
 
-export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion> => {
+export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion<T>> => {
   try {
     await options.ready()
 
@@ -236,9 +248,10 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
     options.emit(options.turn.id, { type: 'turn.start' })
 
     let nextInput: Array<QueuedInput<T> | QueuedTurn<T>> = [options.turn]
+    let responseContext: ResponseContext<T> | undefined
 
     while (true) {
-      await runResponse(options, nextInput)
+      responseContext = await runResponse(options, nextInput)
 
       if (options.controller.signal.aborted)
         throw options.controller.signal.reason
@@ -251,7 +264,10 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
       nextInput = drained
     }
 
-    return { type: 'done' }
+    if (responseContext == null)
+      throw new Error('Turn completed without a response context.')
+
+    return { context: responseContext, type: 'done' }
   }
   catch (error) {
     if (options.controller.signal.aborted)

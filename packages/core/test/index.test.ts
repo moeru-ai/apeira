@@ -401,6 +401,78 @@ describe('createAgent', () => {
     ]))
   })
 
+  it('uses the current response context for drained input hooks', async () => {
+    const records: Array<{ hook: string, lastInput?: unknown, requestId?: string }> = []
+    const responsesFetch = createResponsesFetch(2)
+    const agent = createAgent<{ requestId?: string }>({
+      context: {},
+      instructions: 'You are a plugin test assistant.',
+      name: 'response-context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'context-recorder',
+        onTurnDone: ({ context, input }) => {
+          records.push({ hook: 'onTurnDone', lastInput: input.at(-1), requestId: context.requestId })
+        },
+        saveThread: (context) => {
+          if (context.reason !== 'response')
+            return
+
+          records.push({
+            hook: 'saveThread',
+            lastInput: context.input.at(-1),
+            requestId: context.context.requestId,
+          })
+        },
+      }],
+    })
+    const events: AgentEvent[] = []
+    let turnId: string
+    let injectedTurnId: string | undefined
+
+    const unsubscribe = agent.subscribe((event) => {
+      events.push(event)
+
+      if (
+        event.turnId === turnId
+        && event.type === 'step.start'
+        && injectedTurnId == null
+      ) {
+        injectedTurnId = agent.send(message('Follow up.'), {
+          context: { requestId: 'follow' },
+        })
+      }
+    })
+
+    turnId = agent.send(message('Initial turn.'), {
+      context: { requestId: 'initial' },
+    })
+
+    try {
+      await waitForTurnDone(events, turnId)
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(injectedTurnId).toBe(turnId)
+    expect(records.at(-1)).toEqual({
+      hook: 'onTurnDone',
+      lastInput: message('Follow up.'),
+      requestId: 'follow',
+    })
+    expect(records).toContainEqual({
+      hook: 'saveThread',
+      lastInput: message('Follow up.'),
+      requestId: 'follow',
+    })
+  })
+
   it('merges agent, thread, and run context for instructions', async () => {
     interface Context {
       locale: string
