@@ -1,5 +1,6 @@
 export * from './types/event'
 export * from './types/event-listener'
+export * from './types/plugin'
 export * from './types/responses'
 export * from './utils/agent'
 export * from './utils/agent-thread'

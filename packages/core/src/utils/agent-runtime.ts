@@ -1,7 +1,9 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext } from '../types/context'
+import type { TurnDoneContext } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
+import type { ThreadSnapshot } from './thread-store'
 import type { EmitTurnEvent, QueuedInput, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
 
 import { linkedAbort } from './linked-abort'
@@ -19,11 +21,18 @@ export interface AgentRuntime<T = unknown> {
 }
 
 export interface AgentRuntimeOptions<T> {
+  agentName: string
   emit: EmitTurnEvent
   getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
   input?: ItemParam[]
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
+  loadThread: () => Promise<ThreadSnapshot | void> | ThreadSnapshot | void
+  onTurnDone: (context: TurnDoneContext<T>) => Promise<void> | void
+  plugins: TurnOptions<T>['plugins']
+  ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
+  saveThread: TurnOptions<T>['saveThread']
+  threadId: string
 }
 
 interface ActiveTurn {
@@ -45,15 +54,21 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const thread = createThreadStore(initialInput)
 
   const turnOptions: TurnOptions<T> = {
+    agentName: options.agentName,
     emit: options.emit,
     getContext: options.getContext,
     instructions: options.instructions,
+    plugins: options.plugins,
+    ready: options.ready,
     responseOptions: options.responseOptions,
+    saveThread: options.saveThread,
     thread,
+    threadId: options.threadId,
   }
 
   let acceptingInputTurnId: string | undefined
   let activeTurn: ActiveTurn | undefined
+  let loaded = false
   let pumping = false
 
   const abort: AgentRuntime<T>['abort'] = reason =>
@@ -69,6 +84,12 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       options.emit(turn.id, { reason: 'cleared', type: 'turn.aborted' })
 
     thread.reset()
+    void options.saveThread({
+      agentName: options.agentName,
+      context: options.getContext(),
+      snapshot: thread.snapshot(),
+      threadId: options.threadId,
+    })
   }
 
   const completeTurn = (id: string, completion: TurnCompletion) => {
@@ -113,6 +134,23 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       return
     }
 
+    try {
+      await options.ready()
+
+      if (!loaded) {
+        const snapshot = await options.loadThread()
+
+        if (snapshot != null)
+          thread.hydrate(snapshot)
+
+        loaded = true
+      }
+    }
+    catch (error) {
+      completeTurn(turn.id, { error, type: 'failed' })
+      return
+    }
+
     const controller = linkedAbort(turn.signal)
     let completion: TurnCompletion = {
       error: new Error('Turn did not complete.'),
@@ -145,6 +183,23 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
       if (acceptingInputTurnId === turn.id)
         acceptingInputTurnId = undefined
+    }
+
+    if (completion.type === 'done') {
+      try {
+        await options.onTurnDone({
+          agentName: options.agentName,
+          context: options.getContext(turn.context),
+          input: turn.input,
+          signal: controller.signal,
+          snapshot: thread.snapshot(),
+          threadId: options.threadId,
+          turnId: turn.id,
+        })
+      }
+      catch (error) {
+        completion = { error, type: 'failed' }
+      }
     }
 
     completeTurn(turn.id, completion)

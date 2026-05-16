@@ -8,6 +8,7 @@ export interface ThreadSnapshot {
 export interface ThreadStore {
   append: (items: ItemParam[]) => void
   commit: (version: number, items: ItemParam[]) => boolean
+  hydrate: (snapshot: ThreadSnapshot) => void
   reset: () => void
   snapshot: () => ThreadSnapshot
 }
@@ -32,6 +33,10 @@ export const createThreadStore = (initialItems: ItemParam[] = []): ThreadStore =
       items = [...nextItems]
       version += 1
       return true
+    },
+    hydrate: (snapshot) => {
+      items = [...snapshot.items]
+      version = snapshot.version
     },
     reset: () => {
       items = [...initial]

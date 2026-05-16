@@ -1,3 +1,5 @@
+import type { Tool } from '@xsai/shared-chat'
+
 import type { AgentEvent } from '../src/index'
 import type { ItemParam } from '../src/types/responses'
 
@@ -83,6 +85,7 @@ const createResponseStream = (
 }
 
 const createResponsesFetch = (delayMs = 0) => {
+  const bodies: Array<{ input: unknown[], instructions?: unknown, tools?: unknown[] }> = []
   const inputs: unknown[][] = []
   const instructions: unknown[] = []
 
@@ -94,7 +97,8 @@ const createResponsesFetch = (delayMs = 0) => {
     if (signal?.aborted)
       throw signal.reason ?? new DOMException('Aborted', 'AbortError')
 
-    const body = JSON.parse(String(init?.body)) as { input: unknown[], instructions?: unknown }
+    const body = JSON.parse(String(init?.body)) as { input: unknown[], instructions?: unknown, tools?: unknown[] }
+    bodies.push(body)
     inputs.push(body.input)
     instructions.push(body.instructions)
 
@@ -102,6 +106,7 @@ const createResponsesFetch = (delayMs = 0) => {
   }
 
   return {
+    bodies,
     fetch,
     inputs,
     instructions,
@@ -234,6 +239,100 @@ describe('createThreadStore', () => {
 })
 
 describe('createAgent', () => {
+  it('runs plugins through thread, turn, response, and storage hooks', async () => {
+    const calls: string[] = []
+    const responsesFetch = createResponsesFetch()
+    const weatherTool: Tool = {
+      execute: () => 'sunny',
+      function: {
+        name: 'weather',
+        parameters: {},
+      },
+      type: 'function',
+    }
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'plugin-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [false, [{
+        loadThread: () => {
+          calls.push('loadThread')
+          return {
+            items: [message('loaded history')],
+            version: 0,
+          }
+        },
+        name: 'test-plugin',
+        onEvent: (event) => {
+          if (!(event.type.startsWith('turn.')))
+            return
+
+          calls.push(`event:${event.type}`)
+        },
+        onFinish: () => {
+          calls.push('onFinish')
+        },
+        onStepFinish: () => {
+          calls.push('onStepFinish')
+        },
+        onThreadCreate: () => {
+          calls.push('onThreadCreate')
+        },
+        onTurnDone: () => {
+          calls.push('onTurnDone')
+        },
+        onTurnStart: () => {
+          calls.push('onTurnStart')
+        },
+        resolveTools: ({ tools }) => {
+          calls.push(`resolveTools:${tools.length}`)
+          return [weatherTool]
+        },
+        saveThread: ({ snapshot }) => {
+          calls.push(`saveThread:${snapshot.items.length}`)
+        },
+        setup: () => {
+          calls.push('setup')
+        },
+      }], null],
+    })
+
+    const events = await readEventStream(agent.run(message('use plugin')))
+    await wait()
+
+    expect(events.at(-1)?.type).toBe('turn.done')
+    expect(responsesFetch.inputs[0]).toEqual([
+      message('loaded history'),
+      message('use plugin'),
+    ])
+    expect(responsesFetch.bodies[0]?.tools).toEqual([{
+      description: null,
+      name: 'weather',
+      parameters: {},
+      strict: true,
+      type: 'function',
+    }])
+    expect(calls).toEqual(expect.arrayContaining([
+      'setup',
+      'onThreadCreate',
+      'loadThread',
+      'onTurnStart',
+      'resolveTools:0',
+      'onStepFinish',
+      'onFinish',
+      'saveThread:3',
+      'onTurnDone',
+      'event:turn.queued',
+      'event:turn.start',
+      'event:turn.done',
+    ]))
+  })
+
   it('merges agent, thread, and run context for instructions', async () => {
     interface Context {
       locale: string
