@@ -53,19 +53,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const pendingTurns = createQueue<QueuedTurn<T>>()
   const thread = createThreadStore(initialInput)
 
-  const turnOptions: TurnOptions<T> = {
-    agentName: options.agentName,
-    emit: options.emit,
-    getContext: options.getContext,
-    instructions: options.instructions,
-    plugins: options.plugins,
-    ready: options.ready,
-    responseOptions: options.responseOptions,
-    saveThread: options.saveThread,
-    thread,
-    threadId: options.threadId,
-  }
-
   let acceptingInputTurnId: string | undefined
   let activeTurn: ActiveTurn | undefined
   let loaded = false
@@ -83,12 +70,18 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       return
 
     loadReady ??= (async () => {
-      const snapshot = await options.loadThread()
+      try {
+        const snapshot = await options.loadThread()
 
-      if (snapshot != null)
-        thread.hydrate(snapshot)
+        if (snapshot != null)
+          thread.hydrate(snapshot)
 
-      loaded = true
+        loaded = true
+      }
+      catch (error) {
+        loadReady = undefined
+        throw error
+      }
     })()
 
     await loadReady
@@ -99,6 +92,20 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     pendingMutation = next.catch(() => undefined)
 
     return next
+  }
+
+  const turnOptions: TurnOptions<T> = {
+    agentName: options.agentName,
+    emit: options.emit,
+    getContext: options.getContext,
+    instructions: options.instructions,
+    mutateThread,
+    plugins: options.plugins,
+    ready: options.ready,
+    responseOptions: options.responseOptions,
+    saveThread: options.saveThread,
+    thread,
+    threadId: options.threadId,
   }
 
   const clear: AgentRuntime<T>['clear'] = () => {

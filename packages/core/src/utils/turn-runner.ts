@@ -43,6 +43,7 @@ export interface TurnOptions<T> {
   emit: EmitTurnEvent
   getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
+  mutateThread: (fn: () => Promise<void>) => Promise<void>
   plugins: ApeiraPlugin<T>[]
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
@@ -219,7 +220,10 @@ const runResponse = async <T>(
 
   const resolvedInput = await result.input
 
-  if (options.thread.commit(snapshot.version, resolvedInput)) {
+  await options.mutateThread(async () => {
+    if (!options.thread.commit(snapshot.version, resolvedInput))
+      return
+
     await options.saveThread({
       agentName: options.agentName,
       context,
@@ -231,7 +235,7 @@ const runResponse = async <T>(
       turnId: options.turn.id,
       turnInput: options.turn.input,
     })
-  }
+  })
 
   return responseContext
 }

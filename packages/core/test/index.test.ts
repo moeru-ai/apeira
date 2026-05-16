@@ -271,6 +271,89 @@ describe('createAgent', () => {
     }])
   })
 
+  it('retries loading thread state after loadThread fails', async () => {
+    const responsesFetch = createResponsesFetch()
+    const events: AgentEvent[] = []
+    let loadAttempts = 0
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'load-retry-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        loadThread: () => {
+          loadAttempts += 1
+
+          if (loadAttempts === 1)
+            throw new Error('temporary storage failure')
+        },
+        name: 'storage',
+      }],
+    })
+
+    const unsubscribe = agent.subscribe(event => events.push(event))
+    const failedTurnId = agent.send(message('first'))
+
+    try {
+      for (let i = 0; i < 200; i += 1) {
+        if (events.some(event => event.turnId === failedTurnId && event.type === 'turn.failed'))
+          break
+
+        await wait(5)
+      }
+
+      const streamEvents = await readEventStream(agent.run(message('second')))
+
+      expect(streamEvents.at(-1)?.type).toBe('turn.done')
+      expect(loadAttempts).toBe(2)
+    }
+    finally {
+      unsubscribe()
+    }
+  })
+
+  it('serializes response save and clear save', async () => {
+    const saves: string[] = []
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'save-race-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'storage',
+        saveThread: async (context) => {
+          saves.push(`${context.reason}:start`)
+
+          if (context.reason === 'response') {
+            agent.clear()
+            await wait(10)
+          }
+
+          saves.push(`${context.reason}:end`)
+        },
+      }],
+    })
+
+    const events = await readEventStream(agent.run(message('race')))
+    await wait()
+
+    expect(events.at(-1)?.type).toBe('turn.aborted')
+    expect(saves).toEqual([
+      'response:start',
+      'response:end',
+      'clear:start',
+      'clear:end',
+    ])
+  })
+
   it('runs plugin setup sequentially in plugin order', async () => {
     const calls: string[] = []
     const agent = createAgent({
