@@ -173,15 +173,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       return
     }
 
-    try {
-      await pendingMutation
-      await ensureLoaded()
-    }
-    catch (error) {
-      completeTurn(turn.id, { error, type: 'failed' })
-      return
-    }
-
     const controller = linkedAbort(turn.signal)
     let completion: TurnCompletion<T> = {
       error: new Error('Turn did not complete.'),
@@ -196,12 +187,20 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     acceptingInputTurnId = turn.id
 
     try {
-      completion = await runTurn<T>({
-        ...turnOptions,
-        controller,
-        drainInput: () => pendingInput.drain(turn.id),
-        turn,
-      })
+      await pendingMutation
+      await ensureLoaded()
+
+      if (controller.signal.aborted) {
+        completion = { reason: controller.signal.reason, type: 'aborted' }
+      }
+      else {
+        completion = await runTurn<T>({
+          ...turnOptions,
+          controller,
+          drainInput: () => pendingInput.drain(turn.id),
+          turn,
+        })
+      }
     }
     catch (error) {
       completion = controller.signal.aborted

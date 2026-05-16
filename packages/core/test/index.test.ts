@@ -354,6 +354,59 @@ describe('createAgent', () => {
     ])
   })
 
+  it('aborts a dequeued turn while loading thread state', async () => {
+    const events: AgentEvent[] = []
+    let resolveLoad: (() => void) | undefined
+    let loadStarted = false
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'clear-during-load-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        loadThread: async () => {
+          loadStarted = true
+          await new Promise<void>((resolve) => {
+            resolveLoad = resolve
+          })
+        },
+        name: 'storage',
+      }],
+    })
+    const unsubscribe = agent.subscribe(event => events.push(event))
+    const turnId = agent.send(message('slow load'))
+
+    try {
+      for (let i = 0; i < 200; i += 1) {
+        if (loadStarted)
+          break
+
+        await wait(5)
+      }
+
+      expect(loadStarted).toBe(true)
+
+      agent.clear()
+      resolveLoad?.()
+
+      for (let i = 0; i < 200; i += 1) {
+        if (events.some(event => event.turnId === turnId && event.type === 'turn.aborted'))
+          break
+
+        await wait(5)
+      }
+
+      expect(events.some(event => event.turnId === turnId && event.type === 'turn.aborted')).toBe(true)
+    }
+    finally {
+      unsubscribe()
+    }
+  })
+
   it('runs plugin setup sequentially in plugin order', async () => {
     const calls: string[] = []
     const agent = createAgent({
