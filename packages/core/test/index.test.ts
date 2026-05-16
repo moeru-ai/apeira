@@ -348,8 +348,8 @@ describe('createAgent', () => {
         onStepFinish: () => {
           calls.push('onStepFinish')
         },
-        onThreadCreate: () => {
-          calls.push('onThreadCreate')
+        onThreadInit: () => {
+          calls.push('onThreadInit')
         },
         onTurnDone: () => {
           calls.push('onTurnDone')
@@ -387,7 +387,7 @@ describe('createAgent', () => {
     }])
     expect(calls).toEqual(expect.arrayContaining([
       'setup',
-      'onThreadCreate',
+      'onThreadInit',
       'loadThread',
       'onTurnStart',
       'resolveTools:0',

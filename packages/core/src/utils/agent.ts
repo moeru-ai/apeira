@@ -3,7 +3,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { AgentContext } from '../types/context'
 import type { AgentEvent } from '../types/event'
 import type { AgentEventListener } from '../types/event-listener'
-import type { ApeiraPlugin, ApeiraPluginApi, ApeiraPluginOption, PluginChannelListener, ThreadCreateContext } from '../types/plugin'
+import type { ApeiraPlugin, ApeiraPluginApi, ApeiraPluginOption, PluginChannelListener, ThreadInitContext } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { AgentThread } from './agent-thread'
 
@@ -131,7 +131,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
       merge(merge(context, threadContext), runContext)
 
-    const createThreadContext = (): ThreadCreateContext<T> => ({
+    const createThreadContext = (): ThreadInitContext<T> => ({
       agentName: options.name,
       context: resolveContext(),
       threadId: id,
@@ -142,7 +142,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const ensureThreadReady = async () => {
       threadReady ??= ready.then(async () => {
         for (const plugin of plugins)
-          await plugin.onThreadCreate?.(createThreadContext())
+          await plugin.onThreadInit?.(createThreadContext())
       })
 
       return threadReady
