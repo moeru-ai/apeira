@@ -69,10 +69,37 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   let acceptingInputTurnId: string | undefined
   let activeTurn: ActiveTurn | undefined
   let loaded = false
+  let loadReady: Promise<void> | undefined
+  let pendingMutation = Promise.resolve()
   let pumping = false
 
   const abort: AgentRuntime<T>['abort'] = reason =>
     activeTurn?.controller.abort(reason)
+
+  const ensureLoaded = async () => {
+    await options.ready()
+
+    if (loaded)
+      return
+
+    loadReady ??= (async () => {
+      const snapshot = await options.loadThread()
+
+      if (snapshot != null)
+        thread.hydrate(snapshot)
+
+      loaded = true
+    })()
+
+    await loadReady
+  }
+
+  const mutateThread = (fn: () => Promise<void>) => {
+    const next = pendingMutation.then(fn, fn)
+    pendingMutation = next.catch(() => undefined)
+
+    return next
+  }
 
   const clear: AgentRuntime<T>['clear'] = () => {
     acceptingInputTurnId = undefined
@@ -83,13 +110,17 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     for (const turn of pendingTurns.drain())
       options.emit(turn.id, { reason: 'cleared', type: 'turn.aborted' })
 
-    thread.reset()
-    void options.saveThread({
-      agentName: options.agentName,
-      context: options.getContext(),
-      snapshot: thread.snapshot(),
-      threadId: options.threadId,
-    })
+    void mutateThread(async () => {
+      await ensureLoaded()
+
+      thread.reset()
+      await options.saveThread({
+        agentName: options.agentName,
+        context: options.getContext(),
+        snapshot: thread.snapshot(),
+        threadId: options.threadId,
+      })
+    }).catch(() => undefined)
   }
 
   const completeTurn = (id: string, completion: TurnCompletion) => {
@@ -135,16 +166,8 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     }
 
     try {
-      await options.ready()
-
-      if (!loaded) {
-        const snapshot = await options.loadThread()
-
-        if (snapshot != null)
-          thread.hydrate(snapshot)
-
-        loaded = true
-      }
+      await pendingMutation
+      await ensureLoaded()
     }
     catch (error) {
       completeTurn(turn.id, { error, type: 'failed' })

@@ -88,7 +88,10 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     },
   }
 
-  const ready = Promise.all(plugins.map(async plugin => plugin.setup?.(pluginApi))).then(() => undefined)
+  const ready = (async () => {
+    for (const plugin of plugins)
+      await plugin.setup?.(pluginApi)
+  })()
   void ready.catch(() => undefined)
 
   const emit = (

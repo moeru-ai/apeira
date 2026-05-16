@@ -13,7 +13,7 @@ export interface ApeiraPlugin<T = unknown> {
   onEvent?: (event: AgentEvent, context: EventContext<T>) => MaybePromise<void>
   onFinish?: (step: CompletionStep | undefined, context: ResponseContext<T>) => MaybePromise<void>
   onStepFinish?: (step: CompletionStep, context: ResponseContext<T>) => MaybePromise<void>
-  onThreadCreate?: (context: ThreadCreateContext<T>) => MaybePromise<void>
+  onThreadInit?: (context: ThreadInitContext<T>) => MaybePromise<void>
   onTurnDone?: (context: TurnDoneContext<T>) => MaybePromise<void>
   onTurnStart?: (context: TurnStartContext<T>) => MaybePromise<void>
   prepareStep?: (
@@ -62,17 +62,17 @@ export interface ResponseContext<T = unknown> {
   turnId: string
 }
 
-export interface ThreadCreateContext<T = unknown> {
+export interface ThreadInitContext<T = unknown> {
   agentName: string
   context: AgentContext<T>
   threadId: string
 }
 
-export interface ThreadLoadContext<T = unknown> extends ThreadCreateContext<T> {
+export interface ThreadLoadContext<T = unknown> extends ThreadInitContext<T> {
   input: readonly ItemParam[]
 }
 
-export interface ThreadSaveContext<T = unknown> extends ThreadCreateContext<T> {
+export interface ThreadSaveContext<T = unknown> extends ThreadInitContext<T> {
   snapshot: ThreadSnapshot
 }
 

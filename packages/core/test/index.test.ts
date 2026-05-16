@@ -239,6 +239,74 @@ describe('createThreadStore', () => {
 })
 
 describe('createAgent', () => {
+  it('loads persisted thread state before clear saves reset state', async () => {
+    const savedSnapshots: unknown[] = []
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'clear-storage-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        loadThread: () => ({
+          items: [message('persisted history')],
+          version: 10,
+        }),
+        name: 'storage',
+        saveThread: ({ snapshot }) => {
+          savedSnapshots.push(snapshot)
+        },
+      }],
+    })
+
+    agent.clear()
+    await wait()
+
+    expect(savedSnapshots).toEqual([{
+      items: [],
+      version: 11,
+    }])
+  })
+
+  it('runs plugin setup sequentially in plugin order', async () => {
+    const calls: string[] = []
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'setup-order-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'first',
+        setup: async (api) => {
+          await wait()
+          api.subscribe('setup', () => calls.push('first heard'))
+          calls.push('first setup')
+        },
+      }, {
+        name: 'second',
+        setup: (api) => {
+          calls.push('second setup')
+          api.emit('setup', 'ready')
+        },
+      }],
+    })
+
+    await readEventStream(agent.run(message('use plugin')))
+
+    expect(calls).toEqual([
+      'first setup',
+      'second setup',
+      'first heard',
+    ])
+  })
+
   it('runs plugins through thread, turn, response, and storage hooks', async () => {
     const calls: string[] = []
     const responsesFetch = createResponsesFetch()
