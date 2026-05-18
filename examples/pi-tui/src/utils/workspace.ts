@@ -9,7 +9,7 @@ export const relativeToWorkspace = (targetPath: string) =>
 const isInsideWorkspace = (workspacePath: string, targetPath: string) => {
   const relative = path.relative(workspacePath, targetPath)
 
-  return !(relative.startsWith('..') || path.isAbsolute(relative))
+  return !relative.startsWith('..') && !path.isAbsolute(relative)
 }
 
 const findExistingParent = async (targetPath: string): Promise<string> => {
