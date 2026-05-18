@@ -24,6 +24,7 @@ catalog:
   pkgroll: ^2.27.0
   react: ^19.2.6
   react-dom: ^19.2.6
+  rxjs: ^7.8.1
   tsx: ^4.21.0
   typescript: ~6.0.3
   unstorage: ^1.17.5

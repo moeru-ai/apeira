@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-ag-ui": "workspace:",
     "@copilotkit/react-core": "catalog:",
     "@copilotkit/react-ui": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "rxjs": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

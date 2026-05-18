@@ -54,6 +54,9 @@ catalogs:
     react-dom:
       specifier: ^19.2.6
       version: 19.2.6
+    rxjs:
+      specifier: ^7.8.1
+      version: 7.8.1
     tsx:
       specifier: ^4.21.0
       version: 4.21.0
@@ -129,6 +132,12 @@ importers:
 
   examples/copilotkit:
     dependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../../packages/core
+      '@apeira/plugin-ag-ui':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-ag-ui
       '@copilotkit/react-core':
         specifier: 'catalog:'
         version: 1.57.1(@types/mdast@4.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(graphql@16.14.0)(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(zod@3.25.76)
@@ -141,6 +150,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.6(react@19.2.6)
+      rxjs:
+        specifier: 'catalog:'
+        version: 7.8.1
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
