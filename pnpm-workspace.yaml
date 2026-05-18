@@ -12,6 +12,7 @@ catalog:
   '@antfu/eslint-config': ^8.2.0
   '@copilotkit/react-core': ^1.57.1
   '@copilotkit/react-ui': ^1.57.1
+  '@earendil-works/pi-tui': ^0.75.3
   '@moeru/eslint-config': &std ^0.1.0-beta.18
   '@moeru/std': *std
   '@moeru/tsconfig': *std

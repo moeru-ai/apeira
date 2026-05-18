@@ -1,0 +1,12 @@
+{
+  "name": "@apeira/example-pi-tui",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@apeira/core": "workspace:",
+    "@earendil-works/pi-tui": "catalog:",
+    "zod": "catalog:"
+  }
+}

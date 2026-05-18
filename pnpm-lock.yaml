@@ -182,6 +182,18 @@ importers:
         specifier: 'catalog:'
         version: 6.0.2(vite@8.0.13(@types/node@25.6.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.4))
 
+  examples/pi-tui:
+    dependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../../packages/core
+      '@earendil-works/pi-tui':
+        specifier: ^0.75.3
+        version: 0.75.3
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+
   packages/apeira:
     dependencies:
       '@apeira/core':
@@ -195,7 +207,7 @@ importers:
         version: 0.1.0-beta.18
       '@xsai-ext/responses':
         specifier: catalog:xsai
-        version: 0.5.0-beta.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: 0.5.0-beta.4
       '@xsai/shared':
         specifier: catalog:xsai
         version: 0.5.0-beta.4
@@ -410,6 +422,10 @@ packages:
         optional: true
       oxlint:
         optional: true
+
+  '@earendil-works/pi-tui@0.75.3':
+    resolution: {integrity: sha512-UbhtCsae+b3Y8/ZxtBPhiOrkD66gOHvJbfvLZwhBBsNtQuvUkZY5t9MQwmb8QcDYkFRnXHaq3FcEy1hjRSfj6w==}
+    engines: {node: '>=22.19.0'}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -3219,6 +3235,9 @@ packages:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
 
+  koffi@2.16.2:
+    resolution: {integrity: sha512-owU0MRwv6xkrVqCd+33uw6BaYppkTRXbO/rVdJNI2dvZG0gzyRhYwW25eWtc5pauwK8TGh3AbkFONSezdykfSA==}
+
   layout-base@1.0.2:
     resolution: {integrity: sha512-8h2oVEZNktL4BH2JCOI90iD1yXwL6iNW7KcCKT2QZgQJR2vbqDsldCTPRU9NifTCqHZci57XvQQ15YTu+sTYPg==}
 
@@ -3364,6 +3383,11 @@ packages:
 
   marked@12.0.2:
     resolution: {integrity: sha512-qXUm7e/YKFoqFPYPa3Ukg9xlI5cyAtGmyEIzMfW//m6kXwCy2Ps9DYf5ioijFKQ8qyuscrHoY04iJGctu2Kg0Q==}
+    engines: {node: '>= 18'}
+    hasBin: true
+
+  marked@15.0.12:
+    resolution: {integrity: sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==}
     engines: {node: '>= 18'}
     hasBin: true
 
@@ -4986,6 +5010,13 @@ snapshots:
     optionalDependencies:
       eslint: 10.3.0(jiti@2.7.0)
 
+  '@earendil-works/pi-tui@0.75.3':
+    dependencies:
+      get-east-asian-width: 1.6.0
+      marked: 15.0.12
+    optionalDependencies:
+      koffi: 2.16.2
+
   '@emnapi/core@1.10.0':
     dependencies:
       '@emnapi/wasi-threads': 1.2.1
@@ -6447,7 +6478,7 @@ snapshots:
     dependencies:
       vue: 3.5.34(typescript@6.0.3)
 
-  '@xsai-ext/responses@0.5.0-beta.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@xsai-ext/responses@0.5.0-beta.4':
     dependencies:
       '@xsai/shared': 0.5.0-beta.4
       '@xsai/shared-chat': 0.5.0-beta.4
@@ -7733,6 +7764,9 @@ snapshots:
 
   kleur@4.1.5: {}
 
+  koffi@2.16.2:
+    optional: true
+
   layout-base@1.0.2: {}
 
   layout-base@2.0.1: {}
@@ -7853,6 +7887,8 @@ snapshots:
   markdown-table@3.0.4: {}
 
   marked@12.0.2: {}
+
+  marked@15.0.12: {}
 
   marked@16.4.2: {}
 
