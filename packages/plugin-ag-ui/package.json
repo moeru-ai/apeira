@@ -34,7 +34,8 @@
     "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "build": "pkgroll"
+    "build": "pkgroll",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@apeira/core": "workspace:"
