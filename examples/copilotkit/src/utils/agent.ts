@@ -17,17 +17,80 @@ interface BrowserApeiraAgentOptions {
 }
 
 type PersistedMessageItem = Extract<ItemParam, { type: 'message' }>
-
 interface PersistedThreadState {
   items?: ItemParam[]
 }
+
+type PersistedUserMessageItem = Extract<PersistedMessageItem, { role: 'user' }>
 type UserContentPart = Exclude<Extract<Message, { role: 'user' }>['content'], string>[number]
+type UserMediaContentPart = Extract<UserContentPart, { type: 'audio' | 'document' | 'image' | 'video' }>
 
 const getStorageKey = (threadId: string) =>
   JSON.stringify([AGENT_NAME, threadId])
 
 const toDataUrl = (mimeType: string, value: string) =>
   `data:${mimeType};base64,${value}`
+
+const toContentSource = (source: UserMediaContentPart['source']) =>
+  source.type === 'url'
+    ? source.value
+    : toDataUrl(source.mimeType, source.value)
+
+const getPartFilename = (part: UserMediaContentPart) => {
+  if ('metadata' in part && part.metadata != null && typeof part.metadata === 'object' && 'filename' in part.metadata && typeof part.metadata.filename === 'string')
+    return part.metadata.filename
+
+  return undefined
+}
+
+const getMimeTypeFromDataUrl = (value: string) => {
+  const matched = /^data:([^;,]+)[;,]/.exec(value)
+  return matched?.[1]
+}
+
+const toInputContentSource = (value: string) => {
+  const mimeType = getMimeTypeFromDataUrl(value)
+
+  if (mimeType != null) {
+    const [, data = ''] = value.split(',', 2)
+    return {
+      mimeType,
+      type: 'data' as const,
+      value: data,
+    }
+  }
+
+  return {
+    type: 'url' as const,
+    value,
+  }
+}
+
+const getAttachmentType = (mimeType: string | undefined, filename: string | undefined) => {
+  if (mimeType?.startsWith('image/'))
+    return 'image' as const
+
+  if (mimeType?.startsWith('audio/'))
+    return 'audio' as const
+
+  if (mimeType?.startsWith('video/'))
+    return 'video' as const
+
+  const normalizedFilename = filename?.toLowerCase()
+
+  if (normalizedFilename != null) {
+    if (/\.(?:png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(normalizedFilename))
+      return 'image' as const
+
+    if (/\.(?:mp3|wav|ogg|m4a|aac|flac)$/i.test(normalizedFilename))
+      return 'audio' as const
+
+    if (/\.(?:mp4|webm|mov|mkv|avi)$/i.test(normalizedFilename))
+      return 'video' as const
+  }
+
+  return 'document' as const
+}
 
 const toUserInput = (messages: RunAgentInput['messages']): ItemParam | undefined => {
   const lastUserMessage = [...messages].reverse().find(message => message.role === 'user')
@@ -49,11 +112,24 @@ const toUserInput = (messages: RunAgentInput['messages']): ItemParam | undefined
     // TODO: more part type
     // eslint-disable-next-line ts/switch-exhaustiveness-check
     switch (part.type) {
+      case 'audio':
+      case 'document':
+      case 'video':
+        content.push({
+          file_data: part.source.type === 'data'
+            ? toDataUrl(part.source.mimeType, part.source.value)
+            : undefined,
+          file_url: part.source.type === 'url'
+            ? part.source.value
+            : undefined,
+          filename: getPartFilename(part),
+          type: 'input_file',
+        })
+        break
+
       case 'image':
         content.push({
-          image_url: part.source.type === 'url'
-            ? part.source.value
-            : toDataUrl(part.source.mimeType, part.source.value),
+          image_url: toContentSource(part.source),
           type: 'input_image',
         })
         break
@@ -92,6 +168,53 @@ const toMessageText = (value: PersistedMessageItem['content']) => {
       return []
     })
     .join('\n')
+}
+
+// eslint-disable-next-line sonarjs/function-return-type
+const toUserMessageContent = (value: PersistedUserMessageItem['content']): Extract<Message, { role: 'user' }>['content'] => {
+  if (typeof value === 'string')
+    return value
+
+  const content = value.flatMap((part): UserContentPart[] => {
+    switch (part.type) {
+      case 'input_file': {
+        const sourceValue = part.file_url ?? part.file_data
+        if (sourceValue == null)
+          return []
+
+        const source = toInputContentSource(sourceValue)
+        const attachmentType = getAttachmentType(source.mimeType, part.filename ?? undefined)
+
+        return [{
+          metadata: part.filename == null
+            ? undefined
+            : { filename: part.filename },
+          source,
+          type: attachmentType,
+        }]
+      }
+
+      case 'input_image':
+        if (part.image_url == null)
+          return []
+
+        return [{
+          source: toInputContentSource(part.image_url),
+          type: 'image' as const,
+        }]
+
+      case 'input_text':
+        return [{
+          text: part.text,
+          type: 'text' as const,
+        }]
+
+      default:
+        return []
+    }
+  })
+
+  return content.length > 0 ? content : toMessageText(value)
 }
 
 const readPersistedMessages = (threadId: string): Message[] => {
@@ -140,7 +263,7 @@ const readPersistedMessages = (threadId: string): Message[] => {
 
           if (item.role === 'user') {
             return [{
-              content,
+              content: toUserMessageContent(item.content),
               id: item.id ?? crypto.randomUUID(),
               role: 'user',
             }]

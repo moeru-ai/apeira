@@ -87,6 +87,7 @@ export const App = () => {
         <CopilotKitProvider agents__unsafe_dev_only={{ [AGENT_ID]: copilotAgent }}>
           <CopilotChatConfigurationProvider agentId={AGENT_ID} threadId="default">
             <CopilotChat
+              attachments={{ enabled: true }}
               labels={{
                 welcomeMessageText: apiKey.length > 0
                   ? 'Hi! Ask anything.'
