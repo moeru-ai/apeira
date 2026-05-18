@@ -66,11 +66,11 @@ describe('agui', () => {
     await plugin.onEvent?.({ threadId: 'thread-1', turnId: 'turn-2', type: 'turn.start' })
     await plugin.onEvent?.({ outputIndex: 0, threadId: 'thread-1', turnId: 'turn-2', type: 'text.start' })
     await plugin.onEvent?.({
+      outputIndex: 1,
       threadId: 'thread-1',
       toolCall: { id: 'call_1', name: 'weather' },
       turnId: 'turn-2',
       type: 'tool-call.start',
-      outputIndex: 1,
     })
     await plugin.onEvent?.({ delta: '{"city":"Taipei"}', threadId: 'thread-1', turnId: 'turn-2', type: 'tool-call.delta' })
     await plugin.onEvent?.({

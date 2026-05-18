@@ -500,12 +500,12 @@ describe('createAgent', () => {
       plugins: [{
         name: 'channel-plugin',
         setup: (api) => {
-          api.subscribe('mirror', event => received.push({ source: 'plugin', event }))
+          api.subscribe('mirror', event => received.push({ event, source: 'plugin' }))
         },
       }],
     })
 
-    const unsubscribe = agent.subscribe('mirror', event => received.push({ source: 'agent', event }))
+    const unsubscribe = agent.subscribe('mirror', event => received.push({ event, source: 'agent' }))
 
     agent.emit('mirror', { ok: true })
     await wait()

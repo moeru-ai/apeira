@@ -23,6 +23,7 @@
     "pkgroll": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitepress": "catalog:",
     "vitest": "catalog:"
   }
