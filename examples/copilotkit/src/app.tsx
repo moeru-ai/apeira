@@ -36,7 +36,7 @@ export const App = () => {
       },
       agui(),
     ],
-  }), [apiKey, model])
+  }), [baseURL, apiKey, model])
 
   const copilotAgent = useMemo(
     () => new BrowserApeiraAgent({ agent: apeiraAgent }),
