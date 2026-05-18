@@ -10,6 +10,7 @@
     "bump": "bumpp",
     "dev:copilotkit": "pnpm -F @apeira/example-copilotkit dev",
     "dev:docs": "vitepress dev docs",
+    "dev:pi-tui": "pnpm -F @apeira/example-pi-tui dev",
     "lint": "eslint --flag unstable_native_nodejs_ts_config --cache .",
     "preview:docs": "vitepress preview docs",
     "test": "pnpm -r test"
