@@ -14,6 +14,7 @@
     "@apeira/plugin-ag-ui": "workspace:",
     "@copilotkit/react-core": "catalog:",
     "@copilotkit/react-ui": "catalog:",
+    "foxact": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "rxjs": "catalog:"
