@@ -9,10 +9,6 @@ export const AG_UI_CHANNEL = 'ag-ui'
 
 export type AGUIEventListener = (event: AGUIEvent) => void
 
-export interface AGUIPlugin extends AgentPlugin {
-  subscribe: (listener: AGUIEventListener) => () => boolean
-}
-
 export interface AGUIPluginOptions {
   channel?: string
   onEvent?: AGUIEventListener
@@ -34,9 +30,8 @@ const toErrorMessage = (value: unknown) =>
     ? value.message
     : String(value)
 
-export const agui = (options: AGUIPluginOptions = {}): AGUIPlugin => {
+export const agui = (options: AGUIPluginOptions = {}): AgentPlugin => {
   const channel = options.channel ?? AG_UI_CHANNEL
-  const listeners = new Set<AGUIEventListener>()
   const turnStates = new Map<string, TurnState>()
 
   let pluginApi: AgentPluginApi | undefined
@@ -54,9 +49,6 @@ export const agui = (options: AGUIPluginOptions = {}): AGUIPlugin => {
   const emit = (event: AGUIEvent) => {
     pluginApi?.emit(channel, event)
     options.onEvent?.(event)
-
-    for (const listener of [...listeners])
-      listener(event)
   }
 
   const cleanup = (turnId: string) => {
@@ -368,10 +360,6 @@ export const agui = (options: AGUIPluginOptions = {}): AGUIPlugin => {
     },
     setup: (api) => {
       pluginApi = api
-    },
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
     },
     version,
   })

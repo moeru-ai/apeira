@@ -329,7 +329,7 @@ describe('createAgent', () => {
       }],
     })
 
-    const unsubscribe = agent.subscribe(event => events.push(event))
+    const unsubscribe = agent.on(event => events.push(event))
     const failedTurnId = agent.send(message('first'))
 
     try {
@@ -420,7 +420,7 @@ describe('createAgent', () => {
         },
       }],
     })
-    const unsubscribe = agent.subscribe(event => events.push(event))
+    const unsubscribe = agent.on(event => events.push(event))
     const turnId = agent.send(message('slow load'))
 
     try {
@@ -483,6 +483,37 @@ describe('createAgent', () => {
       'first setup',
       'second setup',
       'first heard',
+    ])
+  })
+
+  it('exposes plugin channels through top-level emit and subscribe', async () => {
+    const received: unknown[] = []
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'channel-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'channel-plugin',
+        setup: (api) => {
+          api.subscribe('mirror', event => received.push({ source: 'plugin', event }))
+        },
+      }],
+    })
+
+    const unsubscribe = agent.subscribe('mirror', event => received.push({ source: 'agent', event }))
+
+    agent.emit('mirror', { ok: true })
+    await wait()
+    unsubscribe()
+
+    expect(received).toEqual([
+      { event: { ok: true }, source: 'plugin' },
+      { event: { ok: true }, source: 'agent' },
     ])
   })
 
@@ -625,7 +656,7 @@ describe('createAgent', () => {
     let turnId: string
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (
@@ -841,7 +872,7 @@ describe('createAgent', () => {
     const events: AgentEvent[] = []
     let updated = false
 
-    const unsubscribe = thread.subscribe((event) => {
+    const unsubscribe = thread.on((event) => {
       events.push(event)
 
       if (event.type === 'step.start' && !updated) {
@@ -946,7 +977,7 @@ describe('createAgent', () => {
         model: 'test-model',
       },
     })
-    const unsubscribe = agent.subscribe(event => events.push(event))
+    const unsubscribe = agent.on(event => events.push(event))
     const first = agent.thread({
       context: { userId: 'first' },
       id: 'first-thread',
@@ -1004,7 +1035,7 @@ describe('createAgent', () => {
   it('queues submitted top-level turns and runs them one at a time', async () => {
     const events: AgentEvent[] = []
     const { agent } = createTestAgent(2)
-    const unsubscribe = agent.subscribe(event => events.push(event))
+    const unsubscribe = agent.on(event => events.push(event))
 
     const first = readEventStream(agent.run(message('First turn.')))
     const second = readEventStream(agent.run(message('Second turn.')))
@@ -1039,7 +1070,7 @@ describe('createAgent', () => {
     let turnId: string
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (
@@ -1080,7 +1111,7 @@ describe('createAgent', () => {
     let firstTurnId: string
     let secondTurnId: string | undefined
 
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (
@@ -1117,7 +1148,7 @@ describe('createAgent', () => {
     let secondTurnId: string | undefined
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (event.type === 'turn.queued') {
@@ -1159,7 +1190,7 @@ describe('createAgent', () => {
   it('aborts the running turn without clearing queued top-level turns', async () => {
     const { agent } = createTestAgent(2)
     let aborted = false
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       if (event.type !== 'turn.start' || aborted)
         return
 
@@ -1183,7 +1214,7 @@ describe('createAgent', () => {
     const { agent, inputs } = createTestAgent(2)
     let injectedTurnId: string | undefined
     let aborted = false
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (event.type !== 'turn.start' || aborted)
@@ -1220,7 +1251,7 @@ describe('createAgent', () => {
     let sentTurnId: string | undefined
     controller.abort('stale queued turn')
 
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
       firstTurnId ??= event.turnId
 
@@ -1265,7 +1296,7 @@ describe('createAgent', () => {
     const { agent, inputs } = createTestAgent(2)
     let interruptedTurnId: string | undefined
     let interrupted = false
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (event.type !== 'turn.start' || interrupted)
@@ -1303,7 +1334,7 @@ describe('createAgent', () => {
     const { agent, inputs } = createTestAgent(2)
     const controller = new AbortController()
     let interrupted = false
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       events.push(event)
 
       if (event.type !== 'turn.start' || interrupted)
@@ -1335,7 +1366,7 @@ describe('createAgent', () => {
   it('clears the running turn, queued turns, and pending input', async () => {
     const { agent } = createTestAgent(2)
     let cleared = false
-    const unsubscribe = agent.subscribe((event) => {
+    const unsubscribe = agent.on((event) => {
       if (event.type !== 'turn.start' || cleared)
         return
 

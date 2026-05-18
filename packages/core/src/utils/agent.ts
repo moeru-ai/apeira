@@ -134,10 +134,16 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const setContext: Agent<T>['setContext'] = nextContext =>
     context = merge(context, nextContext)
 
-  const subscribe: Agent<T>['subscribe'] = (eventListener) => {
+  const emitChannel: Agent<T>['emit'] = (channel, event) =>
+    pluginApi.emit(channel, event)
+
+  const on: Agent<T>['on'] = (eventListener) => {
     eventListeners.add(eventListener)
     return () => eventListeners.delete(eventListener)
   }
+
+  const subscribe: Agent<T>['subscribe'] = (channel, listener) =>
+    pluginApi.subscribe(channel, listener)
 
   const createAgentThread = (id: string, threadOptions: ThreadOptions<T> = {}): AgentThread<T> => {
     const storagePlugins = plugins.filter(plugin => plugin.storage != null)
@@ -217,8 +223,8 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       threadId: id,
     })
 
-    const subscribeThread: AgentThread<T>['subscribe'] = eventListener =>
-      subscribe((event) => {
+    const onThread: AgentThread<T>['on'] = eventListener =>
+      on((event) => {
         if (event.threadId !== id)
           return
 
@@ -234,7 +240,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
           unsubscribe?.()
         },
         start: (controller) => {
-          unsubscribe = subscribeThread((event) => {
+          unsubscribe = onThread((event) => {
             if (event.turnId !== turnId)
               return
 
@@ -282,13 +288,15 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     return {
       abort: runtime.abort,
       clear: runtime.clear,
+      emit: emitChannel,
       getContext: () => resolveContext(),
       id,
       interrupt,
+      on: onThread,
       run,
       send,
       setContext: setThreadContext,
-      subscribe: subscribeThread,
+      subscribe,
     }
   }
 
@@ -320,8 +328,10 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   return {
     abort: reason => defaultThread.abort(reason),
     clear: () => defaultThread.clear(),
+    emit: emitChannel,
     getContext,
     interrupt: (input, reason, runOptions) => defaultThread.interrupt(input, reason, runOptions),
+    on,
     run: (input, runOptions) => defaultThread.run(input, runOptions),
     send: (input, runOptions) => defaultThread.send(input, runOptions),
     setContext,

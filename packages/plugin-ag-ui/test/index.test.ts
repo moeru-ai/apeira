@@ -28,8 +28,6 @@ describe('agui', () => {
 
     await plugin.setup?.(api)
 
-    const unsubscribe = plugin.subscribe(event => received.push({ source: 'subscribe', ...event }))
-
     await plugin.onEvent?.({ threadId: 'thread-1', turnId: 'turn-1', type: 'turn.start' })
     await plugin.onEvent?.({ threadId: 'thread-1', turnId: 'turn-1', type: 'step.start' })
     await plugin.onEvent?.({ outputIndex: 0, threadId: 'thread-1', turnId: 'turn-1', type: 'text.start' })
@@ -37,8 +35,6 @@ describe('agui', () => {
     await plugin.onEvent?.({ text: 'Hello', threadId: 'thread-1', turnId: 'turn-1', type: 'text.done' })
     await plugin.onEvent?.({ output: [], threadId: 'thread-1', turnId: 'turn-1', type: 'step.done' })
     await plugin.onEvent?.({ threadId: 'thread-1', turnId: 'turn-1', type: 'turn.done' })
-
-    unsubscribe()
 
     expect(emitted.map(entry => entry.channel)).toEqual([
       AG_UI_CHANNEL,
@@ -58,7 +54,7 @@ describe('agui', () => {
       EventType.STEP_FINISHED,
       EventType.RUN_FINISHED,
     ])
-    expect(received).toHaveLength(14)
+    expect(received).toHaveLength(7)
   })
 
   it('maps tool, reasoning, and failure events with stable ids', async () => {
