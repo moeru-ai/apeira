@@ -1,13 +1,67 @@
 /* eslint-disable antfu/no-top-level-await */
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import process from 'node:process'
 
 import { Buffer } from 'node:buffer'
+import { spawn } from 'node:child_process'
 
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
 
 import { relativeToWorkspace, resolveWorkspacePath } from './workspace'
+
+const MAX_OUTPUT_BYTES = 64 * 1024
+
+const truncateOutput = (value: string) => {
+  if (Buffer.byteLength(value, 'utf8') <= MAX_OUTPUT_BYTES)
+    return { text: value, truncated: false }
+
+  let text = value
+  while (Buffer.byteLength(text, 'utf8') > MAX_OUTPUT_BYTES)
+    text = text.slice(0, Math.max(0, Math.floor(text.length * 0.9)))
+
+  return {
+    text: `${text}\n[output truncated]`,
+    truncated: true,
+  }
+}
+
+const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =>
+  new Promise<{
+    code: null | number
+    signal: NodeJS.Signals | null
+    stderr: string
+    stdout: string
+  }>((resolve, reject) => {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path
+    const child = spawn('bash', ['-lc', command], {
+      cwd,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+
+    child.stdout.on('data', (chunk: Uint8Array) => stdoutChunks.push(Buffer.from(chunk)))
+    child.stderr.on('data', (chunk: Uint8Array) => stderrChunks.push(Buffer.from(chunk)))
+    child.on('error', reject)
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM')
+    }, timeoutMs)
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timer)
+      resolve({
+        code,
+        signal,
+        stderr: Buffer.concat(stderrChunks).toString('utf8'),
+        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+      })
+    })
+  })
 
 export const listFilesTool = await tool({
   description: 'List files and directories inside the current workspace.',
@@ -146,5 +200,39 @@ export const editFileTool = await tool({
     oldString: z.string().describe('Exact text to replace.'),
     replaceAll: z.boolean().default(false).describe('Whether to replace all occurrences instead of exactly one.'),
     targetPath: z.string().describe('File path relative to the workspace root.'),
+  }),
+})
+
+export const bashTool = await tool({
+  description: 'Run a bash command in the current workspace and return stdout, stderr, and exit status.',
+  execute: async ({ command, targetPath, timeoutMs }) => {
+    const safeTargetPath = targetPath ?? '.'
+    const safeTimeoutMs = timeoutMs ?? 15_000
+    const cwd = resolveWorkspacePath(safeTargetPath)
+    const stats = await fs.stat(cwd)
+
+    if (!stats.isDirectory())
+      throw new Error(`${safeTargetPath} is not a directory`)
+
+    const result = await runBashCommand(command, cwd, safeTimeoutMs)
+    const stdout = truncateOutput(result.stdout)
+    const stderr = truncateOutput(result.stderr)
+
+    return {
+      cwd: relativeToWorkspace(cwd),
+      exitCode: result.code,
+      signal: result.signal,
+      stderr: stderr.text,
+      stderrTruncated: stderr.truncated,
+      stdout: stdout.text,
+      stdoutTruncated: stdout.truncated,
+      timedOut: result.signal === 'SIGTERM',
+    }
+  },
+  name: 'bash',
+  parameters: z.object({
+    command: z.string().describe('Bash command to run.'),
+    targetPath: z.string().default('.').describe('Working directory relative to the workspace root.'),
+    timeoutMs: z.number().int().min(100).max(120_000).default(15_000).describe('Timeout in milliseconds before the command is terminated.'),
   }),
 })

@@ -101,7 +101,7 @@ export const createPiTuiExampleApp = () => {
       [
         `${c.bold('Status')} ${currentStatus}`,
         c.dim(`queued=${pendingInputs}`),
-        c.dim('tools=list_files, read_file, write_file, edit_file'),
+        c.dim('tools=list_files, read_file, write_file, edit_file, bash'),
       ].join('  '),
     )
 

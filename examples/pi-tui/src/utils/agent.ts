@@ -1,7 +1,7 @@
 import { createAgent } from '@apeira/core'
 
 import { agentName, apiKey, baseURL, instructions, model } from './config'
-import { editFileTool, listFilesTool, readFileTool, writeFileTool } from './tools'
+import { bashTool, editFileTool, listFilesTool, readFileTool, writeFileTool } from './tools'
 
 export const agent = createAgent({
   instructions,
@@ -10,6 +10,6 @@ export const agent = createAgent({
     apiKey,
     baseURL,
     model,
-    tools: [listFilesTool, readFileTool, writeFileTool, editFileTool],
+    tools: [listFilesTool, readFileTool, writeFileTool, editFileTool, bashTool],
   },
 })
