@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@copilotkit/react-core": "catalog:",
+    "@copilotkit/react-ui": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
