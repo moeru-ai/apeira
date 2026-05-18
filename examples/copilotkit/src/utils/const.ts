@@ -1,5 +1,5 @@
 export const AGENT_ID = 'default'
 export const AGENT_NAME = 'copilotkit'
-export const DEFAULT_INSTRUCTIONS = 'You are a concise, helpful assistant.'
-export const DEFAULT_MODEL = import.meta.env.VITE_OPENAI_MODEL as string | undefined ?? 'gpt-4.1-mini'
-export const OPENAI_BASE_URL = 'https://api.openai.com/v1'
+export const DEFAULT_INSTRUCTIONS = 'You are a helpful assistant.'
+export const DEFAULT_MODEL = 'qwen3.5:0.8b'
+export const DEFAULT_BASE_URL = 'http://localhost:11434/v1'

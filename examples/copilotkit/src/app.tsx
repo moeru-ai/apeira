@@ -12,13 +12,13 @@ import { useLocalStorage } from 'foxact/use-local-storage'
 import { useMemo } from 'react'
 
 import { BrowserApeiraAgent } from './utils/agent'
-import { AGENT_ID, AGENT_NAME, DEFAULT_INSTRUCTIONS, DEFAULT_MODEL, OPENAI_BASE_URL } from './utils/const'
+import { AGENT_ID, AGENT_NAME, DEFAULT_BASE_URL, DEFAULT_INSTRUCTIONS, DEFAULT_MODEL } from './utils/const'
 
 import '@copilotkit/react-ui/v2/styles.css'
 
 export const App = () => {
-  const [baseURL, setBaseURL] = useLocalStorage('apeira:copilotkit:base-url', OPENAI_BASE_URL)
-  const [apiKey, setApiKey] = useLocalStorage('apeira:copilotkit:api-key', import.meta.env.VITE_OPENAI_API_KEY as string | undefined ?? '')
+  const [baseURL, setBaseURL] = useLocalStorage('apeira:copilotkit:base-url', DEFAULT_BASE_URL)
+  const [apiKey, setApiKey] = useLocalStorage('apeira:copilotkit:api-key', '')
   const [model, setModel] = useLocalStorage('apeira:copilotkit:model', DEFAULT_MODEL)
 
   const apeiraAgent = useMemo(() => createAgent({
