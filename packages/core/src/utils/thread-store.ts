@@ -56,7 +56,6 @@ export const createThreadStore = <T = unknown>(
     },
     setContext: (nextContext) => {
       context = { ...context, ...nextContext }
-      version += 1
     },
     snapshot: () => ({
       context: { ...context },

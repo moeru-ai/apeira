@@ -263,7 +263,7 @@ describe('createThreadStore', () => {
     expect(store.snapshot()).toEqual({
       context: { locale: 'ja-JP' },
       items: [message('initial')],
-      version: 1,
+      version: 0,
     })
   })
 })
@@ -815,6 +815,57 @@ describe('createAgent', () => {
     expect(JSON.parse(String(responsesFetch.instructions[0]))).toEqual({
       locale: 'ja-JP',
       product: 'docs',
+    })
+  })
+
+  it('does not let thread context updates invalidate an in-flight response commit', async () => {
+    const storage = createMemoryStorage()
+    const responsesFetch = createResponsesFetch(2)
+    const agent = createAgent<{ locale?: string }>({
+      context: {},
+      instructions: 'You are a plugin test assistant.',
+      name: 'context-race-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'storage',
+        storage,
+      }],
+    })
+
+    const thread = agent.thread({ id: 'race-thread' })
+    const events: AgentEvent[] = []
+    let updated = false
+
+    const unsubscribe = thread.subscribe((event) => {
+      events.push(event)
+
+      if (event.type === 'step.start' && !updated) {
+        updated = true
+        thread.setContext({ locale: 'ja-JP' })
+      }
+    })
+
+    try {
+      await readEventStream(thread.run(message('Keep both context and response.')))
+      await wait()
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(events.at(-1)?.type).toBe('turn.done')
+    expect(JSON.parse(String(storage.values.get('["context-race-test","race-thread"]')))).toEqual({
+      context: { locale: 'ja-JP' },
+      items: [
+        message('Keep both context and response.'),
+        assistantMessage('response 1'),
+      ],
+      version: 1,
     })
   })
 
