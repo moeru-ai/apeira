@@ -9,7 +9,7 @@ import type { ItemParam } from './responses'
 export interface AgentPlugin<T = unknown> {
   enforce?: 'post' | 'pre'
   name: string
-  onEvent?: (event: AgentEvent, options: EventOptions<T>) => MaybePromise<void>
+  onEvent?: (event: AgentEvent) => MaybePromise<void>
   onFinish?: ResponsesOptions['onFinish']
   onStepFinish?: ResponsesOptions['onStepFinish']
   onThreadInit?: (options: ThreadInitOptions<T>) => MaybePromise<void>
@@ -33,13 +33,6 @@ export type AgentPluginOption<T = unknown>
     | false
     | null
     | undefined
-
-export interface EventOptions<T = unknown> {
-  agentName: string
-  getContext: () => AgentContext<T>
-  threadId: string
-  turnId: string
-}
 
 export type PluginChannelListener<T = unknown> = (
   event: unknown,

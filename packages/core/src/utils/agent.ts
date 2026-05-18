@@ -112,7 +112,6 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     threadId: string,
     turnId: string,
     event: Omit<AgentEvent, 'threadId' | 'turnId'>,
-    getContext: () => AgentContext<T>,
   ) => {
     const fullEvent = { ...event, threadId, turnId } as AgentEvent
 
@@ -125,7 +124,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
     void ready.then(async () => {
       for (const plugin of plugins)
-        await plugin.onEvent?.(fullEvent, { agentName: options.name, getContext, threadId, turnId })
+        await plugin.onEvent?.(fullEvent)
     }).catch(() => undefined)
   }
 
@@ -198,7 +197,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
     const runtime = createAgentRuntime({
       agentName: options.name,
-      emit: (turnId, event) => emit(id, turnId, event, resolveContext),
+      emit: (turnId, event) => emit(id, turnId, event),
       getContext: resolveContext,
       input: threadOptions.input,
       instructions: options.instructions,
