@@ -3,11 +3,16 @@
   "type": "module",
   "version": "0.0.0",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "@apeira/core": "workspace:",
     "@earendil-works/pi-tui": "catalog:",
     "@xsai/tool": "catalog:xsai",
+    "tinyrainbow": "catalog:",
     "zod": "catalog:"
   }
 }

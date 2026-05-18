@@ -27,3 +27,6 @@ dist-ssr
 
 # codex
 .codex
+
+# dotenv
+.env
