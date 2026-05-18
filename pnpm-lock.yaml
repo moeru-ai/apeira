@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@ag-ui/core':
+      specifier: ^0.0.53
+      version: 0.0.53
     '@antfu/eslint-config':
       specifier: ^8.2.0
       version: 8.2.0
@@ -110,7 +113,7 @@ importers:
         version: 0.1.0-beta.18
       '@xsai-ext/responses':
         specifier: catalog:xsai
-        version: 0.5.0-beta.4
+        version: 0.5.0-beta.4(zod@3.25.76)
       '@xsai/shared':
         specifier: catalog:xsai
         version: 0.5.0-beta.4
@@ -120,6 +123,16 @@ importers:
       yocto-queue:
         specifier: 'catalog:'
         version: 1.2.2
+
+  packages/plugin-ag-ui:
+    dependencies:
+      '@ag-ui/core':
+        specifier: 'catalog:'
+        version: 0.0.53
+    devDependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../core
 
   packages/plugin-unstorage:
     devDependencies:
@@ -131,6 +144,9 @@ importers:
         version: 1.17.5
 
 packages:
+
+  '@ag-ui/core@0.0.53':
+    resolution: {integrity: sha512-11UocR7fFdMWw503bWCX2IOK15vbWfxT11Mn9xOiPBVO/UVcn57ywGrlLL4UaBlPgmUTvuzr2yYR2ElSqiN2wQ==}
 
   '@antfu/eslint-config@8.2.0':
     resolution: {integrity: sha512-spfwYXMNrlkl69riTSBnbC0C2K8EVfVMOK3ceP2EpAAioyfprIW1gTwyLRtd9jZSFeNdX4mFNAIG+o0sOneOfA==}
@@ -2763,10 +2779,17 @@ packages:
     resolution: {integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==}
     engines: {node: '>=12.20'}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@ag-ui/core@0.0.53':
+    dependencies:
+      zod: 3.25.76
 
   '@antfu/eslint-config@8.2.0(@typescript-eslint/rule-tester@8.59.2(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3))(@typescript-eslint/typescript-estree@8.59.2(typescript@6.0.3))(@typescript-eslint/utils@8.59.2(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3))(@vue/compiler-sfc@3.5.34)(eslint@10.3.0(jiti@2.7.0))(typescript@6.0.3)(vitest@4.1.6(@types/node@25.6.2)(vite@7.3.3(@types/node@25.6.2)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.4)))':
     dependencies:
@@ -3650,12 +3673,12 @@ snapshots:
     dependencies:
       vue: 3.5.34(typescript@6.0.3)
 
-  '@xsai-ext/responses@0.5.0-beta.4':
+  '@xsai-ext/responses@0.5.0-beta.4(zod@3.25.76)':
     dependencies:
       '@xsai/shared': 0.5.0-beta.4
       '@xsai/shared-chat': 0.5.0-beta.4
       '@xsai/shared-stream': 0.5.0-beta.4
-      '@xsai/tool': 0.5.0-beta.4
+      '@xsai/tool': 0.5.0-beta.4(zod@3.25.76)
     transitivePeerDependencies:
       - '@valibot/to-json-schema'
       - arktype
@@ -3674,11 +3697,11 @@ snapshots:
 
   '@xsai/shared@0.5.0-beta.4': {}
 
-  '@xsai/tool@0.5.0-beta.4':
+  '@xsai/tool@0.5.0-beta.4(zod@3.25.76)':
     dependencies:
       '@xsai/shared': 0.5.0-beta.4
       '@xsai/shared-chat': 0.5.0-beta.4
-      xsschema: 0.5.0-beta.4
+      xsschema: 0.5.0-beta.4(zod@3.25.76)
     transitivePeerDependencies:
       - '@valibot/to-json-schema'
       - arktype
@@ -5409,7 +5432,9 @@ snapshots:
 
   xml-name-validator@4.0.0: {}
 
-  xsschema@0.5.0-beta.4: {}
+  xsschema@0.5.0-beta.4(zod@3.25.76):
+    optionalDependencies:
+      zod: 3.25.76
 
   yaml-eslint-parser@2.0.0:
     dependencies:
@@ -5423,5 +5448,7 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yocto-queue@1.2.2: {}
+
+  zod@3.25.76: {}
 
   zwitch@2.0.4: {}
