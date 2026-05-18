@@ -30,6 +30,9 @@ catalogs:
     '@moeru/tsconfig':
       specifier: ^0.1.0-beta.18
       version: 0.1.0-beta.18
+    '@pnpm/find-workspace-dir':
+      specifier: ^1000.1.5
+      version: 1000.1.5
     '@types/node':
       specifier: ^25.6.2
       version: 25.6.2
@@ -196,6 +199,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 0.75.3
+      '@pnpm/find-workspace-dir':
+        specifier: 'catalog:'
+        version: 1000.1.5
       '@xsai/tool':
         specifier: catalog:xsai
         version: 0.5.0-beta.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
@@ -979,6 +985,18 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@pnpm/constants@1001.3.1':
+    resolution: {integrity: sha512-2hf0s4pVrVEH8RvdJJ7YRKjQdiG8m0iAT26TTqXnCbK30kKwJW69VLmP5tED5zstmDRXcOeH5eRcrpkdwczQ9g==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/error@1000.1.0':
+    resolution: {integrity: sha512-Dqc2IJJPjUatwc9Letw+vG29rnaMrDGi5g6WCx1HiZYm0obXbTmLygeRafMbgf+sLKXrWE1shOeiayQuczBdoA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/find-workspace-dir@1000.1.5':
+    resolution: {integrity: sha512-r1WzYXBD8cqlglOi4ilN9BphX74mJmH2hhiogzYbcNCHhtXnG7tw/9Iq54UGZ+cpDkgGHjL0xLwj9QLUoKJxmg==}
+    engines: {node: '>=18.12'}
 
   '@preact/signals-core@1.14.2':
     resolution: {integrity: sha512-RZHdBj9ZF4n40Rp4jS052EHHjBWf96P9oNdXPfhQTovCuWY9iQn3Gq+gOTJSgBO9A/JBuPfMOWsSX/lIU9Pc/A==}
@@ -5438,6 +5456,17 @@ snapshots:
   '@oxc-project/types@0.130.0': {}
 
   '@pkgr/core@0.2.9': {}
+
+  '@pnpm/constants@1001.3.1': {}
+
+  '@pnpm/error@1000.1.0':
+    dependencies:
+      '@pnpm/constants': 1001.3.1
+
+  '@pnpm/find-workspace-dir@1000.1.5':
+    dependencies:
+      '@pnpm/error': 1000.1.0
+      find-up: 5.0.0
 
   '@preact/signals-core@1.14.2': {}
 
