@@ -15,6 +15,6 @@ jobs:
   deploy:
     uses: importantimport/.github/.github/workflows/pnpm-gh-pages-artifact.yml@main
     with:
-      build: pnpm docs:build
+      build: pnpm build:docs
       path: docs/.vitepress/dist
       node-version: latest
