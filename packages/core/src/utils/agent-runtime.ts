@@ -1,7 +1,7 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext } from '../types/context'
-import type { TurnDoneContext } from '../types/plugin'
+import type { TurnDoneOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { ThreadSnapshot } from './thread-store'
 import type { EmitTurnEvent, QueuedInput, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
@@ -27,7 +27,7 @@ export interface AgentRuntimeOptions<T> {
   input?: ItemParam[]
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   loadThread: () => Promise<ThreadSnapshot | void> | ThreadSnapshot | void
-  onTurnDone: (context: TurnDoneContext<T>) => Promise<void> | void
+  onTurnDone: (options: TurnDoneOptions<T>) => Promise<void> | void
   plugins: TurnOptions<T>['plugins']
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>

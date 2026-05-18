@@ -1,29 +1,37 @@
-import type { ApeiraPlugin } from '@apeira/core'
+import type { AgentPlugin, ThreadSnapshot } from '@apeira/core'
 import type { CreateStorageOptions } from 'unstorage'
-
-import type { ThreadSnapshot } from '../../core/src/utils/thread-store'
 
 import { createStorage } from 'unstorage'
 
 import { name, version } from '../package.json'
 
-export const unstorage = (options: CreateStorageOptions): ApeiraPlugin => {
+export type UnstoragePluginOptions = CreateStorageOptions
+
+export const unstorage = (options: UnstoragePluginOptions): AgentPlugin => {
   const storage = createStorage(options)
+
+  const getThreadKey = (threadId: string) => `thread:${threadId}`
+
+  const parseSnapshot = (data: null | string | undefined): ThreadSnapshot | undefined => {
+    if (data == null)
+      return undefined
+
+    try {
+      return JSON.parse(data) as ThreadSnapshot
+    }
+    catch {
+      return undefined
+    }
+  }
 
   return {
     loadThread: async ({ threadId }) => {
-      const data = await storage.getItem<string>(`thread:${threadId}`)
-      if (data != null) {
-        try {
-          return JSON.parse(data) as ThreadSnapshot
-        }
-        catch {}
-      }
-      return undefined
+      const data = await storage.getItem<string>(getThreadKey(threadId))
+      return parseSnapshot(data)
     },
     name,
     saveThread: async ({ snapshot, threadId }) =>
-      storage.setItem(`thread:${threadId}`, JSON.stringify(snapshot)),
+      storage.setItem(getThreadKey(threadId), JSON.stringify(snapshot)),
     version,
   }
 }

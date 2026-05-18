@@ -3,7 +3,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { AgentContext } from '../types/context'
 import type { AgentEvent } from '../types/event'
 import type { AgentEventListener } from '../types/event-listener'
-import type { ApeiraPlugin, ApeiraPluginApi, ApeiraPluginOption, PluginChannelListener, ThreadInitContext } from '../types/plugin'
+import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, ThreadInitOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { AgentThread } from './agent-thread'
 
@@ -28,7 +28,7 @@ interface CreateAgentBaseOptions<T> {
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   name: string
   options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  plugins?: ApeiraPluginOption<T>[]
+  plugins?: AgentPluginOption<T>[]
 }
 
 type CreateAgentContextOptions<T> = [RequiredKeys<T>] extends [never]
@@ -41,7 +41,7 @@ type RequiredKeys<T> = {
 
 const DEFAULT_THREAD_ID = 'default'
 
-const normalizePlugins = <T>(plugins: ApeiraPluginOption<T>[]): ApeiraPlugin<T>[] =>
+const normalizePlugins = <T>(plugins: AgentPluginOption<T>[]): AgentPlugin<T>[] =>
   plugins.flatMap((plugin) => {
     if (plugin == null || plugin === false)
       return []
@@ -52,7 +52,7 @@ const normalizePlugins = <T>(plugins: ApeiraPluginOption<T>[]): ApeiraPlugin<T>[
     return [plugin]
   })
 
-const sortPlugins = <T>(plugins: ApeiraPluginOption<T>[]) => {
+const sortPlugins = <T>(plugins: AgentPluginOption<T>[]) => {
   const normalized = normalizePlugins(plugins)
 
   return [
@@ -70,7 +70,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
   let context: AgentContext<T> = options.context ?? {} as AgentContext<T>
 
-  const pluginApi: ApeiraPluginApi<T> = {
+  const pluginApi: AgentPluginApi<T> = {
     emit: (channel, event) => {
       for (const listener of [...(channelListeners.get(channel) ?? [])]) {
         try {
@@ -131,7 +131,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
       merge(merge(context, threadContext), runContext)
 
-    const createThreadContext = (): ThreadInitContext<T> => ({
+    const createThreadOptions = (): ThreadInitOptions<T> => ({
       agentName: options.name,
       context: resolveContext(),
       threadId: id,
@@ -142,7 +142,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const ensureThreadReady = async () => {
       threadReady ??= ready.then(async () => {
         for (const plugin of plugins)
-          await plugin.onThreadInit?.(createThreadContext())
+          await plugin.onThreadInit?.(createThreadOptions())
       })
 
       return threadReady
@@ -159,7 +159,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
         for (const plugin of plugins) {
           const snapshot = await plugin.loadThread?.({
-            ...createThreadContext(),
+            ...createThreadOptions(),
             input: threadOptions.input ?? [],
           })
 

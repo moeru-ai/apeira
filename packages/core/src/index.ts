@@ -1,3 +1,4 @@
+export * from './types/context'
 export * from './types/event'
 export * from './types/event-listener'
 export * from './types/plugin'
