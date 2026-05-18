@@ -294,7 +294,7 @@ const useStoredState = (key: string, fallback: string) => {
 }
 
 export const App = () => {
-  const [apiKey, setApiKey] = useStoredState('apeira:copilotkit:api-key', import.meta.env.VITE_OPENAI_API_KEY ?? '')
+  const [apiKey, setApiKey] = useStoredState('apeira:copilotkit:api-key', import.meta.env.VITE_OPENAI_API_KEY as string | undefined ?? '')
   const [model, setModel] = useStoredState('apeira:copilotkit:model', DEFAULT_MODEL)
 
   const apeiraAgent = useMemo(() => createAgent({
