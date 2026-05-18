@@ -30,6 +30,7 @@ const truncateOutput = (value: string) => {
 const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =>
   new Promise<{
     code: null | number
+    didTimeOut: boolean
     signal: NodeJS.Signals | null
     stderr: string
     stdout: string
@@ -45,6 +46,7 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
     let stderr = ''
     let stdoutTruncated = false
     let stderrTruncated = false
+    let didTimeOut = false
 
     const appendChunk = (
       current: string,
@@ -77,6 +79,7 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
     child.on('error', reject)
 
     const timer = setTimeout(() => {
+      didTimeOut = true
       child.kill('SIGTERM')
     }, timeoutMs)
 
@@ -84,6 +87,7 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
       clearTimeout(timer)
       resolve({
         code,
+        didTimeOut,
         signal,
         stderr: stderrTruncated ? `${stderr}\n[output truncated]` : stderr,
         stdout: stdoutTruncated ? `${stdout}\n[output truncated]` : stdout,
@@ -97,7 +101,7 @@ export const listFilesTool = await tool({
     const safeTargetPath = targetPath ?? '.'
     const safeMaxEntries = maxEntries ?? 80
     const safeRecursive = recursive ?? false
-    const startPath = resolveWorkspacePath(safeTargetPath)
+    const startPath = await resolveWorkspacePath(safeTargetPath)
     const stats = await fs.stat(startPath)
 
     if (!stats.isDirectory())
@@ -144,7 +148,7 @@ export const readFileTool = await tool({
     const safeTargetPath = targetPath ?? '.'
     const safeStartLine = startLine ?? 1
     const safeEndLine = endLine ?? 200
-    const absolutePath = resolveWorkspacePath(safeTargetPath)
+    const absolutePath = await resolveWorkspacePath(safeTargetPath)
     const stats = await fs.stat(absolutePath)
 
     if (!stats.isFile())
@@ -178,7 +182,7 @@ export const writeFileTool = await tool({
   description: 'Write a UTF-8 text file in the current workspace, creating parent directories if needed.',
   execute: async ({ content, targetPath }) => {
     const safeTargetPath = targetPath ?? '.'
-    const absolutePath = resolveWorkspacePath(safeTargetPath)
+    const absolutePath = await resolveWorkspacePath(safeTargetPath, true)
     await fs.mkdir(path.dirname(absolutePath), { recursive: true })
     await fs.writeFile(absolutePath, content ?? '', 'utf8')
 
@@ -199,7 +203,7 @@ export const editFileTool = await tool({
   description: 'Edit a UTF-8 text file by replacing an exact string match with new content.',
   execute: async ({ newString, oldString, replaceAll, targetPath }) => {
     const safeTargetPath = targetPath ?? '.'
-    const absolutePath = resolveWorkspacePath(safeTargetPath)
+    const absolutePath = await resolveWorkspacePath(safeTargetPath)
     const content = await fs.readFile(absolutePath, 'utf8')
 
     if (!content.includes(oldString))
@@ -236,7 +240,7 @@ export const bashTool = await tool({
   execute: async ({ command, targetPath, timeoutMs }) => {
     const safeTargetPath = targetPath ?? '.'
     const safeTimeoutMs = timeoutMs ?? 15_000
-    const cwd = resolveWorkspacePath(safeTargetPath)
+    const cwd = await resolveWorkspacePath(safeTargetPath)
     const stats = await fs.stat(cwd)
 
     if (!stats.isDirectory())
@@ -254,7 +258,7 @@ export const bashTool = await tool({
       stderrTruncated: stderr.truncated,
       stdout: stdout.text,
       stdoutTruncated: stdout.truncated,
-      timedOut: result.signal === 'SIGTERM',
+      timedOut: result.didTimeOut,
     }
   },
   name: 'bash',
