@@ -3,7 +3,7 @@ import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentContext } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
-import type { ApeiraPlugin, ResolveToolsContext, ResponseContext, ThreadSaveContext, TurnStartContext } from '../types/plugin'
+import type { AgentPlugin, ResolveToolsOptions, ResponseOptions, ThreadState, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { ThreadStore } from './thread-store'
 
@@ -34,7 +34,7 @@ export interface RunTurnOptions<T> {
 export type RunTurnParams<T> = RunTurnOptions<T> & TurnOptions<T>
 
 export type TurnCompletion<T = unknown>
-  = | { context: ResponseContext<T>, type: 'done' }
+  = | { context: ResponseOptions<T>, type: 'done' }
     | { error: unknown, type: 'failed' }
     | { reason?: unknown, type: 'aborted' }
 
@@ -44,11 +44,11 @@ export interface TurnOptions<T> {
   getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   mutateThread: (fn: () => Promise<void>) => Promise<void>
-  plugins: ApeiraPlugin<T>[]
+  plugins: AgentPlugin<T>[]
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  saveThread: (context: ThreadSaveContext<T>) => Promise<void> | void
-  thread: ThreadStore
+  saveThread: (state: ThreadState<T>) => Promise<void> | void
+  thread: ThreadStore<T>
   threadId: string
 }
 
@@ -65,10 +65,10 @@ const mergeRunContext = <T>(
     context,
   )
 
-const createTurnStartContext = <T>(
+const createTurnStartOptions = <T>(
   options: RunTurnParams<T>,
   context: AgentContext<T>,
-): TurnStartContext<T> => ({
+): TurnStartOptions<T> => ({
   agentName: options.agentName,
   context,
   input: options.turn.input,
@@ -77,11 +77,11 @@ const createTurnStartContext = <T>(
   turnId: options.turn.id,
 })
 
-const createResponseContext = <T>(
+const createResponseOptions = <T>(
   options: RunTurnParams<T>,
   context: AgentContext<T>,
   input: ItemParam[],
-): ResponseContext<T> => ({
+): ResponseOptions<T> => ({
   agentName: options.agentName,
   context,
   input,
@@ -102,7 +102,7 @@ const mergeTools = (tools: Tool[]): Tool[] => {
 
 const resolveTools = async <T>(
   options: RunTurnParams<T>,
-  context: ResponseContext<T>,
+  pluginOptions: ResponseOptions<T>,
 ) => {
   let tools = [...(options.responseOptions.tools ?? [])]
 
@@ -110,7 +110,7 @@ const resolveTools = async <T>(
     if (plugin.resolveTools == null)
       continue
 
-    const resolvedTools = await plugin.resolveTools({ ...context, tools } satisfies ResolveToolsContext<T>)
+    const resolvedTools = await plugin.resolveTools({ ...pluginOptions, tools } satisfies ResolveToolsOptions<T>)
 
     if (resolvedTools != null)
       tools = mergeTools([...tools, ...resolvedTools])
@@ -119,68 +119,57 @@ const resolveTools = async <T>(
   return tools.length > 0 ? tools : options.responseOptions.tools
 }
 
-const createOnFinish = <T>(
-  options: RunTurnParams<T>,
-  context: ResponseContext<T>,
-): ResponsesOptions['onFinish'] => {
-  const plugins = options.plugins.filter(plugin => plugin.onFinish != null)
-  const original = options.responseOptions.onFinish
+const createOnFinish = <T>(options: RunTurnParams<T>): ResponsesOptions['onFinish'] => {
+  const hooks = [
+    options.responseOptions.onFinish,
+    ...options.plugins.map(plugin => plugin.onFinish),
+  ].filter((hook): hook is NonNullable<ResponsesOptions['onFinish']> => hook != null)
 
-  if (original == null && plugins.length === 0)
+  if (hooks.length === 0)
     return undefined
 
   return async (step) => {
-    await original?.(step)
-
-    for (const plugin of plugins)
-      await plugin.onFinish?.(step, context)
+    for (const hook of hooks)
+      await hook(step)
   }
 }
 
-const createOnStepFinish = <T>(
-  options: RunTurnParams<T>,
-  context: ResponseContext<T>,
-): ResponsesOptions['onStepFinish'] => {
-  const plugins = options.plugins.filter(plugin => plugin.onStepFinish != null)
-  const original = options.responseOptions.onStepFinish
+const createOnStepFinish = <T>(options: RunTurnParams<T>): ResponsesOptions['onStepFinish'] => {
+  const hooks = [
+    options.responseOptions.onStepFinish,
+    ...options.plugins.map(plugin => plugin.onStepFinish),
+  ].filter((hook): hook is NonNullable<ResponsesOptions['onStepFinish']> => hook != null)
 
-  if (original == null && plugins.length === 0)
+  if (hooks.length === 0)
     return undefined
 
   return async (step) => {
-    await original?.(step)
-
-    for (const plugin of plugins)
-      await plugin.onStepFinish?.(step, context)
+    for (const hook of hooks)
+      await hook(step)
   }
 }
 
-const createPrepareStep = <T>(
-  options: RunTurnParams<T>,
-  context: ResponseContext<T>,
-): ResponsesOptions['prepareStep'] => {
-  const plugins = options.plugins.filter(plugin => plugin.prepareStep != null)
-  const original = options.responseOptions.prepareStep
+const createPrepareStep = <T>(options: RunTurnParams<T>): ResponsesOptions['prepareStep'] => {
+  const hooks = [
+    options.responseOptions.prepareStep,
+    ...options.plugins.map(plugin => plugin.prepareStep),
+  ].filter((hook): hook is PrepareStepHook => hook != null)
 
-  if (original == null && plugins.length === 0)
+  if (hooks.length === 0)
     return undefined
 
   return async (stepOptions) => {
     let current = { ...stepOptions }
     let prepared: PreparedStep | undefined
 
-    const applyResult = (result: PreparedStep | undefined | void) => {
-      if (result == null)
-        return
+    for (const hook of hooks) {
+      const result = await hook(current)
 
-      prepared = { ...prepared, ...result }
-      current = { ...current, ...result }
+      if (result != null) {
+        prepared = { ...prepared, ...result }
+        current = { ...current, ...result }
+      }
     }
-
-    applyResult(await original?.(current))
-
-    for (const plugin of plugins)
-      applyResult(await plugin.prepareStep?.(current, context))
 
     return prepared ?? {}
   }
@@ -189,12 +178,12 @@ const createPrepareStep = <T>(
 const runResponse = async <T>(
   options: RunTurnParams<T>,
   input: Array<QueuedInput<T> | QueuedTurn<T>>,
-): Promise<ResponseContext<T>> => {
+): Promise<ResponseOptions<T>> => {
   const snapshot = options.thread.snapshot()
   const responseInput = [...snapshot.items, ...input.map(item => item.input)]
   const context = mergeRunContext(options.getContext(), input)
-  const responseContext = createResponseContext(options, context, responseInput)
-  const tools = await resolveTools(options, responseContext)
+  const responseOptions = createResponseOptions(options, context, responseInput)
+  const tools = await resolveTools(options, responseOptions)
 
   const result = responses({
     ...options.responseOptions,
@@ -203,9 +192,9 @@ const runResponse = async <T>(
     instructions: typeof options.instructions === 'function'
       ? await options.instructions(context)
       : options.instructions,
-    onFinish: createOnFinish(options, responseContext),
-    onStepFinish: createOnStepFinish(options, responseContext),
-    prepareStep: createPrepareStep(options, responseContext),
+    onFinish: createOnFinish(options),
+    onStepFinish: createOnStepFinish(options),
+    prepareStep: createPrepareStep(options),
     stopWhen: options.responseOptions.stopWhen ?? stepCountAtLeast(20),
     tools,
   })
@@ -224,20 +213,10 @@ const runResponse = async <T>(
     if (!options.thread.commit(snapshot.version, resolvedInput))
       return
 
-    await options.saveThread({
-      agentName: options.agentName,
-      context,
-      input: responseInput,
-      reason: 'response',
-      signal: options.controller.signal,
-      snapshot: options.thread.snapshot(),
-      threadId: options.threadId,
-      turnId: options.turn.id,
-      turnInput: options.turn.input,
-    })
+    await options.saveThread(options.thread.snapshot())
   })
 
-  return responseContext
+  return responseOptions
 }
 
 export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion<T>> => {
@@ -247,7 +226,7 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
     const context = mergeRunContext(options.getContext(), [options.turn])
 
     for (const plugin of options.plugins)
-      await plugin.onTurnStart?.(createTurnStartContext(options, context))
+      await plugin.onTurnStart?.(createTurnStartOptions(options, context))
 
     options.emit(options.turn.id, { type: 'turn.start' })
 

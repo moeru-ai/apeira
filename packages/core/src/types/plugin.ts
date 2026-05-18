@@ -1,60 +1,54 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
-import type { CompletionStep, Tool } from '@xsai/shared-chat'
+import type { Tool } from '@xsai/shared-chat'
 
-import type { ThreadSnapshot } from '../utils/thread-store'
+import type { ThreadState } from '../utils/thread-store'
 import type { AgentContext } from './context'
 import type { AgentEvent } from './event'
 import type { ItemParam } from './responses'
 
-export interface ApeiraPlugin<T = unknown> {
+export interface AgentPlugin<T = unknown> {
   enforce?: 'post' | 'pre'
-  loadThread?: (context: ThreadLoadContext<T>) => MaybePromise<ThreadSnapshot | void>
   name: string
-  onEvent?: (event: AgentEvent, context: EventContext<T>) => MaybePromise<void>
-  onFinish?: (step: CompletionStep | undefined, context: ResponseContext<T>) => MaybePromise<void>
-  onStepFinish?: (step: CompletionStep, context: ResponseContext<T>) => MaybePromise<void>
-  onThreadInit?: (context: ThreadInitContext<T>) => MaybePromise<void>
-  onTurnDone?: (context: TurnDoneContext<T>) => MaybePromise<void>
-  onTurnStart?: (context: TurnStartContext<T>) => MaybePromise<void>
-  prepareStep?: (
-    options: PrepareStepOptions,
-    context: ResponseContext<T>,
-  ) => MaybePromise<PrepareStepResult | void>
-  resolveTools?: (context: ResolveToolsContext<T>) => MaybePromise<Tool[] | void>
-  saveThread?: (context: ThreadSaveContext<T>) => MaybePromise<void>
-  setup?: (api: ApeiraPluginApi<T>) => MaybePromise<void>
+  onEvent?: (event: AgentEvent) => MaybePromise<void>
+  onFinish?: ResponsesOptions['onFinish']
+  onStepFinish?: ResponsesOptions['onStepFinish']
+  onThreadInit?: (options: ThreadInitOptions<T>) => MaybePromise<void>
+  onTurnDone?: (options: TurnDoneOptions<T>) => MaybePromise<void>
+  onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
+  prepareStep?: ResponsesOptions['prepareStep']
+  resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
+  setup?: (api: AgentPluginApi<T>) => MaybePromise<void>
+  storage?: StorageLike
   version?: string
 }
 
-export interface ApeiraPluginApi<T = unknown> {
+export interface AgentPluginApi<T = unknown> {
   emit: (channel: string, event: unknown) => void
   subscribe: (channel: string, listener: PluginChannelListener<T>) => () => boolean
 }
 
-export type ApeiraPluginOption<T = unknown>
-  = | ApeiraPlugin<T>
-    | ApeiraPluginOption<T>[]
+export type AgentPluginOption<T = unknown>
+  = | AgentPlugin<T>
+    | AgentPluginOption<T>[]
     | false
     | null
     | undefined
 
-export interface EventContext<T = unknown> {
-  agentName: string
-  getContext: () => AgentContext<T>
-  threadId: string
-  turnId: string
-}
-
 export type PluginChannelListener<T = unknown> = (
   event: unknown,
-  context: { channel: string, pluginApi: ApeiraPluginApi<T> },
+  options: PluginChannelListenerOptions<T>,
 ) => void
 
-export interface ResolveToolsContext<T = unknown> extends ResponseContext<T> {
+export interface PluginChannelListenerOptions<T = unknown> {
+  channel: string
+  pluginApi: AgentPluginApi<T>
+}
+
+export interface ResolveToolsOptions<T = unknown> extends ResponseOptions<T> {
   tools: readonly Tool[]
 }
 
-export interface ResponseContext<T = unknown> {
+export interface ResponseOptions<T = unknown> {
   agentName: string
   context: AgentContext<T>
   input: readonly ItemParam[]
@@ -64,35 +58,23 @@ export interface ResponseContext<T = unknown> {
   turnInput: ItemParam
 }
 
-export interface ThreadClearSaveContext<T = unknown> extends ThreadInitContext<T> {
-  reason: 'clear'
-  snapshot: ThreadSnapshot
+export interface StorageLike {
+  getItem: (key: string) => MaybePromise<null | string | undefined>
+  removeItem?: (key: string) => MaybePromise<void>
+  setItem: (key: string, value: string) => MaybePromise<void>
 }
 
-export interface ThreadInitContext<T = unknown> {
+export interface ThreadInitOptions<T = unknown> {
   agentName: string
   context: AgentContext<T>
   threadId: string
 }
 
-export interface ThreadLoadContext<T = unknown> extends ThreadInitContext<T> {
-  input: readonly ItemParam[]
+export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {
+  snapshot: ThreadState<T>
 }
 
-export interface ThreadResponseSaveContext<T = unknown> extends ResponseContext<T> {
-  reason: 'response'
-  snapshot: ThreadSnapshot
-}
-
-export type ThreadSaveContext<T = unknown>
-  = | ThreadClearSaveContext<T>
-    | ThreadResponseSaveContext<T>
-
-export interface TurnDoneContext<T = unknown> extends ResponseContext<T> {
-  snapshot: ThreadSnapshot
-}
-
-export interface TurnStartContext<T = unknown> {
+export interface TurnStartOptions<T = unknown> {
   agentName: string
   context: AgentContext<T>
   input: ItemParam
@@ -101,8 +83,6 @@ export interface TurnStartContext<T = unknown> {
   turnId: string
 }
 
+export type { ThreadState }
+
 type MaybePromise<T> = Promise<T> | T
-
-type PrepareStepOptions = Parameters<NonNullable<ResponsesOptions['prepareStep']>>[0]
-
-type PrepareStepResult = Awaited<ReturnType<NonNullable<ResponsesOptions['prepareStep']>>>

@@ -3,7 +3,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { AgentContext } from '../types/context'
 import type { AgentEvent } from '../types/event'
 import type { AgentEventListener } from '../types/event-listener'
-import type { ApeiraPlugin, ApeiraPluginApi, ApeiraPluginOption, PluginChannelListener, ThreadInitContext } from '../types/plugin'
+import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, ThreadInitOptions, ThreadState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { AgentThread } from './agent-thread'
 
@@ -28,7 +28,7 @@ interface CreateAgentBaseOptions<T> {
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
   name: string
   options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  plugins?: ApeiraPluginOption<T>[]
+  plugins?: AgentPluginOption<T>[]
 }
 
 type CreateAgentContextOptions<T> = [RequiredKeys<T>] extends [never]
@@ -41,7 +41,22 @@ type RequiredKeys<T> = {
 
 const DEFAULT_THREAD_ID = 'default'
 
-const normalizePlugins = <T>(plugins: ApeiraPluginOption<T>[]): ApeiraPlugin<T>[] =>
+const getThreadStorageKey = (agentName: string, threadId: string) =>
+  JSON.stringify([agentName, threadId])
+
+const parseThreadState = <T>(value: null | string | undefined): ThreadState<T> | undefined => {
+  if (value == null)
+    return undefined
+
+  try {
+    return JSON.parse(value) as ThreadState<T>
+  }
+  catch {
+    return undefined
+  }
+}
+
+const normalizePlugins = <T>(plugins: AgentPluginOption<T>[]): AgentPlugin<T>[] =>
   plugins.flatMap((plugin) => {
     if (plugin == null || plugin === false)
       return []
@@ -52,7 +67,7 @@ const normalizePlugins = <T>(plugins: ApeiraPluginOption<T>[]): ApeiraPlugin<T>[
     return [plugin]
   })
 
-const sortPlugins = <T>(plugins: ApeiraPluginOption<T>[]) => {
+const sortPlugins = <T>(plugins: AgentPluginOption<T>[]) => {
   const normalized = normalizePlugins(plugins)
 
   return [
@@ -70,7 +85,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
   let context: AgentContext<T> = options.context ?? {} as AgentContext<T>
 
-  const pluginApi: ApeiraPluginApi<T> = {
+  const pluginApi: AgentPluginApi<T> = {
     emit: (channel, event) => {
       for (const listener of [...(channelListeners.get(channel) ?? [])]) {
         try {
@@ -98,7 +113,6 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     threadId: string,
     turnId: string,
     event: Omit<AgentEvent, 'threadId' | 'turnId'>,
-    getContext: () => AgentContext<T>,
   ) => {
     const fullEvent = { ...event, threadId, turnId } as AgentEvent
 
@@ -111,7 +125,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
     void ready.then(async () => {
       for (const plugin of plugins)
-        await plugin.onEvent?.(fullEvent, { agentName: options.name, getContext, threadId, turnId })
+        await plugin.onEvent?.(fullEvent)
     }).catch(() => undefined)
   }
 
@@ -126,12 +140,15 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   }
 
   const createAgentThread = (id: string, threadOptions: ThreadOptions<T> = {}): AgentThread<T> => {
-    let threadContext = threadOptions.context ?? {}
+    const storagePlugins = plugins.filter(plugin => plugin.storage != null)
+    const initialThreadContext = threadOptions.context ?? {}
+
+    let currentThreadContext = initialThreadContext
 
     const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
-      merge(merge(context, threadContext), runContext)
+      merge(merge(context, currentThreadContext), runContext)
 
-    const createThreadContext = (): ThreadInitContext<T> => ({
+    const createThreadOptions = (): ThreadInitOptions<T> => ({
       agentName: options.name,
       context: resolveContext(),
       threadId: id,
@@ -142,31 +159,50 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const ensureThreadReady = async () => {
       threadReady ??= ready.then(async () => {
         for (const plugin of plugins)
-          await plugin.onThreadInit?.(createThreadContext())
+          await plugin.onThreadInit?.(createThreadOptions())
       })
 
       return threadReady
     }
 
+    const loadThread = async (): Promise<ThreadState<T> | undefined> => {
+      await ensureThreadReady()
+
+      for (const plugin of storagePlugins) {
+        const value = await plugin.storage?.getItem(getThreadStorageKey(options.name, id))
+        const state = parseThreadState<T>(value)
+
+        if (state != null) {
+          const mergedState = {
+            ...state,
+            context: merge(initialThreadContext, state.context),
+          } satisfies ThreadState<T>
+
+          currentThreadContext = mergedState.context
+          return mergedState
+        }
+      }
+    }
+
+    const saveThread = async (state: ThreadState<T>) => {
+      currentThreadContext = state.context
+
+      for (const plugin of storagePlugins) {
+        const storage = plugin.storage
+        if (storage == null)
+          continue
+
+        await storage.setItem(getThreadStorageKey(options.name, id), JSON.stringify(state))
+      }
+    }
+
     const runtime = createAgentRuntime({
       agentName: options.name,
-      emit: (turnId, event) => emit(id, turnId, event, resolveContext),
+      emit: (turnId, event) => emit(id, turnId, event),
       getContext: resolveContext,
       input: threadOptions.input,
       instructions: options.instructions,
-      loadThread: async () => {
-        await ensureThreadReady()
-
-        for (const plugin of plugins) {
-          const snapshot = await plugin.loadThread?.({
-            ...createThreadContext(),
-            input: threadOptions.input ?? [],
-          })
-
-          if (snapshot != null)
-            return snapshot
-        }
-      },
+      loadThread,
       onTurnDone: async (turnContext) => {
         for (const plugin of plugins)
           await plugin.onTurnDone?.(turnContext)
@@ -176,10 +212,8 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         await ensureThreadReady()
       },
       responseOptions: options.options,
-      saveThread: async (threadContext) => {
-        for (const plugin of plugins)
-          await plugin.saveThread?.(threadContext)
-      },
+      saveThread,
+      threadContext: initialThreadContext,
       threadId: id,
     })
 
@@ -241,7 +275,8 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       }, reason)
 
     const setThreadContext: AgentThread<T>['setContext'] = (nextContext) => {
-      threadContext = merge(threadContext, nextContext)
+      currentThreadContext = merge(currentThreadContext, nextContext)
+      runtime.setContext(nextContext)
     }
 
     return {
