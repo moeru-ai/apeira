@@ -7,6 +7,7 @@
   "dependencies": {
     "@apeira/core": "workspace:",
     "@earendil-works/pi-tui": "catalog:",
+    "@xsai/tool": "catalog:xsai",
     "zod": "catalog:"
   }
 }

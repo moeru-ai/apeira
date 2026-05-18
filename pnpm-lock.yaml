@@ -18,6 +18,9 @@ catalogs:
     '@copilotkit/react-ui':
       specifier: ^1.57.1
       version: 1.57.1
+    '@earendil-works/pi-tui':
+      specifier: ^0.75.3
+      version: 0.75.3
     '@moeru/eslint-config':
       specifier: ^0.1.0-beta.18
       version: 0.1.0-beta.18
@@ -39,9 +42,6 @@ catalogs:
     '@vitejs/plugin-react':
       specifier: ^6.0.1
       version: 6.0.2
-    '@xsai/tool':
-      specifier: 0.5.0-beta.4
-      version: 0.5.0-beta.4
     bumpp:
       specifier: ^11.1.0
       version: 11.1.0
@@ -95,6 +95,9 @@ catalogs:
       specifier: ^0.5.0-beta.4
       version: 0.5.0-beta.4
     '@xsai/shared-chat':
+      specifier: ^0.5.0-beta.4
+      version: 0.5.0-beta.4
+    '@xsai/tool':
       specifier: ^0.5.0-beta.4
       version: 0.5.0-beta.4
 
@@ -154,7 +157,7 @@ importers:
         specifier: 'catalog:'
         version: 1.57.1(@ag-ui/core@0.0.53)(@types/mdast@4.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(graphql@16.14.0)(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(zod@4.4.3)
       '@xsai/tool':
-        specifier: 'catalog:'
+        specifier: catalog:xsai
         version: 0.5.0-beta.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       foxact:
         specifier: 'catalog:'
@@ -188,8 +191,11 @@ importers:
         specifier: 'workspace:'
         version: link:../../packages/core
       '@earendil-works/pi-tui':
-        specifier: ^0.75.3
+        specifier: 'catalog:'
         version: 0.75.3
+      '@xsai/tool':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.4(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       zod:
         specifier: 'catalog:'
         version: 4.4.3
