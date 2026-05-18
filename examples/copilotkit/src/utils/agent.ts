@@ -166,6 +166,7 @@ export class BrowserApeiraAgent extends AbstractAgent {
     super({
       agentId: AGENT_ID,
       description: 'Apeira browser agent',
+      initialMessages: readPersistedMessages('default'),
       threadId: 'default',
     })
     this.options = options
@@ -175,6 +176,7 @@ export class BrowserApeiraAgent extends AbstractAgent {
     const cloned = new BrowserApeiraAgent(this.options) as this
     cloned.agentId = this.agentId
     cloned.threadId = this.threadId
+    cloned.setMessages(readPersistedMessages(this.threadId))
     return cloned
   }
 
@@ -256,6 +258,11 @@ export class BrowserApeiraAgent extends AbstractAgent {
 
   protected override connect(_input: RunAgentInput) {
     return new Observable<BaseEvent>((subscriber: Subscriber<BaseEvent>) => {
+      subscriber.next({
+        timestamp: Date.now(),
+        type: EventType.RUN_STARTED,
+      })
+
       const messages = readPersistedMessages(this.threadId)
 
       if (messages.length > 0) {
@@ -265,6 +272,11 @@ export class BrowserApeiraAgent extends AbstractAgent {
           type: EventType.MESSAGES_SNAPSHOT,
         })
       }
+
+      subscriber.next({
+        timestamp: Date.now(),
+        type: EventType.RUN_FINISHED,
+      })
 
       subscriber.complete()
     })
