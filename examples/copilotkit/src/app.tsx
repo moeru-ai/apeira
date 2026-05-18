@@ -13,7 +13,8 @@ import {
   CopilotKitProvider,
   EventType,
 } from '@copilotkit/react-core/v2'
-import { useEffect, useMemo, useState } from 'react'
+import { useLocalStorage } from 'foxact/use-local-storage'
+import { useMemo } from 'react'
 import { Observable } from 'rxjs'
 
 import '@copilotkit/react-ui/v2/styles.css'
@@ -283,19 +284,9 @@ class BrowserApeiraAgent extends AbstractAgent {
   }
 }
 
-const useStoredState = (key: string, fallback: string) => {
-  const [value, setValue] = useState(() => localStorage.getItem(key) ?? fallback)
-
-  useEffect(() => {
-    localStorage.setItem(key, value)
-  }, [key, value])
-
-  return [value, setValue] as const
-}
-
 export const App = () => {
-  const [apiKey, setApiKey] = useStoredState('apeira:copilotkit:api-key', import.meta.env.VITE_OPENAI_API_KEY as string | undefined ?? '')
-  const [model, setModel] = useStoredState('apeira:copilotkit:model', DEFAULT_MODEL)
+  const [apiKey, setApiKey] = useLocalStorage('apeira:copilotkit:api-key', import.meta.env.VITE_OPENAI_API_KEY as string | undefined ?? '')
+  const [model, setModel] = useLocalStorage('apeira:copilotkit:model', DEFAULT_MODEL)
 
   const apeiraAgent = useMemo(() => createAgent({
     instructions: DEFAULT_INSTRUCTIONS,
