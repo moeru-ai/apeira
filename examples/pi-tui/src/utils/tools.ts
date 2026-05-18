@@ -41,11 +41,39 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
-    const stdoutChunks: Buffer[] = []
-    const stderrChunks: Buffer[] = []
+    let stdout = ''
+    let stderr = ''
+    let stdoutTruncated = false
+    let stderrTruncated = false
 
-    child.stdout.on('data', (chunk: Uint8Array) => stdoutChunks.push(Buffer.from(chunk)))
-    child.stderr.on('data', (chunk: Uint8Array) => stderrChunks.push(Buffer.from(chunk)))
+    const appendChunk = (
+      current: string,
+      chunk: Uint8Array,
+    ) => {
+      if (Buffer.byteLength(current, 'utf8') >= MAX_OUTPUT_BYTES)
+        return { text: current, truncated: true }
+
+      let next = `${current}${Buffer.from(chunk).toString('utf8')}`
+      let truncated = false
+
+      while (Buffer.byteLength(next, 'utf8') > MAX_OUTPUT_BYTES) {
+        next = next.slice(0, Math.max(0, Math.floor(next.length * 0.95)))
+        truncated = true
+      }
+
+      return { text: next, truncated }
+    }
+
+    child.stdout.on('data', (chunk: Uint8Array) => {
+      const next = appendChunk(stdout, chunk)
+      stdout = next.text
+      stdoutTruncated = stdoutTruncated || next.truncated
+    })
+    child.stderr.on('data', (chunk: Uint8Array) => {
+      const next = appendChunk(stderr, chunk)
+      stderr = next.text
+      stderrTruncated = stderrTruncated || next.truncated
+    })
     child.on('error', reject)
 
     const timer = setTimeout(() => {
@@ -57,8 +85,8 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
       resolve({
         code,
         signal,
-        stderr: Buffer.concat(stderrChunks).toString('utf8'),
-        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+        stderr: stderrTruncated ? `${stderr}\n[output truncated]` : stderr,
+        stdout: stdoutTruncated ? `${stdout}\n[output truncated]` : stdout,
       })
     })
   })

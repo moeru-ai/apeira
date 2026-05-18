@@ -7,9 +7,6 @@ import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 const workspaceDir = await findWorkspaceDir(cwd())
 const envRoot = workspaceDir ?? cwd()
 
-// eslint-disable-next-line @masknet/no-top-level
-env.APEIRA_CWD ??= envRoot
-
 try {
   loadEnvFile(join(envRoot, '.env'))
 }
@@ -19,6 +16,9 @@ try {
   loadEnvFile(join(envRoot, '.env.local'))
 }
 catch {}
+
+// eslint-disable-next-line @masknet/no-top-level
+env.APEIRA_CWD ??= envRoot
 
 // eslint-disable-next-line antfu/no-top-level-await
 const { createPiTuiExampleApp } = await import('./app')
