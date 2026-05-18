@@ -271,7 +271,7 @@ describe('createThreadStore', () => {
 describe('createAgent', () => {
   it('loads persisted thread state before clear saves reset state', async () => {
     const storage = createMemoryStorage({
-      'clear-storage-test:default': JSON.stringify({
+      '["clear-storage-test","default"]': JSON.stringify({
         context: { locale: 'en-US' },
         items: [message('persisted history')],
         version: 10,
@@ -295,7 +295,7 @@ describe('createAgent', () => {
     agent.clear()
     await wait()
 
-    expect(JSON.parse(String(storage.values.get('clear-storage-test:default')))).toEqual({
+    expect(JSON.parse(String(storage.values.get('["clear-storage-test","default"]')))).toEqual({
       context: {},
       items: [],
       version: 11,
@@ -489,7 +489,7 @@ describe('createAgent', () => {
   it('runs plugins through thread, turn, response, and storage hooks', async () => {
     const calls: string[] = []
     const storage = createMemoryStorage({
-      'plugin-test:default': JSON.stringify({
+      '["plugin-test","default"]': JSON.stringify({
         context: {},
         items: [message('loaded history')],
         version: 0,
@@ -786,7 +786,7 @@ describe('createAgent', () => {
     thread.setContext({ locale: 'ja-JP' })
     await wait()
 
-    expect(JSON.parse(String(storage.values.get('thread-storage-context-test:persisted-thread')))).toMatchObject({
+    expect(JSON.parse(String(storage.values.get('["thread-storage-context-test","persisted-thread"]')))).toMatchObject({
       context: { locale: 'ja-JP' },
     })
 

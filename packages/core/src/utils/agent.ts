@@ -41,7 +41,8 @@ type RequiredKeys<T> = {
 
 const DEFAULT_THREAD_ID = 'default'
 
-const getThreadStorageKey = (agentName: string, threadId: string) => `${agentName}:${threadId}`
+const getThreadStorageKey = (agentName: string, threadId: string) =>
+  JSON.stringify([agentName, threadId])
 
 const parseThreadState = <T>(value: null | string | undefined): ThreadState<T> | undefined => {
   if (value == null)

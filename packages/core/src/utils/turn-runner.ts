@@ -159,13 +159,16 @@ const createPrepareStep = <T>(options: RunTurnParams<T>): ResponsesOptions['prep
     return undefined
 
   return async (stepOptions) => {
+    let current = { ...stepOptions }
     let prepared: PreparedStep | undefined
 
     for (const hook of hooks) {
-      const result = await hook(stepOptions)
+      const result = await hook(current)
 
-      if (result != null)
+      if (result != null) {
         prepared = { ...prepared, ...result }
+        current = { ...current, ...result }
+      }
     }
 
     return prepared ?? {}
