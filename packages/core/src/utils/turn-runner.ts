@@ -3,7 +3,7 @@ import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentContext } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ResolveToolsOptions, ResponseOptions, ThreadSaveOptions, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ResolveToolsOptions, ResponseOptions, ThreadState, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { ThreadStore } from './thread-store'
 
@@ -47,8 +47,8 @@ export interface TurnOptions<T> {
   plugins: AgentPlugin<T>[]
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  saveThread: (options: ThreadSaveOptions<T>) => Promise<void> | void
-  thread: ThreadStore
+  saveThread: (state: ThreadState<T>) => Promise<void> | void
+  thread: ThreadStore<T>
   threadId: string
 }
 
@@ -210,17 +210,7 @@ const runResponse = async <T>(
     if (!options.thread.commit(snapshot.version, resolvedInput))
       return
 
-    await options.saveThread({
-      agentName: options.agentName,
-      context,
-      input: responseInput,
-      reason: 'response',
-      signal: options.controller.signal,
-      snapshot: options.thread.snapshot(),
-      threadId: options.threadId,
-      turnId: options.turn.id,
-      turnInput: options.turn.input,
-    })
+    await options.saveThread(options.thread.snapshot())
   })
 
   return responseOptions

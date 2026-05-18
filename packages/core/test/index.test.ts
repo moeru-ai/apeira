@@ -10,6 +10,21 @@ import { createPendingInput } from '../src/utils/pending-input'
 import { createQueue } from '../src/utils/queue'
 import { createThreadStore } from '../src/utils/thread-store'
 
+const createMemoryStorage = (initial: Record<string, string> = {}) => {
+  const values = new Map(Object.entries(initial))
+
+  return {
+    getItem: (key: string) => values.get(key),
+    removeItem: (key: string) => {
+      values.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      values.set(key, value)
+    },
+    values,
+  }
+}
+
 const wait = async (ms = 0) => {
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
@@ -216,6 +231,7 @@ describe('createThreadStore', () => {
     nextItems.push(message('mutated'))
 
     expect(store.snapshot()).toEqual({
+      context: {},
       items: [message('next')],
       version: snapshot.version + 1,
     })
@@ -230,17 +246,37 @@ describe('createThreadStore', () => {
     store.append([message('appended')])
 
     expect(store.snapshot()).toEqual({
+      context: {},
       items: [message('initial'), message('appended')],
       version: snapshot.version + 1,
     })
     expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
     expect(store.snapshot().items).toEqual([message('initial'), message('appended')])
   })
+
+  it('stores thread context alongside items', () => {
+    const store = createThreadStore<{ locale?: string }>([message('initial')], { locale: 'en-US' })
+
+    store.setContext({ locale: 'ja-JP' })
+
+    expect(store.getContext()).toEqual({ locale: 'ja-JP' })
+    expect(store.snapshot()).toEqual({
+      context: { locale: 'ja-JP' },
+      items: [message('initial')],
+      version: 1,
+    })
+  })
 })
 
 describe('createAgent', () => {
   it('loads persisted thread state before clear saves reset state', async () => {
-    const savedSnapshots: unknown[] = []
+    const storage = createMemoryStorage({
+      'clear-storage-test:default': JSON.stringify({
+        context: { locale: 'en-US' },
+        items: [message('persisted history')],
+        version: 10,
+      }),
+    })
     const agent = createAgent({
       instructions: 'You are a plugin test assistant.',
       name: 'clear-storage-test',
@@ -251,27 +287,22 @@ describe('createAgent', () => {
         model: 'test-model',
       },
       plugins: [{
-        loadThread: () => ({
-          items: [message('persisted history')],
-          version: 10,
-        }),
         name: 'storage',
-        saveThread: ({ snapshot }) => {
-          savedSnapshots.push(snapshot)
-        },
+        storage,
       }],
     })
 
     agent.clear()
     await wait()
 
-    expect(savedSnapshots).toEqual([{
+    expect(JSON.parse(String(storage.values.get('clear-storage-test:default')))).toEqual({
+      context: {},
       items: [],
       version: 11,
-    }])
+    })
   })
 
-  it('retries loading thread state after loadThread fails', async () => {
+  it('retries loading thread state after storage getItem fails', async () => {
     const responsesFetch = createResponsesFetch()
     const events: AgentEvent[] = []
     let loadAttempts = 0
@@ -285,13 +316,16 @@ describe('createAgent', () => {
         model: 'test-model',
       },
       plugins: [{
-        loadThread: () => {
-          loadAttempts += 1
-
-          if (loadAttempts === 1)
-            throw new Error('temporary storage failure')
-        },
         name: 'storage',
+        storage: {
+          getItem: () => {
+            loadAttempts += 1
+
+            if (loadAttempts === 1)
+              throw new Error('temporary storage failure')
+          },
+          setItem: () => {},
+        },
       }],
     })
 
@@ -329,15 +363,20 @@ describe('createAgent', () => {
       },
       plugins: [{
         name: 'storage',
-        saveThread: async (context) => {
-          saves.push(`${context.reason}:start`)
+        storage: {
+          getItem: () => undefined,
+          setItem: async (_key, value) => {
+            const state = JSON.parse(value) as { items: unknown[] }
+            const phase = state.items.length > 0 ? 'response' : 'clear'
+            saves.push(`${phase}:start`)
 
-          if (context.reason === 'response') {
-            agent.clear()
-            await wait(10)
-          }
+            if (phase === 'response') {
+              agent.clear()
+              await wait(10)
+            }
 
-          saves.push(`${context.reason}:end`)
+            saves.push(`${phase}:end`)
+          },
         },
       }],
     })
@@ -368,13 +407,17 @@ describe('createAgent', () => {
         model: 'test-model',
       },
       plugins: [{
-        loadThread: async () => {
-          loadStarted = true
-          await new Promise<void>((resolve) => {
-            resolveLoad = resolve
-          })
-        },
         name: 'storage',
+        storage: {
+          getItem: async () => {
+            loadStarted = true
+            await new Promise<void>((resolve) => {
+              resolveLoad = resolve
+            })
+            return undefined
+          },
+          setItem: () => {},
+        },
       }],
     })
     const unsubscribe = agent.subscribe(event => events.push(event))
@@ -445,6 +488,13 @@ describe('createAgent', () => {
 
   it('runs plugins through thread, turn, response, and storage hooks', async () => {
     const calls: string[] = []
+    const storage = createMemoryStorage({
+      'plugin-test:default': JSON.stringify({
+        context: {},
+        items: [message('loaded history')],
+        version: 0,
+      }),
+    })
     const responsesFetch = createResponsesFetch()
     const weatherTool: Tool = {
       execute: () => 'sunny',
@@ -464,13 +514,6 @@ describe('createAgent', () => {
         model: 'test-model',
       },
       plugins: [false, [{
-        loadThread: () => {
-          calls.push('loadThread')
-          return {
-            items: [message('loaded history')],
-            version: 0,
-          }
-        },
         name: 'test-plugin',
         onEvent: (event) => {
           if (!(event.type.startsWith('turn.')))
@@ -497,11 +540,19 @@ describe('createAgent', () => {
           calls.push(`resolveTools:${tools.length}`)
           return [weatherTool]
         },
-        saveThread: ({ snapshot }) => {
-          calls.push(`saveThread:${snapshot.items.length}`)
-        },
         setup: () => {
           calls.push('setup')
+        },
+        storage: {
+          getItem: (key) => {
+            calls.push('loadThread')
+            return storage.getItem(key)
+          },
+          setItem: (key, value) => {
+            const state = JSON.parse(value) as { items: unknown[] }
+            calls.push(`saveThread:${state.items.length}`)
+            storage.setItem(key, value)
+          },
         },
       }], null],
     })
@@ -539,6 +590,7 @@ describe('createAgent', () => {
 
   it('uses the current response context for drained input hooks', async () => {
     const records: Array<{ hook: string, lastInput?: unknown, requestId?: string }> = []
+    const storage = createMemoryStorage()
     const responsesFetch = createResponsesFetch(2)
     const agent = createAgent<{ requestId?: string }>({
       context: {},
@@ -555,15 +607,17 @@ describe('createAgent', () => {
         onTurnDone: ({ context, input }) => {
           records.push({ hook: 'onTurnDone', lastInput: input.at(-1), requestId: context.requestId })
         },
-        saveThread: (context) => {
-          if (context.reason !== 'response')
-            return
-
-          records.push({
-            hook: 'saveThread',
-            lastInput: context.input.at(-1),
-            requestId: context.context.requestId,
-          })
+        storage: {
+          getItem: key => storage.getItem(key),
+          setItem: (key, value) => {
+            const state = JSON.parse(value) as { context: { requestId?: string }, items: ItemParam[] }
+            records.push({
+              hook: 'saveThread',
+              lastInput: state.items.at(-1),
+              requestId: state.context.requestId,
+            })
+            storage.setItem(key, value)
+          },
         },
       }],
     })
@@ -604,8 +658,8 @@ describe('createAgent', () => {
     })
     expect(records).toContainEqual({
       hook: 'saveThread',
-      lastInput: message('Follow up.'),
-      requestId: 'follow',
+      lastInput: assistantMessage('response 2'),
+      requestId: undefined,
     })
   })
 
@@ -697,6 +751,70 @@ describe('createAgent', () => {
     expect(agent.getContext()).toEqual({
       locale: 'en-US',
       product: 'help',
+    })
+  })
+
+  it('persists thread context and treats thread({ context }) as a default', async () => {
+    interface Context {
+      locale?: string
+      product?: string
+    }
+
+    const storage = createMemoryStorage()
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent<Context>({
+      context: {},
+      instructions: context => JSON.stringify(context),
+      name: 'thread-storage-context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'storage',
+        storage,
+      }],
+    })
+
+    const thread = agent.thread({
+      context: { locale: 'en-US' },
+      id: 'persisted-thread',
+    })
+
+    thread.setContext({ locale: 'ja-JP' })
+    await wait()
+
+    expect(JSON.parse(String(storage.values.get('thread-storage-context-test:persisted-thread')))).toMatchObject({
+      context: { locale: 'ja-JP' },
+    })
+
+    const restoredAgent = createAgent<Context>({
+      context: {},
+      instructions: context => JSON.stringify(context),
+      name: 'thread-storage-context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'storage',
+        storage,
+      }],
+    })
+    const restored = restoredAgent.thread({
+      context: { locale: 'fr-FR', product: 'docs' },
+      id: 'persisted-thread',
+    })
+
+    await readEventStream(restored.run(message('Use persisted context.')))
+
+    expect(JSON.parse(String(responsesFetch.instructions[0]))).toEqual({
+      locale: 'ja-JP',
+      product: 'docs',
     })
   })
 

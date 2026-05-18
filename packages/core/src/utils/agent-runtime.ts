@@ -3,7 +3,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { AgentContext } from '../types/context'
 import type { TurnDoneOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
-import type { ThreadSnapshot } from './thread-store'
+import type { ThreadState } from './thread-store'
 import type { EmitTurnEvent, QueuedInput, QueuedTurn, TurnCompletion, TurnOptions } from './turn-runner'
 
 import { linkedAbort } from './linked-abort'
@@ -18,6 +18,7 @@ export interface AgentRuntime<T = unknown> {
   enqueueTurn: (turn: QueuedTurn<T>) => void
   interrupt: (input: QueuedInput<T>, reason?: unknown) => string
   send: (input: QueuedInput<T>) => string
+  setContext: (context: Partial<AgentContext<T>>) => void
 }
 
 export interface AgentRuntimeOptions<T> {
@@ -26,12 +27,13 @@ export interface AgentRuntimeOptions<T> {
   getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
   input?: ItemParam[]
   instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
-  loadThread: () => Promise<ThreadSnapshot | void> | ThreadSnapshot | void
+  loadThread: () => Promise<ThreadState<T> | void> | ThreadState<T> | void
   onTurnDone: (options: TurnDoneOptions<T>) => Promise<void> | void
   plugins: TurnOptions<T>['plugins']
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
   saveThread: TurnOptions<T>['saveThread']
+  threadContext?: Partial<AgentContext<T>>
   threadId: string
 }
 
@@ -50,7 +52,7 @@ const createTurnAbortedBoundary = (): ItemParam => ({
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const pendingInput = createPendingInput<T>()
   const pendingTurns = createQueue<QueuedTurn<T>>()
-  const thread = createThreadStore(options.input)
+  const thread = createThreadStore<T>(options.input, options.threadContext)
 
   let acceptingInputTurnId: string | undefined
   let activeTurn: ActiveTurn | undefined
@@ -120,13 +122,15 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       await ensureLoaded()
 
       thread.reset()
-      await options.saveThread({
-        agentName: options.agentName,
-        context: options.getContext(),
-        reason: 'clear',
-        snapshot: thread.snapshot(),
-        threadId: options.threadId,
-      })
+      await options.saveThread(thread.snapshot())
+    }).catch(() => undefined)
+  }
+
+  const setContext: AgentRuntime<T>['setContext'] = (context) => {
+    void mutateThread(async () => {
+      await ensureLoaded()
+      thread.setContext(context)
+      await options.saveThread(thread.snapshot())
     }).catch(() => undefined)
   }
 
@@ -296,5 +300,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     enqueueTurn,
     interrupt,
     send,
+    setContext,
   }
 }

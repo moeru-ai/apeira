@@ -1,14 +1,13 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
-import type { ThreadSnapshot } from '../utils/thread-store'
+import type { ThreadState } from '../utils/thread-store'
 import type { AgentContext } from './context'
 import type { AgentEvent } from './event'
 import type { ItemParam } from './responses'
 
 export interface AgentPlugin<T = unknown> {
   enforce?: 'post' | 'pre'
-  loadThread?: (options: ThreadLoadOptions<T>) => MaybePromise<ThreadSnapshot | void>
   name: string
   onEvent?: (event: AgentEvent, options: EventOptions<T>) => MaybePromise<void>
   onFinish?: ResponsesOptions['onFinish']
@@ -18,8 +17,8 @@ export interface AgentPlugin<T = unknown> {
   onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
   prepareStep?: ResponsesOptions['prepareStep']
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
-  saveThread?: (options: ThreadSaveOptions<T>) => MaybePromise<void>
   setup?: (api: AgentPluginApi<T>) => MaybePromise<void>
+  storage?: StorageLike
   version?: string
 }
 
@@ -66,9 +65,10 @@ export interface ResponseOptions<T = unknown> {
   turnInput: ItemParam
 }
 
-export interface ThreadClearSaveOptions<T = unknown> extends ThreadInitOptions<T> {
-  reason: 'clear'
-  snapshot: ThreadSnapshot
+export interface StorageLike {
+  getItem: (key: string) => MaybePromise<null | string | undefined>
+  removeItem?: (key: string) => MaybePromise<void>
+  setItem: (key: string, value: string) => MaybePromise<void>
 }
 
 export interface ThreadInitOptions<T = unknown> {
@@ -77,21 +77,8 @@ export interface ThreadInitOptions<T = unknown> {
   threadId: string
 }
 
-export interface ThreadLoadOptions<T = unknown> extends ThreadInitOptions<T> {
-  input: readonly ItemParam[]
-}
-
-export interface ThreadResponseSaveOptions<T = unknown> extends ResponseOptions<T> {
-  reason: 'response'
-  snapshot: ThreadSnapshot
-}
-
-export type ThreadSaveOptions<T = unknown>
-  = | ThreadClearSaveOptions<T>
-    | ThreadResponseSaveOptions<T>
-
 export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {
-  snapshot: ThreadSnapshot
+  snapshot: ThreadState<T>
 }
 
 export interface TurnStartOptions<T = unknown> {
@@ -103,6 +90,6 @@ export interface TurnStartOptions<T = unknown> {
   turnId: string
 }
 
-export type { ThreadSnapshot }
+export type { ThreadState }
 
 type MaybePromise<T> = Promise<T> | T
