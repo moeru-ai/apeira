@@ -196,6 +196,9 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../../packages/core
+      '@apeira/plugin-skills':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-skills
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 0.75.3
@@ -241,6 +244,12 @@ importers:
       '@ag-ui/core':
         specifier: 'catalog:'
         version: 0.0.53
+    devDependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../core
+
+  packages/plugin-skills:
     devDependencies:
       '@apeira/core':
         specifier: 'workspace:'

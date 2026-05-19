@@ -28,3 +28,19 @@ It provides:
 - global subscriptions
 - abort and clear behavior
 - in-memory history
+
+## @apeira/plugin-skills
+
+`@apeira/plugin-skills` exposes filesystem-agnostic Skills primitives for Apeira
+plugins and host applications.
+
+```ts
+import { createSkillsRegistry, skills } from '@apeira/plugin-skills'
+```
+
+It provides:
+
+- a `skills()` plugin that injects model-visible skill metadata
+- a host-owned `SkillsRegistry`
+- formatting helpers for available-skill prompts and explicit skill invocation
+- no direct filesystem access; applications own loading skill files
