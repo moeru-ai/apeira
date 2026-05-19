@@ -1,5 +1,8 @@
 import type { AgentPlugin, ItemParam } from '@apeira/core'
 
+import { tool } from '@xsai/tool'
+import { description, object, parse, pipe, string } from 'valibot'
+
 import { name, version } from '../package.json'
 
 export interface Skill {
@@ -26,6 +29,7 @@ export interface SkillsPluginOptions extends SkillsRegistryOptions {
    */
   refresh?: 'manual' | 'turn'
   registry?: SkillsRegistry
+  toolName?: string
 }
 
 export interface SkillsRegistry {
@@ -86,8 +90,8 @@ export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string =>
 
   const lines = [
     'The following skills provide specialized instructions for specific tasks.',
-    'Read the full skill file when the task matches its description.',
-    'When a skill file references a relative path, resolve it against the skill directory and use that absolute path in tool commands.',
+    'When the task matches a skill description, call the skill tool with that skill name before answering.',
+    'Do not read skill files directly when the skill tool is available.',
     '',
     '<available_skills>',
   ]
@@ -142,9 +146,36 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
   }
 }
 
+const skillToolInputSchema = object({
+  additionalInstructions: pipe(
+    string(),
+    description('Optional task-specific instructions to append after the skill content.'),
+  ),
+  name: pipe(
+    string(),
+    description('Skill name from the available_skills list.'),
+  ),
+})
+
+const createSkillTool = async (registry: SkillsRegistry, toolName: string) => tool({
+  description: 'Load the full instructions for an available skill by name. Use this before answering when a user request matches a listed skill.',
+  execute: (input: unknown) => {
+    const args = parse(skillToolInputSchema, input)
+    const skill = registry.getSkill(args.name)
+
+    if (skill == null || skill.disableModelInvocation)
+      throw new Error(`Unknown skill: ${args.name}`)
+
+    return formatSkillInvocation(skill, args.additionalInstructions)
+  },
+  name: toolName,
+  parameters: skillToolInputSchema,
+})
+
 export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
   const registry = options.registry ?? createSkillsRegistry(options)
   const refreshMode = options.refresh ?? (options.loadSkills == null ? 'manual' : 'turn')
+  const toolName = options.toolName ?? 'skill'
 
   return {
     name,
@@ -169,6 +200,13 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
           ...input,
         ],
       }
+    },
+    resolveTools: async () => {
+      const hasVisibleSkills = registry.getSkills().some(skill => !skill.disableModelInvocation)
+
+      return hasVisibleSkills
+        ? [await createSkillTool(registry, toolName)]
+        : undefined
     },
     version,
   }

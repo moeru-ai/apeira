@@ -107,4 +107,24 @@ describe('skills', () => {
 
     expect(registry.getSkills()).toEqual([inspectSkill])
   })
+
+  it('provides a skill tool backed by host-loaded registry content', async () => {
+    const plugin = skills({ skills: [inspectSkill] })
+    const tools = await plugin.resolveTools?.({
+      agentName: 'agent',
+      context: {},
+      input: [{ content: 'hello', role: 'user', type: 'message' }],
+      signal: new AbortController().signal,
+      threadId: 'thread',
+      tools: [],
+      turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
+    })
+
+    expect(tools?.[0]?.function.name).toBe('skill')
+    expect(await tools?.[0]?.execute({ additionalInstructions: 'Focus on tests.', name: 'inspect' }, {
+      messages: [],
+      toolCallId: 'call_1',
+    })).toContain('Inspect the code carefully.')
+  })
 })
