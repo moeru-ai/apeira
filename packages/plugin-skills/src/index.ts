@@ -11,6 +11,8 @@ export interface Skill {
   disableModelInvocation?: boolean
   filePath: string
   name: string
+  references?: SkillReference[]
+  source?: string
 }
 
 export interface SkillDiagnostic {
@@ -20,9 +22,16 @@ export interface SkillDiagnostic {
   type: 'warning'
 }
 
+export interface SkillReference {
+  content: string
+  description?: string
+  path: string
+}
+
 export type SkillsLoader = () => MaybePromise<Skill[] | SkillsRegistrySnapshot>
 
 export interface SkillsPluginOptions extends SkillsRegistryOptions {
+  referenceToolName?: string
   /**
    * Reload skills before each turn. Useful when the host owns filesystem loading
    * and wants edits to skill files to appear without restarting the agent.
@@ -83,6 +92,21 @@ const normalizeSnapshot = (value: Skill[] | SkillsRegistrySnapshot): SkillsRegis
         skills: value.skills.slice(),
       }
 
+const formatReferenceManifest = (references: readonly SkillReference[]) =>
+  references.map((reference) => {
+    const description = reference.description == null || reference.description.trim().length === 0
+      ? ''
+      : `: ${reference.description.trim()}`
+
+    return `- ${reference.path}${description}`
+  })
+
+const formatSkillReference = (skill: Skill, reference: SkillReference) => [
+  `<skill_reference skill="${escapeXml(skill.name)}" path="${escapeXml(reference.path)}">`,
+  reference.content,
+  '</skill_reference>',
+].join('\n')
+
 export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string => {
   const visibleSkills = skills.filter(skill => !skill.disableModelInvocation)
   if (visibleSkills.length === 0)
@@ -101,6 +125,8 @@ export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string =>
     lines.push(`    <name>${escapeXml(skill.name)}</name>`)
     lines.push(`    <description>${escapeXml(skill.description)}</description>`)
     lines.push(`    <location>${escapeXml(skill.filePath)}</location>`)
+    if (skill.source != null)
+      lines.push(`    <source>${escapeXml(skill.source)}</source>`)
     lines.push('  </skill>')
   }
 
@@ -109,9 +135,17 @@ export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string =>
 }
 
 export const formatSkillInvocation = (skill: Skill, additionalInstructions?: string): string => {
+  const referenceLines = formatReferenceManifest(skill.references ?? [])
   const skillBlock = [
     `<skill name="${escapeXml(skill.name)}" location="${escapeXml(skill.filePath)}">`,
     `References are relative to ${escapeXml(dirnamePath(skill.filePath))}.`,
+    ...(referenceLines.length > 0
+      ? [
+          '',
+          'Available references. Call the skill_reference tool with this skill name and one of these paths when you need the referenced material.',
+          ...referenceLines,
+        ]
+      : []),
     '',
     skill.content,
     '</skill>',
@@ -151,6 +185,11 @@ const skillToolInputSchema = z.object({
   name: z.string().describe('Skill name from the available_skills list.'),
 })
 
+const skillReferenceToolInputSchema = z.object({
+  name: z.string().describe('Skill name from the available_skills list.'),
+  path: z.string().describe('Reference path from the selected skill reference manifest.'),
+})
+
 const createSkillTool = async (registry: SkillsRegistry, toolName: string) => tool({
   description: 'Load the full instructions for an available skill by name. Use this before answering when a user request matches a listed skill.',
   execute: (input: unknown) => {
@@ -166,9 +205,26 @@ const createSkillTool = async (registry: SkillsRegistry, toolName: string) => to
   parameters: skillToolInputSchema,
 })
 
+const createSkillReferenceTool = async (registry: SkillsRegistry, toolName: string) => tool({
+  description: 'Load a referenced file for a previously selected skill. Use only paths listed by the skill tool.',
+  execute: (input: unknown) => {
+    const args = z.parse(skillReferenceToolInputSchema, input)
+    const skill = registry.getSkill(args.name)
+    const reference = skill?.references?.find(candidate => candidate.path === args.path)
+
+    if (skill == null || skill.disableModelInvocation || reference == null)
+      throw new Error(`Unknown skill reference: ${args.name}/${args.path}`)
+
+    return formatSkillReference(skill, reference)
+  },
+  name: toolName,
+  parameters: skillReferenceToolInputSchema,
+})
+
 export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
   const registry = options.registry ?? createSkillsRegistry(options)
   const refreshMode = options.refresh ?? (options.loadSkills == null ? 'manual' : 'turn')
+  const referenceToolName = options.referenceToolName ?? 'skill_reference'
   const toolName = options.toolName ?? 'skill'
 
   return {
@@ -196,11 +252,15 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
       }
     },
     resolveTools: async () => {
-      const hasVisibleSkills = registry.getSkills().some(skill => !skill.disableModelInvocation)
+      const visibleSkills = registry.getSkills().filter(skill => !skill.disableModelInvocation)
+      if (visibleSkills.length === 0)
+        return undefined
 
-      return hasVisibleSkills
-        ? [await createSkillTool(registry, toolName)]
-        : undefined
+      const tools = [await createSkillTool(registry, toolName)]
+      if (visibleSkills.some(skill => skill.references != null && skill.references.length > 0))
+        tools.push(await createSkillReferenceTool(registry, referenceToolName))
+
+      return tools
     },
     version,
   }

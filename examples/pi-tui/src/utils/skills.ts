@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs'
 
-import type { Skill, SkillDiagnostic, SkillsRegistrySnapshot } from '@apeira/plugin-skills'
+import type { Skill, SkillDiagnostic, SkillReference, SkillsRegistrySnapshot } from '@apeira/plugin-skills'
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -14,6 +14,7 @@ interface SkillFrontmatter {
 }
 
 export const skillsDir = path.join(workspaceRoot, '.agents', 'skills')
+const REFERENCE_EXTENSIONS = new Set(['.md', '.mdx', '.txt'])
 
 const parseScalar = (value: string): string => {
   const trimmed = value.trim()
@@ -119,6 +120,88 @@ const validateSkill = (skill: Skill): SkillDiagnostic[] => {
   return diagnostics
 }
 
+const collectReferenceFiles = async (
+  directory: string,
+  diagnostics: SkillDiagnostic[],
+): Promise<string[]> => {
+  let entries: Dirent[]
+
+  try {
+    entries = await fs.readdir(directory, { withFileTypes: true })
+  }
+  catch (error) {
+    diagnostics.push({
+      code: 'list_failed',
+      message: error instanceof Error ? error.message : String(error),
+      path: directory,
+      type: 'warning',
+    })
+    return []
+  }
+
+  const files: string[] = []
+
+  for (const entry of entries.slice().sort((left, right) => left.name.localeCompare(right.name))) {
+    const absolutePath = path.join(directory, entry.name)
+
+    if (entry.isDirectory()) {
+      files.push(...await collectReferenceFiles(absolutePath, diagnostics))
+      continue
+    }
+
+    if (entry.isFile() && REFERENCE_EXTENSIONS.has(path.extname(entry.name)))
+      files.push(absolutePath)
+  }
+
+  return files
+}
+
+const readSkillReferences = async (skillDir: string): Promise<{ diagnostics: SkillDiagnostic[], references: SkillReference[] }> => {
+  const diagnostics: SkillDiagnostic[] = []
+  const references: SkillReference[] = []
+  const referencesDir = path.join(skillDir, 'references')
+
+  try {
+    const stat = await fs.stat(referencesDir)
+    if (!stat.isDirectory())
+      return { diagnostics, references }
+  }
+  catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      return { diagnostics, references }
+
+    diagnostics.push({
+      code: 'list_failed',
+      message: error instanceof Error ? error.message : String(error),
+      path: referencesDir,
+      type: 'warning',
+    })
+    return { diagnostics, references }
+  }
+
+  for (const absolutePath of await collectReferenceFiles(referencesDir, diagnostics)) {
+    const relativePath = path.relative(skillDir, absolutePath)
+
+    try {
+      references.push({
+        content: await fs.readFile(absolutePath, 'utf8'),
+        path: relativePath,
+      })
+    }
+    catch (error) {
+      diagnostics.push({
+        code: 'read_failed',
+        message: error instanceof Error ? error.message : String(error),
+        path: absolutePath,
+        type: 'warning',
+      })
+    }
+  }
+
+  references.sort((left, right) => left.path.localeCompare(right.path))
+  return { diagnostics, references }
+}
+
 const readSkillEntry = async (entry: Dirent): Promise<SkillsRegistrySnapshot> => {
   const skills: Skill[] = []
   const diagnostics: SkillDiagnostic[] = []
@@ -127,20 +210,25 @@ const readSkillEntry = async (entry: Dirent): Promise<SkillsRegistrySnapshot> =>
     return { diagnostics, skills }
 
   const filePath = path.join(skillsDir, entry.name, 'SKILL.md')
+  const skillDir = path.dirname(filePath)
 
   try {
     const content = await fs.readFile(filePath, 'utf8')
     const parsed = parseFrontmatter(content)
+    const referenceResult = await readSkillReferences(skillDir)
     const skill: Skill = {
       content: parsed.body,
       description: parsed.frontmatter.description ?? '',
       disableModelInvocation: parsed.frontmatter.disableModelInvocation,
       filePath,
       name: parsed.frontmatter.name ?? entry.name,
+      references: referenceResult.references,
+      source: 'project',
     }
     const skillDiagnostics = validateSkill(skill)
 
     diagnostics.push(...skillDiagnostics)
+    diagnostics.push(...referenceResult.diagnostics)
 
     if (skillDiagnostics.length === 0)
       skills.push(skill)

@@ -24,10 +24,24 @@ const hiddenSkill: Skill = {
   name: 'hidden',
 }
 
+const referencedSkill: Skill = {
+  ...inspectSkill,
+  references: [{
+    content: 'Use generateText for one-shot text generation.',
+    description: 'Canonical text generation recipes.',
+    path: 'references/recipes.md',
+  }],
+  source: 'project',
+}
+
 describe('formatSkillsForSystemPrompt', () => {
   it('formats visible skills and skips model-disabled skills', () => {
     expect(formatSkillsForSystemPrompt([inspectSkill, hiddenSkill])).toContain('<name>inspect</name>')
     expect(formatSkillsForSystemPrompt([inspectSkill, hiddenSkill])).not.toContain('<name>hidden</name>')
+  })
+
+  it('includes source metadata when provided', () => {
+    expect(formatSkillsForSystemPrompt([referencedSkill])).toContain('<source>project</source>')
   })
 
   it('escapes xml metadata', () => {
@@ -48,6 +62,14 @@ describe('formatSkillInvocation', () => {
     expect(formatSkillInvocation(inspectSkill, 'Focus on tests.')).toBe(
       '<skill name="inspect" location="/repo/agents/skills/inspect/SKILL.md">\nReferences are relative to /repo/agents/skills/inspect.\n\nInspect the code carefully.\n</skill>\n\nFocus on tests.',
     )
+  })
+
+  it('lists reference paths without loading reference content', () => {
+    const invocation = formatSkillInvocation(referencedSkill)
+
+    expect(invocation).toContain('Available references.')
+    expect(invocation).toContain('- references/recipes.md: Canonical text generation recipes.')
+    expect(invocation).not.toContain('Use generateText for one-shot text generation.')
   })
 })
 
@@ -130,5 +152,26 @@ describe('skills', () => {
       messages: [],
       toolCallId: 'call_2',
     })).toContain('Inspect the code carefully.')
+  })
+
+  it('provides a skill_reference tool when host-loaded skills include references', async () => {
+    const plugin = skills({ skills: [referencedSkill] })
+    const tools = await plugin.resolveTools?.({
+      agentName: 'agent',
+      context: {},
+      input: [{ content: 'hello', role: 'user', type: 'message' }],
+      signal: new AbortController().signal,
+      threadId: 'thread',
+      tools: [],
+      turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
+    })
+    const referenceTool = tools?.find(candidate => candidate.function.name === 'skill_reference')
+
+    expect(tools?.map(candidate => candidate.function.name)).toEqual(['skill', 'skill_reference'])
+    expect(await referenceTool?.execute({ name: 'inspect', path: 'references/recipes.md' }, {
+      messages: [],
+      toolCallId: 'call_reference',
+    })).toBe('<skill_reference skill="inspect" path="references/recipes.md">\nUse generateText for one-shot text generation.\n</skill_reference>')
   })
 })
