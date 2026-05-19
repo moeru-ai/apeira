@@ -126,5 +126,9 @@ describe('skills', () => {
       messages: [],
       toolCallId: 'call_1',
     })).toContain('Inspect the code carefully.')
+    expect(await tools?.[0]?.execute({ name: 'inspect' }, {
+      messages: [],
+      toolCallId: 'call_2',
+    })).toContain('Inspect the code carefully.')
   })
 })

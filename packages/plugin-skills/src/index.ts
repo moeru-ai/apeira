@@ -147,7 +147,7 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
 }
 
 const skillToolInputSchema = z.object({
-  additionalInstructions: z.string().describe('Optional task-specific instructions to append after the skill content.'),
+  additionalInstructions: z.string().optional().describe('Optional task-specific instructions to append after the skill content.'),
   name: z.string().describe('Skill name from the available_skills list.'),
 })
 
