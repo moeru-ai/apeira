@@ -182,20 +182,7 @@ const readSkillReferences = async (skillDir: string): Promise<{ diagnostics: Ski
   for (const absolutePath of await collectReferenceFiles(referencesDir, diagnostics)) {
     const relativePath = path.relative(skillDir, absolutePath)
 
-    try {
-      references.push({
-        content: await fs.readFile(absolutePath, 'utf8'),
-        path: relativePath,
-      })
-    }
-    catch (error) {
-      diagnostics.push({
-        code: 'read_failed',
-        message: error instanceof Error ? error.message : String(error),
-        path: absolutePath,
-        type: 'warning',
-      })
-    }
+    references.push({ path: relativePath })
   }
 
   references.sort((left, right) => left.path.localeCompare(right.path))
@@ -278,4 +265,15 @@ export const loadWorkspaceSkills = async (): Promise<SkillsRegistrySnapshot> => 
   }
 
   return { diagnostics, skills }
+}
+
+export const loadWorkspaceSkillReference = async (skill: Skill, referencePath: string) => {
+  const skillDir = path.dirname(skill.filePath)
+  const absolutePath = path.resolve(skillDir, referencePath)
+  const relativePath = path.relative(skillDir, absolutePath)
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath))
+    return undefined
+
+  return fs.readFile(absolutePath, 'utf8')
 }

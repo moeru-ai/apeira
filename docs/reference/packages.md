@@ -46,3 +46,6 @@ It provides:
 - formatting helpers for available-skill prompts and explicit skill invocation
 - optional `source` metadata so hosts can identify where a skill came from
 - no direct filesystem access; applications own loading skill files
+
+Hosts can provide reference manifests through `Skill.references` and load the
+actual reference content lazily with `loadSkillReference`.

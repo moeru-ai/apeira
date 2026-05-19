@@ -23,11 +23,12 @@ export interface SkillDiagnostic {
 }
 
 export interface SkillReference {
-  content: string
+  content?: string
   description?: string
   path: string
 }
 
+export type SkillReferenceLoader = (skill: Skill, path: string) => MaybePromise<SkillReference | string | undefined>
 export type SkillsLoader = () => MaybePromise<Skill[] | SkillsRegistrySnapshot>
 
 export interface SkillsPluginOptions extends SkillsRegistryOptions {
@@ -44,12 +45,14 @@ export interface SkillsPluginOptions extends SkillsRegistryOptions {
 export interface SkillsRegistry {
   getDiagnostics: () => SkillDiagnostic[]
   getSkill: (name: string) => Skill | undefined
+  getSkillReference: (skillName: string, referencePath: string) => Promise<SkillReference | undefined>
   getSkills: () => Skill[]
   refresh: () => Promise<SkillsRegistrySnapshot>
 }
 
 export interface SkillsRegistryOptions {
   diagnostics?: SkillDiagnostic[]
+  loadSkillReference?: SkillReferenceLoader
   loadSkills?: SkillsLoader
   skills?: Skill[]
 }
@@ -101,7 +104,7 @@ const formatReferenceManifest = (references: readonly SkillReference[]) =>
     return `- ${reference.path}${description}`
   })
 
-const formatSkillReference = (skill: Skill, reference: SkillReference) => [
+const formatSkillReference = (skill: Skill, reference: SkillReference & { content: string }) => [
   `<skill_reference skill="${escapeXml(skill.name)}" path="${escapeXml(reference.path)}">`,
   reference.content,
   '</skill_reference>',
@@ -172,9 +175,32 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
     }
   }
 
+  const getSkillReference = async (skillName: string, referencePath: string) => {
+    const skill = snapshot.skills.find(candidate => candidate.name === skillName)
+    const reference = skill?.references?.find(candidate => candidate.path === referencePath)
+    if (skill == null || reference == null)
+      return undefined
+
+    if (reference.content != null)
+      return reference
+
+    const loaded = await options.loadSkillReference?.(skill, referencePath)
+    if (loaded == null)
+      return undefined
+
+    return typeof loaded === 'string'
+      ? { ...reference, content: loaded }
+      : {
+          ...reference,
+          ...loaded,
+          path: referencePath,
+        }
+  }
+
   return {
     getDiagnostics: () => snapshot.diagnostics.slice(),
     getSkill: skillName => snapshot.skills.find(skill => skill.name === skillName),
+    getSkillReference,
     getSkills: () => snapshot.skills.slice(),
     refresh,
   }
@@ -207,15 +233,18 @@ const createSkillTool = async (registry: SkillsRegistry, toolName: string) => to
 
 const createSkillReferenceTool = async (registry: SkillsRegistry, toolName: string) => tool({
   description: 'Load a referenced file for a previously selected skill. Use only paths listed by the skill tool.',
-  execute: (input: unknown) => {
+  execute: async (input: unknown) => {
     const args = z.parse(skillReferenceToolInputSchema, input)
     const skill = registry.getSkill(args.name)
-    const reference = skill?.references?.find(candidate => candidate.path === args.path)
 
-    if (skill == null || skill.disableModelInvocation || reference == null)
+    if (skill == null || skill.disableModelInvocation)
       throw new Error(`Unknown skill reference: ${args.name}/${args.path}`)
 
-    return formatSkillReference(skill, reference)
+    const reference = await registry.getSkillReference(args.name, args.path)
+    if (reference == null || reference.content == null)
+      throw new Error(`Unknown skill reference: ${args.name}/${args.path}`)
+
+    return formatSkillReference(skill, { ...reference, content: reference.content })
   },
   name: toolName,
   parameters: skillReferenceToolInputSchema,

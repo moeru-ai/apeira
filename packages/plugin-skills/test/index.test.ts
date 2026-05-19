@@ -27,7 +27,6 @@ const hiddenSkill: Skill = {
 const referencedSkill: Skill = {
   ...inspectSkill,
   references: [{
-    content: 'Use generateText for one-shot text generation.',
     description: 'Canonical text generation recipes.',
     path: 'references/recipes.md',
   }],
@@ -155,7 +154,13 @@ describe('skills', () => {
   })
 
   it('provides a skill_reference tool when host-loaded skills include references', async () => {
-    const plugin = skills({ skills: [referencedSkill] })
+    const plugin = skills({
+      loadSkillReference: (_skill, referencePath) =>
+        referencePath === 'references/recipes.md'
+          ? 'Use generateText for one-shot text generation.'
+          : undefined,
+      skills: [referencedSkill],
+    })
     const tools = await plugin.resolveTools?.({
       agentName: 'agent',
       context: {},

@@ -2,10 +2,11 @@ import { createAgent } from '@apeira/core'
 import { createSkillsRegistry, skills } from '@apeira/plugin-skills'
 
 import { agentName, apiKey, baseURL, instructions, model } from './config'
-import { loadWorkspaceSkills } from './skills'
+import { loadWorkspaceSkillReference, loadWorkspaceSkills } from './skills'
 import { bashTool, editFileTool, listFilesTool, readFileTool, writeFileTool } from './tools'
 
 export const skillsRegistry = createSkillsRegistry({
+  loadSkillReference: loadWorkspaceSkillReference,
   loadSkills: loadWorkspaceSkills,
 })
 
