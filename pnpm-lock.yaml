@@ -257,6 +257,9 @@ importers:
       valibot:
         specifier: ^1.4.0
         version: 1.4.0(typescript@6.0.3)
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@apeira/core':
         specifier: 'workspace:'

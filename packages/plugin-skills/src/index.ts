@@ -1,7 +1,7 @@
 import type { AgentPlugin, ItemParam } from '@apeira/core'
 
 import { tool } from '@xsai/tool'
-import { description, object, parse, pipe, string } from 'valibot'
+import { z } from 'zod'
 
 import { name, version } from '../package.json'
 
@@ -146,21 +146,15 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
   }
 }
 
-const skillToolInputSchema = object({
-  additionalInstructions: pipe(
-    string(),
-    description('Optional task-specific instructions to append after the skill content.'),
-  ),
-  name: pipe(
-    string(),
-    description('Skill name from the available_skills list.'),
-  ),
+const skillToolInputSchema = z.object({
+  additionalInstructions: z.string().describe('Optional task-specific instructions to append after the skill content.'),
+  name: z.string().describe('Skill name from the available_skills list.'),
 })
 
 const createSkillTool = async (registry: SkillsRegistry, toolName: string) => tool({
   description: 'Load the full instructions for an available skill by name. Use this before answering when a user request matches a listed skill.',
   execute: (input: unknown) => {
-    const args = parse(skillToolInputSchema, input)
+    const args = z.parse(skillToolInputSchema, input)
     const skill = registry.getSkill(args.name)
 
     if (skill == null || skill.disableModelInvocation)
