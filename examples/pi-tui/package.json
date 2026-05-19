@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@apeira/core": "workspace:",
+    "@apeira/plugin-skills": "workspace:",
     "@earendil-works/pi-tui": "catalog:",
     "@pnpm/find-workspace-dir": "catalog:",
     "@xsai/tool": "catalog:xsai",

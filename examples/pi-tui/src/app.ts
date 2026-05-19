@@ -1,4 +1,5 @@
 import type { AgentEvent } from '@apeira/core'
+import type { SlashCommand } from '@earendil-works/pi-tui'
 
 import type { TranscriptEntry, TranscriptRole } from './types/transcript'
 
@@ -6,7 +7,9 @@ import process from 'node:process'
 
 import c from 'tinyrainbow'
 
+import { formatSkillInvocation } from '@apeira/plugin-skills'
 import {
+  CombinedAutocompleteProvider,
   Editor,
   matchesKey,
   ProcessTerminal,
@@ -14,8 +17,9 @@ import {
   TUI,
 } from '@earendil-works/pi-tui'
 
-import { agent } from './utils/agent'
+import { agent, skillsRegistry } from './utils/agent'
 import { baseURL, model, workspaceRoot } from './utils/config'
+import { skillsDir } from './utils/skills'
 
 export const createPiTuiExampleApp = () => {
   const terminal = new ProcessTerminal()
@@ -57,6 +61,11 @@ export const createPiTuiExampleApp = () => {
 
   const pushSystem = (text: string) => {
     pushEntry('system', text)
+  }
+
+  const refreshSkills = async () => {
+    await skillsRegistry.refresh()
+    return skillsRegistry.getSkills()
   }
 
   const ensureAssistantEntry = (turnId: string) => {
@@ -102,6 +111,7 @@ export const createPiTuiExampleApp = () => {
         `${c.bold('Status')} ${currentStatus}`,
         c.dim(`queued=${pendingInputs}`),
         c.dim('tools=list_files, read_file, write_file, edit_file, bash'),
+        c.dim(`skills=${skillsRegistry.getSkills().length} dir=${skillsDir}`),
       ].join('  '),
     )
 
@@ -180,7 +190,7 @@ export const createPiTuiExampleApp = () => {
     queueMicrotask(() => process.exit(code))
   }
 
-  const runCommand = (commandLine: string) => {
+  const runCommand = async (commandLine: string) => {
     const [command, ...rest] = commandLine.slice(1).split(/\s+/)
     const argument = rest.join(' ').trim()
 
@@ -204,6 +214,8 @@ export const createPiTuiExampleApp = () => {
         pushSystem([
           '/help: show commands',
           '/clear: reset transcript and Apeira thread state',
+          '/skills: list loaded skills',
+          '/skill <name> [instructions]: invoke a skill explicitly',
           '/exit: quit the demo',
           '/interrupt <message>: abort the current turn and replace it with a new user request',
         ].join('\n'))
@@ -227,6 +239,61 @@ export const createPiTuiExampleApp = () => {
         render()
         return
 
+      case 'skill': {
+        if (argument.length === 0) {
+          pushSystem('Usage: /skill <name> [instructions]')
+          render()
+          return
+        }
+
+        await refreshSkills()
+
+        const [skillName, ...instructionParts] = argument.split(/\s+/)
+        const skill = skillsRegistry.getSkill(skillName)
+        if (skill == null) {
+          pushSystem(`Unknown skill: ${skillName}`)
+          render()
+          return
+        }
+
+        const invocation = formatSkillInvocation(skill, instructionParts.join(' '))
+
+        pushEntry('user', `/skill ${argument}`)
+
+        const wasBusy = runningTurnId != null
+        agent.send({
+          content: invocation,
+          role: 'user',
+          type: 'message',
+        })
+
+        if (wasBusy)
+          pendingInputs += 1
+
+        render()
+        return
+      }
+
+      case 'skills': {
+        const loadedSkills = await refreshSkills()
+        const diagnostics = skillsRegistry.getDiagnostics()
+
+        pushSystem([
+          loadedSkills.length === 0
+            ? `No skills found in ${skillsDir}.`
+            : loadedSkills.map(skill => `/${skill.name}: ${skill.description}`).join('\n'),
+          diagnostics.length === 0
+            ? ''
+            : [
+                '',
+                'Warnings:',
+                ...diagnostics.map(diagnostic => `${diagnostic.path ?? skillsDir}: ${diagnostic.message}`),
+              ].join('\n'),
+        ].filter(Boolean).join('\n'))
+        render()
+        return
+      }
+
       default:
         pushSystem(`Unknown command: /${command}`)
         render()
@@ -243,7 +310,7 @@ export const createPiTuiExampleApp = () => {
     }
 
     if (value.startsWith('/')) {
-      runCommand(value)
+      void runCommand(value)
       return
     }
 
@@ -263,6 +330,36 @@ export const createPiTuiExampleApp = () => {
   }
 
   editor.onSubmit = onSubmit
+
+  const commands: SlashCommand[] = [
+    { description: 'Show commands', name: 'help' },
+    { description: 'Reset transcript and in-memory thread state', name: 'clear' },
+    { description: 'List loaded skills', name: 'skills' },
+    {
+      argumentHint: '<name> [instructions]',
+      description: 'Invoke a skill explicitly',
+      getArgumentCompletions: async (prefix) => {
+        const parts = prefix.trimStart().split(/\s+/)
+        if (parts.length > 1)
+          return null
+
+        const loadedSkills = await refreshSkills()
+        return loadedSkills
+          .filter(skill => skill.name.startsWith(prefix.trim()))
+          .map(skill => ({
+            description: skill.description,
+            label: skill.name,
+            value: skill.name,
+          }))
+      },
+      name: 'skill',
+    },
+    { argumentHint: '<message>', description: 'Abort the active turn and replace it', name: 'interrupt' },
+    { description: 'Quit the demo', name: 'exit' },
+    { description: 'Quit the demo', name: 'quit' },
+  ]
+
+  editor.setAutocompleteProvider?.(new CombinedAutocompleteProvider(commands, workspaceRoot))
 
   tui.addChild(header)
   tui.addChild(new Text('', 0, 0))
@@ -285,7 +382,8 @@ export const createPiTuiExampleApp = () => {
     }
   })
 
-  pushSystem('Enter to send. Esc cancels the active turn. Commands: /help /clear /exit /interrupt <message>.')
+  void refreshSkills().then(() => render())
+  pushSystem('Enter to send. Esc cancels the active turn. Commands: /help /skills /skill <name> /clear /exit /interrupt <message>.')
   render()
 
   return {
