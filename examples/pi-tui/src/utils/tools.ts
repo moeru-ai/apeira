@@ -1,4 +1,6 @@
 /* eslint-disable antfu/no-top-level-await */
+import type { Dirent } from 'node:fs'
+
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
@@ -12,6 +14,42 @@ import { z } from 'zod'
 import { relativeToWorkspace, resolveWorkspacePath } from './workspace'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
+const DEFAULT_IGNORED_DIRS = new Set([
+  '.git',
+  '.hg',
+  '.next',
+  '.nuxt',
+  '.svn',
+  '.turbo',
+  '.vercel',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'target',
+])
+const DEFAULT_IGNORED_FILES = new Set([
+  '.DS_Store',
+])
+
+const shouldSkipListEntry = (entry: Dirent) =>
+  (entry.isDirectory() && DEFAULT_IGNORED_DIRS.has(entry.name))
+  || (entry.isFile() && DEFAULT_IGNORED_FILES.has(entry.name))
+
+const parsePathLineSuffix = (inputPath: string) => {
+  const match = /^(.*?):(\d+)(?::\d+)?$/.exec(inputPath)
+  if (match == null)
+    return { targetPath: inputPath }
+
+  // Avoid treating Windows drive letters as line suffixes.
+  if (/^[A-Z]$/i.test(match[1]))
+    return { targetPath: inputPath }
+
+  return {
+    startLine: Number.parseInt(match[2], 10),
+    targetPath: match[1],
+  }
+}
 
 const truncateOutput = (value: string) => {
   if (Buffer.byteLength(value, 'utf8') <= MAX_OUTPUT_BYTES)
@@ -96,7 +134,7 @@ const runBashCommand = async (command: string, cwd: string, timeoutMs: number) =
   })
 
 export const listFilesTool = await tool({
-  description: 'List files and directories inside the current workspace.',
+  description: 'List files and directories inside the current workspace. Skips VCS, dependency, build, and cache directories by default.',
   execute: async ({ maxEntries, recursive, targetPath }) => {
     const safeTargetPath = targetPath ?? '.'
     const safeMaxEntries = maxEntries ?? 80
@@ -116,6 +154,9 @@ export const listFilesTool = await tool({
       for (const entry of entries) {
         if (results.length >= safeMaxEntries)
           return
+
+        if (shouldSkipListEntry(entry))
+          continue
 
         const entryPath = path.join(directory, entry.name)
         const label = `${relativeToWorkspace(entryPath)}${entry.isDirectory() ? '/' : ''}`
@@ -143,11 +184,12 @@ export const listFilesTool = await tool({
 })
 
 export const readFileTool = await tool({
-  description: 'Read a UTF-8 text file from the current workspace.',
+  description: 'Read a UTF-8 text file from the current workspace. Supports targetPath values like "src/app.ts:42".',
   execute: async ({ endLine, startLine, targetPath }) => {
-    const safeTargetPath = targetPath ?? '.'
-    const safeStartLine = startLine ?? 1
-    const safeEndLine = endLine ?? 200
+    const parsedTarget = parsePathLineSuffix(targetPath)
+    const safeTargetPath = parsedTarget.targetPath
+    const safeStartLine = startLine ?? parsedTarget.startLine ?? 1
+    const safeEndLine = endLine ?? (parsedTarget.startLine == null ? 200 : parsedTarget.startLine + 199)
     const absolutePath = await resolveWorkspacePath(safeTargetPath)
     const stats = await fs.stat(absolutePath)
 
@@ -159,11 +201,11 @@ export const readFileTool = await tool({
     const firstLine = Math.max(1, safeStartLine)
     const lastLine = Math.min(lines.length, safeEndLine)
 
-    if (lastLine < firstLine)
-      throw new Error(`Invalid line range: ${firstLine}-${lastLine}`)
+    if (safeEndLine < firstLine)
+      throw new Error(`Invalid line range: ${firstLine}-${safeEndLine}`)
 
     return {
-      content: lines.slice(firstLine - 1, lastLine).join('\n'),
+      content: firstLine > lines.length ? '' : lines.slice(firstLine - 1, lastLine).join('\n'),
       endLine: lastLine,
       path: relativeToWorkspace(absolutePath),
       startLine: firstLine,
@@ -174,7 +216,7 @@ export const readFileTool = await tool({
   parameters: z.object({
     endLine: z.number().int().min(1).max(4000).default(200).describe('Last line number to include.'),
     startLine: z.number().int().min(1).max(4000).default(1).describe('First line number to include.'),
-    targetPath: z.string().describe('File path relative to the workspace root.'),
+    targetPath: z.string().describe('File path relative to the workspace root. A trailing :line or :line:column suffix is accepted.'),
   }),
 })
 
