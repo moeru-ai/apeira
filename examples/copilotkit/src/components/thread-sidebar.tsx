@@ -1,6 +1,21 @@
 import type { LocalThread } from '../hooks/use-threads'
 
+import { Plus } from 'lucide-react'
+
 import { ThreadRow } from './thread-row'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  // SidebarRail,
+} from './ui/sidebar'
 
 interface ThreadSidebarProps {
   activeThreadId: string
@@ -20,26 +35,42 @@ export const ThreadSidebar = ({
   threads,
 }: ThreadSidebarProps) => {
   return (
-    <div className="h-full flex flex-col">
-      <button
-        className="m-3 rounded bg-blue-600 p-2 text-sm text-white"
-        onClick={onCreateThread}
-      >
-        New conversation
-      </button>
+    <Sidebar>
+      <SidebarContent>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton disabled>
+                Apeira
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {threads.map(thread => (
-          <ThreadRow
-            active={thread.id === activeThreadId}
-            key={thread.id}
-            onArchive={() => onArchiveThread(thread.id)}
-            onRename={name => onRenameThread(thread.id, name)}
-            onSelect={() => onSelectThread(thread.id)}
-            thread={thread}
-          />
-        ))}
-      </div>
-    </div>
+        <SidebarGroup>
+          <SidebarGroupLabel>Threads</SidebarGroupLabel>
+          <SidebarGroupAction onClick={onCreateThread}>
+            <Plus />
+            {' '}
+            <span className="sr-only">New Thread</span>
+          </SidebarGroupAction>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {threads.map(thread => (
+                <ThreadRow
+                  active={thread.id === activeThreadId}
+                  key={thread.id}
+                  onArchive={() => onArchiveThread(thread.id)}
+                  onRename={name => onRenameThread(thread.id, name)}
+                  onSelect={() => onSelectThread(thread.id)}
+                  thread={thread}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      {/* <SidebarRail /> */}
+    </Sidebar>
   )
 }

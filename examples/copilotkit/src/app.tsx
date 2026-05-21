@@ -1,8 +1,7 @@
 import { ChatPanel } from './components/chat-panel'
 import { ThreadSidebar } from './components/thread-sidebar'
+import { SidebarProvider, SidebarTrigger } from './components/ui/sidebar'
 import { useThreads } from './hooks/use-threads'
-
-import '@copilotkit/react-ui/v2/styles.css'
 
 export const App = () => {
   const {
@@ -19,23 +18,23 @@ export const App = () => {
     return null
 
   return (
-    <div className="h-screen flex">
-      <aside className="w-72 overflow-y-auto border-r">
-        <ThreadSidebar
-          activeThreadId={activeThreadId}
-          onArchiveThread={archiveThread}
-          onCreateThread={createThread}
-          onRenameThread={renameThread}
-          onSelectThread={selectThread}
-          threads={threads}
-        />
-      </aside>
-      <main className="flex-1">
+    <SidebarProvider>
+      <ThreadSidebar
+        activeThreadId={activeThreadId}
+        onArchiveThread={archiveThread}
+        onCreateThread={createThread}
+        onRenameThread={renameThread}
+        onSelectThread={selectThread}
+        threads={threads}
+      />
+      <main className="relative h-screen max-h-screen w-full">
+        <SidebarTrigger className="absolute left-0 top-0 z-10 m-2" />
         <ChatPanel
+          className="h-full w-full"
           onThreadUpdated={touchThread}
           threadId={activeThreadId}
         />
       </main>
-    </div>
+    </SidebarProvider>
   )
 }

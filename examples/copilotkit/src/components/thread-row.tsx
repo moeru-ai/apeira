@@ -1,7 +1,12 @@
 /* eslint-disable @masknet/jsx-no-logical */
 import type { LocalThread } from '../hooks/use-threads'
 
+import { Edit, MoreHorizontal, Trash } from 'lucide-react'
 import { useState } from 'react'
+
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
+import { Input } from './ui/input'
+import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from './ui/sidebar'
 
 interface ThreadRowProps {
   active: boolean
@@ -18,63 +23,67 @@ export const ThreadRow = ({ active, onArchive, onRename, onSelect, thread }: Thr
   const displayName = thread.name ?? 'New conversation'
   const timeAgo = new Date(thread.updatedAt).toLocaleDateString()
 
+  const commitRename = () => {
+    onRename(editName)
+    setIsEditing(false)
+  }
+
   return (
-    <div
-      className={[
-        'group flex cursor-pointer items-center justify-between px-3 py-2 hover:bg-gray-100',
-        active ? 'bg-gray-100' : '',
-      ].join(' ')}
-      onClick={onSelect}
-    >
-      <div className="min-w-0 flex-1">
-        {isEditing
-          ? (
-              <input
+    <SidebarMenuItem>
+      {isEditing
+        ? (
+            <div className="flex items-center px-2 py-1">
+              <Input
                 autoFocus
-                className="w-full border rounded px-1 text-sm"
-                onBlur={() => {
-                  onRename(editName)
-                  setIsEditing(false)
-                }}
+                className="h-8 text-sm"
+                onBlur={commitRename}
                 onChange={e => setEditName(e.target.value)}
                 onClick={e => e.stopPropagation()}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter')
                     return
-                  onRename(editName)
-                  setIsEditing(false)
+
+                  commitRename()
                 }}
                 value={editName}
               />
-            )
-          : (
-              <>
-                <div className="truncate text-sm">{displayName}</div>
-                <div className="text-xs text-gray-400">{timeAgo}</div>
-              </>
-            )}
-      </div>
-
-      <div className="ml-2 hidden gap-1 group-hover:flex">
-        <button
-          className="text-xs text-gray-500 hover:text-gray-700"
-          onClick={(e) => {
+            </div>
+          )
+        : (
+            <SidebarMenuButton isActive={active} onClick={onSelect}>
+              {displayName}
+            </SidebarMenuButton>
+          )}
+      <SidebarMenuBadge className="mr-5">{timeAgo}</SidebarMenuBadge>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuAction>
+            <MoreHorizontal />
+          </SidebarMenuAction>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={(e) => {
             e.stopPropagation()
             setIsEditing(true)
+            setEditName(thread.name ?? '')
           }}
-        >
-          Rename
-        </button>
-        <button
-          className="text-xs text-gray-500 hover:text-red-600"
-          onClick={(e) => {
+          >
+            <Edit />
+            {' '}
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={(e) => {
             e.stopPropagation()
             onArchive()
           }}
-        >
-          Archive
-        </button>
-      </div>
-    </div>
+          >
+            <Trash />
+            {' '}
+            Archive
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   )
 }

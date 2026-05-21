@@ -3,7 +3,7 @@
   "style": "new-york",
   "tailwind": {
     "config": "tailwind.config.js",
-    "css": "styles/global.css",
+    "css": "src/styles/global.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""

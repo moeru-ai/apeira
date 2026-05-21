@@ -14,12 +14,15 @@ import { BrowserApeiraAgent } from '../utils/agent'
 import { AGENT_ID, AGENT_NAME, DEFAULT_BASE_URL, DEFAULT_INSTRUCTIONS, DEFAULT_MODEL } from '../utils/const'
 import { weatherTool } from '../utils/tools/weather'
 
+import '@copilotkit/react-ui/v2/styles.css'
+
 interface ChatPanelProps {
+  className?: string
   onThreadUpdated: (threadId: string) => void
   threadId: string
 }
 
-export const ChatPanel = ({ onThreadUpdated, threadId }: ChatPanelProps) => {
+export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelProps) => {
   const [baseURL] = useLocalStorage('apeira:copilotkit:base-url', DEFAULT_BASE_URL)
   const [apiKey] = useLocalStorage('apeira:copilotkit:api-key', '')
   const [model] = useLocalStorage('apeira:copilotkit:model', DEFAULT_MODEL)
@@ -50,14 +53,16 @@ export const ChatPanel = ({ onThreadUpdated, threadId }: ChatPanelProps) => {
   )
 
   return (
-    <CopilotKitProvider agents__unsafe_dev_only={{ [AGENT_ID]: copilotAgent }}>
-      <CopilotChatConfigurationProvider agentId={AGENT_ID} threadId={threadId}>
-        <CopilotChat
-          attachments={{ enabled: true }}
-          key={threadId}
-          labels={{ welcomeMessageText: 'Write a message...' }}
-        />
-      </CopilotChatConfigurationProvider>
-    </CopilotKitProvider>
+    <div className={className}>
+      <CopilotKitProvider agents__unsafe_dev_only={{ [AGENT_ID]: copilotAgent }}>
+        <CopilotChatConfigurationProvider agentId={AGENT_ID} threadId={threadId}>
+          <CopilotChat
+            attachments={{ enabled: true }}
+            key={threadId}
+            labels={{ welcomeMessageText: 'Write a message...' }}
+          />
+        </CopilotChatConfigurationProvider>
+      </CopilotKitProvider>
+    </div>
   )
 }
