@@ -9,6 +9,11 @@ export default defineConfig({
     ignores: ['examples/copilotkit/src/components/ui/**'],
   })
   .append({
+    rules: {
+      '@masknet/jsx-prefer-test-id': 'off',
+    },
+  })
+  .append({
     files: [GLOB_MARKDOWN_CODE],
     rules: {
       'sonarjs/unused-import': 'off',

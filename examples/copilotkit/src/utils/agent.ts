@@ -14,6 +14,7 @@ import { AGENT_ID, AGENT_NAME } from './const'
 
 interface BrowserApeiraAgentOptions {
   agent: Agent<any>
+  onThreadUpdated?: (threadId: string) => void
 }
 
 type PersistedMessageItem = Extract<ItemParam, { type: 'message' }>
@@ -348,8 +349,10 @@ export class BrowserApeiraAgent extends AbstractAgent {
 
         subscriber.next(event as BaseEvent)
 
-        if (aguiEvent.type === EventType.RUN_FINISHED || aguiEvent.type === EventType.RUN_ERROR)
+        if (aguiEvent.type === EventType.RUN_FINISHED || aguiEvent.type === EventType.RUN_ERROR) {
+          this.options.onThreadUpdated?.(this.threadId)
           subscriber.complete()
+        }
       })
 
       const reader = thread.run(userInput).getReader()

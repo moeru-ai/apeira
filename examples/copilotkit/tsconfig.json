@@ -14,6 +14,8 @@
     ]
   },
   "include": [
-    "src"
+    "src",
+    "uno.config.ts",
+    "vite.config.ts"
   ]
 }
