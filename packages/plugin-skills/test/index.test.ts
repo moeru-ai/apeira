@@ -89,26 +89,18 @@ describe('createSkillsRegistry', () => {
 })
 
 describe('skills', () => {
-  it('injects available skills through prepareStep without filesystem access', async () => {
+  it('injects available skills through extendInstructions without filesystem access', async () => {
     const plugin = skills({ skills: [inspectSkill] })
-    const result = await plugin.prepareStep?.({
-      input: [{ content: 'hello', role: 'user', type: 'message' }],
-      model: 'test-model',
-      stepNumber: 0,
-      steps: [],
+    const result = await plugin.extendInstructions?.({
+      agentName: 'agent',
+      context: {},
+      input: { content: 'hello', role: 'user', type: 'message' },
+      signal: new AbortController().signal,
+      threadId: 'thread',
+      turnId: 'turn',
     })
 
-    const injected = result?.input?.[0]
-
-    expect(injected).toMatchObject({
-      role: 'system',
-      type: 'message',
-    })
-    expect(injected).toHaveProperty('content')
-    if (injected != null && 'content' in injected)
-      expect(String(injected.content)).toContain('<available_skills>')
-
-    expect(result?.input?.[1]).toEqual({ content: 'hello', role: 'user', type: 'message' })
+    expect(result).toContain('<available_skills>')
   })
 
   it('refreshes from host loader at turn start', async () => {

@@ -3,7 +3,7 @@ import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentContext } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ResolveToolsOptions, ResponseOptions, ThreadState, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, ThreadState, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { ThreadStore } from './thread-store'
 
@@ -100,6 +100,32 @@ const mergeTools = (tools: Tool[]): Tool[] => {
   return [...byName.values()]
 }
 
+const resolveInstructions = async <T>(
+  options: RunTurnParams<T>,
+  context: AgentContext<T>,
+): Promise<string[]> => {
+  const parts: string[] = []
+
+  for (const plugin of options.plugins) {
+    if (plugin.extendInstructions == null)
+      continue
+
+    const result = await plugin.extendInstructions({
+      agentName: options.agentName,
+      context,
+      input: options.turn.input,
+      signal: options.controller.signal,
+      threadId: options.threadId,
+      turnId: options.turn.id,
+    } satisfies ExtendInstructionsOptions<T>)
+
+    if (result != null && result.length > 0)
+      parts.push(result)
+  }
+
+  return parts
+}
+
 const resolveTools = async <T>(
   options: RunTurnParams<T>,
   pluginOptions: ResponseOptions<T>,
@@ -178,6 +204,7 @@ const createPrepareStep = <T>(options: RunTurnParams<T>): ResponsesOptions['prep
 const runResponse = async <T>(
   options: RunTurnParams<T>,
   input: Array<QueuedInput<T> | QueuedTurn<T>>,
+  instructions: string,
 ): Promise<ResponseOptions<T>> => {
   const snapshot = options.thread.snapshot()
   const responseInput = [...snapshot.items, ...input.map(item => item.input)]
@@ -189,9 +216,7 @@ const runResponse = async <T>(
     ...options.responseOptions,
     abortSignal: options.controller.signal,
     input: responseInput,
-    instructions: typeof options.instructions === 'function'
-      ? await options.instructions(context)
-      : options.instructions,
+    instructions,
     onFinish: createOnFinish(options),
     onStepFinish: createOnStepFinish(options),
     prepareStep: createPrepareStep(options),
@@ -230,10 +255,19 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
 
     options.emit(options.turn.id, { type: 'turn.start' })
 
+    const baseInstructions = typeof options.instructions === 'function'
+      ? await options.instructions(context)
+      : options.instructions
+
+    const extendedParts = await resolveInstructions(options, context)
+    const mergedInstructions = extendedParts.length > 0
+      ? [baseInstructions, ...extendedParts].join('\n\n')
+      : baseInstructions
+
     let nextInput: Array<QueuedInput<T> | QueuedTurn<T>> = [options.turn]
 
     while (true) {
-      const responseContext = await runResponse(options, nextInput)
+      const responseContext = await runResponse(options, nextInput, mergedInstructions)
 
       if (options.controller.signal.aborted)
         throw options.controller.signal.reason

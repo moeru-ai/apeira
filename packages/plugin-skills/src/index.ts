@@ -1,4 +1,4 @@
-import type { AgentPlugin, ItemParam } from '@apeira/core'
+import type { AgentPlugin } from '@apeira/core'
 
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
@@ -257,28 +257,16 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
   const toolName = options.toolName ?? 'skill'
 
   return {
+    extendInstructions: () => {
+      const prompt = formatSkillsForSystemPrompt(registry.getSkills())
+      return prompt.length > 0 ? prompt : undefined
+    },
     name,
     onTurnStart: async () => {
       if (refreshMode !== 'turn')
         return
 
       await registry.refresh()
-    },
-    prepareStep: ({ input }) => {
-      const prompt = formatSkillsForSystemPrompt(registry.getSkills())
-      if (prompt.length === 0)
-        return {}
-
-      return {
-        input: [
-          {
-            content: prompt,
-            role: 'system',
-            type: 'message',
-          } satisfies ItemParam,
-          ...input,
-        ],
-      }
     },
     resolveTools: async () => {
       const visibleSkills = registry.getSkills().filter(skill => !skill.disableModelInvocation)
