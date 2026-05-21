@@ -10,9 +10,8 @@ import c from 'tinyrainbow'
 import { formatSkillInvocation } from '@apeira/plugin-skills'
 import { Box, CombinedAutocompleteProvider, Container, Editor, Markdown, matchesKey, ProcessTerminal, Spacer, Text, TUI } from '@earendil-works/pi-tui'
 
-import { agent, skillsRegistry } from './utils/agent'
+import { agent, skillSet, skillsDir } from './utils/agent'
 import { model, workspaceRoot } from './utils/config'
-import { skillsDir } from './utils/skills'
 
 type ReasoningMode = 'compact' | 'full'
 
@@ -253,8 +252,8 @@ export const createPiTuiExampleApp = () => {
   }
 
   const refreshSkills = async () => {
-    await skillsRegistry.refresh()
-    return skillsRegistry.getSkills()
+    await skillSet.refresh()
+    return skillSet.getSkills()
   }
 
   const ensureAssistantEntry = (turnId: string) => {
@@ -540,7 +539,7 @@ export const createPiTuiExampleApp = () => {
         await refreshSkills()
 
         const [skillName, ...instructionParts] = argument.split(/\s+/)
-        const skill = skillsRegistry.getSkill(skillName)
+        const skill = skillSet.getSkill(skillName)
         if (skill == null) {
           pushSystem(`Unknown skill: ${skillName}`)
           render()
@@ -567,7 +566,7 @@ export const createPiTuiExampleApp = () => {
 
       case 'skills': {
         const loadedSkills = await refreshSkills()
-        const diagnostics = skillsRegistry.getDiagnostics()
+        const diagnostics = skillSet.getDiagnostics()
 
         pushSystem([
           loadedSkills.length === 0

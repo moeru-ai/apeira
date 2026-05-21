@@ -33,17 +33,17 @@ Provides:
 Filesystem-agnostic skills primitives for plugins and host applications. See the [Skills plugin](/plugins/skills) guide.
 
 ```ts
-import { createSkillsRegistry, skills } from '@apeira/plugin-skills'
+import { createSkillSet, skills } from '@apeira/plugin-skills'
 ```
 
 Provides:
 
 - a `skills()` plugin that injects model-visible skill metadata into instructions
 - an optional `skill_reference` tool for reference files
-- a host-owned `SkillsRegistry` for managing skill definitions
+- a host-owned `SkillSet` for managing skill definitions
 - formatting helpers for available-skill prompts and explicit skill invocation
-- optional `source` metadata for identifying where a skill came from
-- no direct filesystem access — the host application owns loading skill files
+- a built-in `fsSkillSet` (`@apeira/plugin-skills/fs`) that reads skills from a directory
+- no direct filesystem coupling — bring your own loader or use the built-in FS set
 
 ## @apeira/plugin-ag-ui
 

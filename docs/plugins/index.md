@@ -72,7 +72,7 @@ const agent = createAgent({
   },
   plugins: [
     skills({
-      registry: mySkillsRegistry,
+      sets: [mySkillSet],
     }),
   ],
 })

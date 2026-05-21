@@ -18,7 +18,11 @@
     "xsai"
   ],
   "sideEffects": false,
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fs": "./src/fs.ts",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],
@@ -27,6 +31,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./fs": {
+        "types": "./dist/fs.d.ts",
+        "default": "./dist/fs.js"
       },
       "./package.json": "./package.json"
     },

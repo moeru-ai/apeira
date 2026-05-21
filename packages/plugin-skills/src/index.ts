@@ -8,11 +8,9 @@ import { name, version } from '../package.json'
 export interface Skill {
   content: string
   description: string
-  disableModelInvocation?: boolean
   filePath: string
   name: string
   references?: SkillReference[]
-  source?: string
 }
 
 export interface SkillDiagnostic {
@@ -29,37 +27,40 @@ export interface SkillReference {
 }
 
 export type SkillReferenceLoader = (skill: Skill, path: string) => MaybePromise<SkillReference | string | undefined>
-export type SkillsLoader = () => MaybePromise<Skill[] | SkillsRegistrySnapshot>
-
-export interface SkillsPluginOptions extends SkillsRegistryOptions {
-  referenceToolName?: string
-  /**
-   * Reload skills before each turn. Useful when the host owns filesystem loading
-   * and wants edits to skill files to appear without restarting the agent.
-   */
-  refresh?: 'manual' | 'turn'
-  registry?: SkillsRegistry
-  toolName?: string
-}
-
-export interface SkillsRegistry {
+export interface SkillSet {
   getDiagnostics: () => SkillDiagnostic[]
   getSkill: (name: string) => Skill | undefined
   getSkillReference: (skillName: string, referencePath: string) => Promise<SkillReference | undefined>
   getSkills: () => Skill[]
-  refresh: () => Promise<SkillsRegistrySnapshot>
+  priority?: number
+  refresh: () => Promise<SkillSetSnapshot>
 }
 
-export interface SkillsRegistryOptions {
+export interface SkillSetOptions {
   diagnostics?: SkillDiagnostic[]
   loadSkillReference?: SkillReferenceLoader
-  loadSkills?: SkillsLoader
+  loadSkills?: () => MaybePromise<Skill[] | SkillSetSnapshot>
+  priority?: number
   skills?: Skill[]
 }
 
-export interface SkillsRegistrySnapshot {
+export interface SkillSetSnapshot {
   diagnostics: SkillDiagnostic[]
   skills: Skill[]
+}
+
+export interface SkillsPluginOptions {
+  referenceToolName?: string
+  /**
+   * Reload skills before each turn. Useful when using filesystem-backed skill sets
+   * so edits to skill files appear without restarting the agent.
+   */
+  refresh?: 'manual' | 'turn'
+  /** Skill sets to merge. Skills are deduplicated by name (higher `priority` wins). */
+  sets?: SkillSet[]
+  /** Static skills (convenience for trivial cases — no refresh, no priority). */
+  skills?: Skill[]
+  toolName?: string
 }
 
 const escapeXml = (value: string) =>
@@ -72,6 +73,7 @@ const escapeXml = (value: string) =>
 
 const trimTrailingSlashes = (value: string) => {
   let endIndex = value.length
+
   while (endIndex > 0 && value[endIndex - 1] === '/')
     endIndex -= 1
 
@@ -85,7 +87,7 @@ const dirnamePath = (path: string) => {
   return slashIndex <= 0 ? '/' : normalized.slice(0, slashIndex)
 }
 
-const normalizeSnapshot = (value: Skill[] | SkillsRegistrySnapshot): SkillsRegistrySnapshot =>
+const normalizeSnapshot = (value: Skill[] | SkillSetSnapshot): SkillSetSnapshot =>
   Array.isArray(value)
     ? { diagnostics: [], skills: value }
     : {
@@ -109,8 +111,7 @@ const formatSkillReference = (skill: Skill, reference: SkillReference & { conten
 ].join('\n')
 
 export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string => {
-  const visibleSkills = skills.filter(skill => !skill.disableModelInvocation)
-  if (visibleSkills.length === 0)
+  if (skills.length === 0)
     return ''
 
   const lines = [
@@ -121,13 +122,11 @@ export const formatSkillsForSystemPrompt = (skills: readonly Skill[]): string =>
     '<available_skills>',
   ]
 
-  for (const skill of visibleSkills) {
+  for (const skill of skills) {
     lines.push('  <skill>')
     lines.push(`    <name>${escapeXml(skill.name)}</name>`)
     lines.push(`    <description>${escapeXml(skill.description)}</description>`)
     lines.push(`    <location>${escapeXml(skill.filePath)}</location>`)
-    if (skill.source != null)
-      lines.push(`    <source>${escapeXml(skill.source)}</source>`)
     lines.push('  </skill>')
   }
 
@@ -157,8 +156,8 @@ export const formatSkillInvocation = (skill: Skill, additionalInstructions?: str
     : `${skillBlock}\n\n${additionalInstructions.trim()}`
 }
 
-export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): SkillsRegistry => {
-  let snapshot: SkillsRegistrySnapshot = {
+export const createSkillSet = (options: SkillSetOptions = {}): SkillSet => {
+  let snapshot: SkillSetSnapshot = {
     diagnostics: options.diagnostics?.slice() ?? [],
     skills: options.skills?.slice() ?? [],
   }
@@ -176,6 +175,7 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
   const getSkillReference = async (skillName: string, referencePath: string) => {
     const skill = snapshot.skills.find(candidate => candidate.name === skillName)
     const reference = skill?.references?.find(candidate => candidate.path === referencePath)
+
     if (skill == null || reference == null)
       return undefined
 
@@ -183,6 +183,7 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
       return reference
 
     const loaded = await options.loadSkillReference?.(skill, referencePath)
+
     if (loaded == null)
       return undefined
 
@@ -200,6 +201,7 @@ export const createSkillsRegistry = (options: SkillsRegistryOptions = {}): Skill
     getSkill: skillName => snapshot.skills.find(skill => skill.name === skillName),
     getSkillReference,
     getSkills: () => snapshot.skills.slice(),
+    priority: options.priority,
     refresh,
   }
 }
@@ -214,13 +216,13 @@ const skillReferenceToolInputSchema = z.object({
   path: z.string().describe('Reference path from the selected skill reference manifest.'),
 })
 
-const createSkillTool = async (registry: SkillsRegistry, toolName: string) => tool({
+const createSkillTool = async (skillSet: SkillSet, toolName: string) => tool({
   description: 'Load the full instructions for an available skill by name. Use this before answering when a user request matches a listed skill.',
   execute: (input: unknown) => {
     const args = z.parse(skillToolInputSchema, input)
-    const skill = registry.getSkill(args.name)
+    const skill = skillSet.getSkill(args.name)
 
-    if (skill == null || skill.disableModelInvocation)
+    if (skill == null)
       throw new Error(`Unknown skill: ${args.name}`)
 
     return formatSkillInvocation(skill, args.additionalInstructions)
@@ -229,16 +231,17 @@ const createSkillTool = async (registry: SkillsRegistry, toolName: string) => to
   parameters: skillToolInputSchema,
 })
 
-const createSkillReferenceTool = async (registry: SkillsRegistry, toolName: string) => tool({
+const createSkillReferenceTool = async (skillSet: SkillSet, toolName: string) => tool({
   description: 'Load a referenced file for a previously selected skill. Use only paths listed by the skill tool.',
   execute: async (input: unknown) => {
     const args = z.parse(skillReferenceToolInputSchema, input)
-    const skill = registry.getSkill(args.name)
+    const skill = skillSet.getSkill(args.name)
 
-    if (skill == null || skill.disableModelInvocation)
+    if (skill == null)
       throw new Error(`Unknown skill reference: ${args.name}/${args.path}`)
 
-    const reference = await registry.getSkillReference(args.name, args.path)
+    const reference = await skillSet.getSkillReference(args.name, args.path)
+
     if (reference == null || reference.content == null)
       throw new Error(`Unknown skill reference: ${args.name}/${args.path}`)
 
@@ -248,15 +251,84 @@ const createSkillReferenceTool = async (registry: SkillsRegistry, toolName: stri
   parameters: skillReferenceToolInputSchema,
 })
 
+const mergeSkillSets = (sets: SkillSet[]): SkillSet => {
+  const sorted = [...sets].sort((left, right) => {
+    const lp = left.priority ?? 0
+    const rp = right.priority ?? 0
+
+    return rp - lp
+  })
+
+  const refresh = async () => {
+    const allDiagnostics: SkillDiagnostic[] = []
+    const allSkills: Skill[] = []
+    const seenNames = new Set<string>()
+
+    for (const skillSet of sorted) {
+      const snapshot = await skillSet.refresh()
+
+      for (const skill of snapshot.skills) {
+        if (!seenNames.has(skill.name)) {
+          seenNames.add(skill.name)
+          allSkills.push(skill)
+        }
+      }
+
+      allDiagnostics.push(...snapshot.diagnostics)
+    }
+
+    return { diagnostics: allDiagnostics, skills: allSkills }
+  }
+
+  const findSkillSet = (skillName: string) =>
+    sorted.find(skillSet => skillSet.getSkill(skillName) != null)
+
+  return {
+    getDiagnostics: () => sorted.flatMap(skillSet => skillSet.getDiagnostics()),
+    getSkill: (skillName) => {
+      for (const skillSet of sorted) {
+        const skill = skillSet.getSkill(skillName)
+        if (skill != null)
+          return skill
+      }
+    },
+    getSkillReference: async (skillName, referencePath) => {
+      const skillSet = findSkillSet(skillName)
+      return skillSet != null
+        ? skillSet.getSkillReference(skillName, referencePath)
+        : undefined
+    },
+    getSkills: () => {
+      const seenNames = new Set<string>()
+      return sorted.flatMap(skillSet =>
+        skillSet.getSkills().filter((skill) => {
+          if (seenNames.has(skill.name))
+            return false
+          seenNames.add(skill.name)
+          return true
+        }),
+      )
+    },
+    refresh,
+  }
+}
+
 export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
-  const registry = options.registry ?? createSkillsRegistry(options)
-  const refreshMode = options.refresh ?? (options.loadSkills == null ? 'manual' : 'turn')
+  const skillSet = options.sets != null && options.sets.length > 0
+    ? mergeSkillSets(options.sets)
+    : options.skills != null
+      ? createSkillSet({ skills: options.skills })
+      : createSkillSet()
+
+  const refreshMode = options.refresh ?? (options.sets != null ? 'turn' : 'manual')
+
   const referenceToolName = options.referenceToolName ?? 'skill_reference'
   const toolName = options.toolName ?? 'skill'
 
   return {
     extendInstructions: () => {
-      const prompt = formatSkillsForSystemPrompt(registry.getSkills())
+      const prompt = formatSkillsForSystemPrompt(skillSet.getSkills())
+
       return prompt.length > 0 ? prompt : undefined
     },
     name,
@@ -264,16 +336,18 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
       if (refreshMode !== 'turn')
         return
 
-      await registry.refresh()
+      await skillSet.refresh()
     },
     resolveTools: async () => {
-      const visibleSkills = registry.getSkills().filter(skill => !skill.disableModelInvocation)
-      if (visibleSkills.length === 0)
+      const skillsList = skillSet.getSkills()
+
+      if (skillsList.length === 0)
         return undefined
 
-      const tools = [await createSkillTool(registry, toolName)]
-      if (visibleSkills.some(skill => skill.references != null && skill.references.length > 0))
-        tools.push(await createSkillReferenceTool(registry, referenceToolName))
+      const tools = [await createSkillTool(skillSet, toolName)]
+
+      if (skillsList.some(skill => skill.references != null && skill.references.length > 0))
+        tools.push(await createSkillReferenceTool(skillSet, referenceToolName))
 
       return tools
     },

@@ -3,11 +3,17 @@ import type { Skill } from '../src/index'
 import { describe, expect, it } from 'vitest'
 
 import {
-  createSkillsRegistry,
+  createSkillSet,
   formatSkillInvocation,
   formatSkillsForSystemPrompt,
   skills,
 } from '../src/index'
+import { fsSkillSet } from '../src/fs'
+
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterEach, beforeEach } from 'vitest'
 
 const inspectSkill: Skill = {
   content: 'Inspect the code carefully.',
@@ -16,31 +22,23 @@ const inspectSkill: Skill = {
   name: 'inspect',
 }
 
-const hiddenSkill: Skill = {
-  content: 'Hidden instructions.',
-  description: 'Use when explicitly requested.',
-  disableModelInvocation: true,
-  filePath: '/repo/agents/skills/hidden/SKILL.md',
-  name: 'hidden',
-}
-
 const referencedSkill: Skill = {
   ...inspectSkill,
   references: [{
     description: 'Canonical text generation recipes.',
     path: 'references/recipes.md',
   }],
-  source: 'project',
 }
 
 describe('formatSkillsForSystemPrompt', () => {
-  it('formats visible skills and skips model-disabled skills', () => {
-    expect(formatSkillsForSystemPrompt([inspectSkill, hiddenSkill])).toContain('<name>inspect</name>')
-    expect(formatSkillsForSystemPrompt([inspectSkill, hiddenSkill])).not.toContain('<name>hidden</name>')
+  it('formats all skills into available_skills block', () => {
+    const prompt = formatSkillsForSystemPrompt([inspectSkill])
+    expect(prompt).toContain('<name>inspect</name>')
+    expect(prompt).toContain('<available_skills>')
   })
 
-  it('includes source metadata when provided', () => {
-    expect(formatSkillsForSystemPrompt([referencedSkill])).toContain('<source>project</source>')
+  it('returns empty string for empty skills', () => {
+    expect(formatSkillsForSystemPrompt([])).toBe('')
   })
 
   it('escapes xml metadata', () => {
@@ -72,24 +70,24 @@ describe('formatSkillInvocation', () => {
   })
 })
 
-describe('createSkillsRegistry', () => {
+describe('createSkillSet', () => {
   it('stores static skills and refreshes from host-provided loader', async () => {
-    const registry = createSkillsRegistry({
+    const skillSet = createSkillSet({
       loadSkills: () => ({
-        diagnostics: [{ code: 'example', message: 'loaded', type: 'warning' }],
+        diagnostics: [{ code: 'example', message: 'loaded', type: 'warning' as const }],
         skills: [inspectSkill],
       }),
     })
 
-    expect(registry.getSkills()).toEqual([])
-    await registry.refresh()
-    expect(registry.getSkill('inspect')).toEqual(inspectSkill)
-    expect(registry.getDiagnostics()).toEqual([{ code: 'example', message: 'loaded', type: 'warning' }])
+    expect(skillSet.getSkills()).toEqual([])
+    await skillSet.refresh()
+    expect(skillSet.getSkill('inspect')).toEqual(inspectSkill)
+    expect(skillSet.getDiagnostics()).toEqual([{ code: 'example', message: 'loaded', type: 'warning' }])
   })
 })
 
 describe('skills', () => {
-  it('injects available skills through extendInstructions without filesystem access', async () => {
+  it('injects available skills through extendInstructions', async () => {
     const plugin = skills({ skills: [inspectSkill] })
     const result = await plugin.extendInstructions?.({
       agentName: 'agent',
@@ -104,10 +102,8 @@ describe('skills', () => {
   })
 
   it('refreshes from host loader at turn start', async () => {
-    const registry = createSkillsRegistry({
-      loadSkills: () => [inspectSkill],
-    })
-    const plugin = skills({ refresh: 'turn', registry })
+    const skillSet = createSkillSet({ loadSkills: () => [inspectSkill] })
+    const plugin = skills({ refresh: 'turn', sets: [skillSet] })
 
     await plugin.onTurnStart?.({
       agentName: 'agent',
@@ -118,10 +114,10 @@ describe('skills', () => {
       turnId: 'turn',
     })
 
-    expect(registry.getSkills()).toEqual([inspectSkill])
+    expect(skillSet.getSkills()).toEqual([inspectSkill])
   })
 
-  it('provides a skill tool backed by host-loaded registry content', async () => {
+  it('provides a skill tool backed by skill set content', async () => {
     const plugin = skills({ skills: [inspectSkill] })
     const tools = await plugin.resolveTools?.({
       agentName: 'agent',
@@ -145,13 +141,15 @@ describe('skills', () => {
     })).toContain('Inspect the code carefully.')
   })
 
-  it('provides a skill_reference tool when host-loaded skills include references', async () => {
+  it('provides a skill_reference tool when skills include references', async () => {
     const plugin = skills({
-      loadSkillReference: (_skill, referencePath) =>
-        referencePath === 'references/recipes.md'
-          ? 'Use generateText for one-shot text generation.'
-          : undefined,
-      skills: [referencedSkill],
+      sets: [createSkillSet({
+        loadSkillReference: (_skill, referencePath) =>
+          referencePath === 'references/recipes.md'
+            ? 'Use generateText for one-shot text generation.'
+            : undefined,
+        skills: [referencedSkill],
+      })],
     })
     const tools = await plugin.resolveTools?.({
       agentName: 'agent',
@@ -170,5 +168,101 @@ describe('skills', () => {
       messages: [],
       toolCallId: 'call_reference',
     })).toBe('<skill_reference skill="inspect" path="references/recipes.md">\nUse generateText for one-shot text generation.\n</skill_reference>')
+  })
+
+  it('accepts multiple sets via options.sets, deduplicating by name', async () => {
+    const setA = createSkillSet({ skills: [inspectSkill] })
+    const setB = createSkillSet({
+      skills: [{ ...inspectSkill, name: 'extra', content: 'Extra.', description: 'Extra skill.', filePath: '/x/SKILL.md' }],
+    })
+    const plugin = skills({ sets: [setA, setB] })
+
+    const result = await plugin.extendInstructions?.({
+      agentName: 'agent',
+      context: {},
+      input: { content: 'hello', role: 'user', type: 'message' },
+      signal: new AbortController().signal,
+      sessionId: 'session',
+      turnId: 'turn',
+    })
+
+    expect(result).toContain('<name>inspect</name>')
+    expect(result).toContain('<name>extra</name>')
+  })
+
+  it('respects priority when merging sets', () => {
+    const low = createSkillSet({ skills: [{ ...inspectSkill, description: 'low' }], priority: 0 })
+    const high = createSkillSet({ skills: [{ ...inspectSkill, description: 'high' }], priority: 10 })
+    const plugin = skills({ sets: [low, high] })
+
+    const tools = plugin.resolveTools?.({
+      agentName: 'agent',
+      context: {},
+      input: [{ content: 'hello', role: 'user', type: 'message' }],
+      signal: new AbortController().signal,
+      sessionId: 'session',
+      tools: [],
+      turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
+    })
+
+    // high priority wins dedup
+    expect(plugin.extendInstructions?.({ agentName: 'agent', context: {}, input: { content: 'hello', role: 'user', type: 'message' }, signal: new AbortController().signal, sessionId: 'session', turnId: 'turn' })).toContain('high')
+  })
+})
+
+describe('fsSkillSet', () => {
+  const testDir = path.join(fileURLToPath(new URL('.', import.meta.url)), 'test-skills')
+
+  beforeEach(async () => {
+    await fs.mkdir(path.join(testDir, 'math', 'references'), { recursive: true })
+    await fs.mkdir(path.join(testDir, 'code-review'), { recursive: true })
+
+    await fs.writeFile(
+      path.join(testDir, 'math', 'SKILL.md'),
+      '---\nname: math\ndescription: Expert math problem solving.\n---\n\n# Math\nUse proper notation and show steps.',
+    )
+    await fs.writeFile(
+      path.join(testDir, 'math', 'references', 'formulas.md'),
+      '# Formulas\nE=mc^2',
+    )
+    await fs.writeFile(
+      path.join(testDir, 'code-review', 'SKILL.md'),
+      '---\ndescription: Review code for issues.\n---\n\n# Code Review\nReview all code.',
+    )
+  })
+
+  afterEach(async () => {
+    await fs.rm(testDir, { force: true, recursive: true })
+  })
+
+  it('reads skills from directory with frontmatter', async () => {
+    const skillSet = fsSkillSet({ directory: testDir })
+
+    await skillSet.refresh()
+    const skills = skillSet.getSkills()
+
+    expect(skills).toHaveLength(2)
+    const math = skillSet.getSkill('math')
+    expect(math?.description).toBe('Expert math problem solving.')
+    expect(math?.content).toContain('Use proper notation')
+    expect(math?.filePath).toBe(path.join(testDir, 'math', 'SKILL.md'))
+  })
+
+  it('uses directory name when name not in frontmatter', async () => {
+    const skillSet = fsSkillSet({ directory: testDir })
+
+    await skillSet.refresh()
+    const review = skillSet.getSkill('code-review')
+    expect(review?.name).toBe('code-review')
+    expect(review?.description).toBe('Review code for issues.')
+  })
+
+  it('loads reference files lazily', async () => {
+    const skillSet = fsSkillSet({ directory: testDir })
+
+    await skillSet.refresh()
+    const ref = await skillSet.getSkillReference('math', 'references/formulas.md')
+    expect(ref?.content).toContain('E=mc^2')
   })
 })

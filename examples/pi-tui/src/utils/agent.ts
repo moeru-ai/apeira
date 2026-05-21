@@ -1,13 +1,15 @@
 import { createAgent } from '@apeira/core'
-import { createSkillsRegistry, skills } from '@apeira/plugin-skills'
+import { skills } from '@apeira/plugin-skills'
+import { fsSkillSet } from '@apeira/plugin-skills/fs'
 
-import { agentName, apiKey, baseURL, instructions, model } from './config'
-import { loadWorkspaceSkillReference, loadWorkspaceSkills } from './skills'
+import { agentName, apiKey, baseURL, instructions, model, workspaceRoot } from './config'
 import { bashTool, editFileTool, listFilesTool, readFileTool, writeFileTool } from './tools'
+import path from 'node:path'
 
-export const skillsRegistry = createSkillsRegistry({
-  loadSkillReference: loadWorkspaceSkillReference,
-  loadSkills: loadWorkspaceSkills,
+export const skillsDir = path.join(workspaceRoot, '.agents', 'skills')
+
+export const skillSet = fsSkillSet({
+  directory: skillsDir,
 })
 
 export const agent = createAgent({
@@ -22,7 +24,7 @@ export const agent = createAgent({
   plugins: [
     skills({
       refresh: 'turn',
-      registry: skillsRegistry,
+      sets: [skillSet],
     }),
   ],
 })
