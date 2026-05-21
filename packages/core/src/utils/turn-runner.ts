@@ -103,8 +103,9 @@ const mergeTools = (tools: Tool[]): Tool[] => {
 const resolveInstructions = async <T>(
   options: RunTurnParams<T>,
   context: AgentContext<T>,
-): Promise<string[]> => {
-  const parts: string[] = []
+  base: string,
+): Promise<string> => {
+  const parts: string[] = [base]
 
   for (const plugin of options.plugins) {
     if (plugin.extendInstructions == null)
@@ -123,7 +124,7 @@ const resolveInstructions = async <T>(
       parts.push(result)
   }
 
-  return parts
+  return parts.join('\n\n')
 }
 
 const resolveTools = async <T>(
@@ -259,10 +260,7 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
       ? await options.instructions(context)
       : options.instructions
 
-    const extendedParts = await resolveInstructions(options, context)
-    const mergedInstructions = extendedParts.length > 0
-      ? [baseInstructions, ...extendedParts].join('\n\n')
-      : baseInstructions
+    const mergedInstructions = await resolveInstructions(options, context, baseInstructions)
 
     let nextInput: Array<QueuedInput<T> | QueuedTurn<T>> = [options.turn]
 
