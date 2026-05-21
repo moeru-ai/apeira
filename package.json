@@ -21,6 +21,7 @@
     "@moeru/eslint-config": "catalog:",
     "@moeru/tsconfig": "catalog:",
     "@types/node": "catalog:",
+    "@unocss/eslint-plugin": "catalog:",
     "@unocss/reset": "catalog:",
     "bumpp": "catalog:",
     "eslint": "catalog:",
