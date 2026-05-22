@@ -49,10 +49,12 @@
     "@mozilla/readability": "catalog:",
     "@xsai/tool": "catalog:xsai",
     "linkedom": "catalog:",
+    "sanitize-html": "catalog:",
     "turndown": "catalog:"
   },
   "devDependencies": {
     "@apeira/core": "workspace:",
+    "@types/sanitize-html": "catalog:",
     "@types/turndown": "catalog:"
   }
 }

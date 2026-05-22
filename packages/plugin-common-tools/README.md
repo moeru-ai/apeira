@@ -36,7 +36,7 @@ const agent = createAgent({
 | `write` | Write or append to files, creating parent directories automatically |
 | `edit` | Edit files via exact string replacement, with optional `replaceAll` |
 | `bash` | Execute shell commands with configurable `timeout` and `workdir` |
-| `fetch` | Fetch a URL and extract main content as clean Markdown using Mozilla Readability |
+| `fetch` | Fetch a URL and extract content as Markdown, text, or sanitized HTML using Mozilla Readability |
 | `search` | Search the web via DuckDuckGo, no API key required |
 
 ### Tool details
@@ -49,7 +49,7 @@ const agent = createAgent({
 
 **bash** — executes a command via `child_process.exec`. Default timeout is 60 seconds. Use `workdir` to run in a specific directory.
 
-**fetch** — fetches a URL with browser-like headers, parses with Mozilla Readability (the Firefox Reader View engine), and converts to clean Markdown via Turndown. Handles encoding detection, redirects, and gzip automatically.
+**fetch** — fetches a URL with browser-like headers, parses with Mozilla Readability (the Firefox Reader View engine), and converts to clean Markdown via Turndown. Supports `format` parameter (`markdown`/`text`/`html`), `maxLength` truncation, 10MB body limit, binary content detection, and automatic charset detection.
 
 **search** — searches the web via `lite.duckduckgo.com`. Returns titles, URLs, and snippets. No API key or registration required. Use `maxResults` to limit results.
 
