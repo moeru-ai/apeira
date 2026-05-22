@@ -5,13 +5,13 @@ import type { AgentEvent } from '../types/event'
 import type { AgentEventListener } from '../types/event-listener'
 import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
-import type { AgentSession } from './agent-session'
+import type { AgentSession, SessionForkOptions } from './agent-session'
 
 import { merge } from '@moeru/std/merge'
 
 import { createAgentRuntime } from './agent-runtime'
 
-export interface Agent<T> extends Omit<AgentSession<T>, 'id'> {
+export interface Agent<T> extends Omit<AgentSession<T>, 'fork' | 'id'> {
   session: (options?: SessionOptions<T>) => AgentSession<T>
 }
 
@@ -142,6 +142,15 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const subscribe: Agent<T>['subscribe'] = (channel, listener) =>
     pluginApi.subscribe(channel, listener)
 
+  const saveSessionState = async (sessionId: string, state: SessionState<T>) => {
+    for (const plugin of plugins) {
+      if (plugin.storage == null)
+        continue
+
+      await plugin.storage.setItem(getSessionStorageKey(options.name, sessionId), JSON.stringify(state))
+    }
+  }
+
   const createAgentSession = (id: string, sessionOptions: SessionOptions<T> = {}): AgentSession<T> => {
     const initialSessionContext = sessionOptions.context ?? {}
 
@@ -191,13 +200,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
     const saveSession = async (state: SessionState<T>) => {
       currentSessionContext = state.context
-
-      for (const plugin of plugins) {
-        if (plugin.storage == null)
-          continue
-
-        await plugin.storage.setItem(getSessionStorageKey(options.name, id), JSON.stringify(state))
-      }
+      await saveSessionState(id, state)
     }
 
     const runtime = createAgentRuntime({
@@ -277,10 +280,40 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       runtime.setContext(nextContext)
     }
 
+    const fork: AgentSession<T>['fork'] = async (forkOptions: SessionForkOptions<T> = {}) => {
+      const forkId = forkOptions.id ?? crypto.randomUUID()
+
+      if (sessions.has(forkId))
+        throw new Error(`Session already exists: ${forkId}`)
+
+      const snapshot = await runtime.snapshot()
+      const forkContext = merge(snapshot.context, forkOptions.context ?? {})
+
+      if (sessions.has(forkId))
+        throw new Error(`Session already exists: ${forkId}`)
+
+      const forked = createAgentSession(forkId, {
+        context: forkContext,
+        id: forkId,
+        input: snapshot.items,
+      })
+
+      sessions.set(forkId, forked)
+
+      await saveSessionState(forkId, {
+        context: forkContext,
+        items: snapshot.items,
+        version: 0,
+      })
+
+      return forked
+    }
+
     return {
       abort: runtime.abort,
       clear: runtime.clear,
       emit: emitChannel,
+      fork,
       getContext: () => resolveContext(),
       id,
       interrupt,

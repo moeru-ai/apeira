@@ -169,6 +169,7 @@ Returns a function that removes the listener and returns whether it was present.
 interface AgentSession<T> {
   abort: (reason?: unknown) => void
   clear: () => void
+  fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   interrupt: (reason?: unknown) => void
   on: (eventListener: AgentEventListener) => () => boolean
@@ -179,7 +180,20 @@ interface AgentSession<T> {
 }
 ```
 
-Session methods mirror the root agent methods but operate on a single isolated conversation. See [Sessions](/guide/sessions) for usage.
+Session methods operate on a single isolated conversation. See [Sessions](/guide/sessions) for usage.
+
+### fork()
+
+Creates a new session from the committed history and session context of an existing session.
+
+```ts
+const forked = await session.fork({
+  context: { locale: 'zh-CN' },
+  id: 'conversation-1-draft',
+})
+```
+
+If the source session has an active turn, only already committed history is copied. Passing an existing target `id` throws.
 
 ## Types
 

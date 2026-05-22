@@ -955,6 +955,131 @@ describe('createAgent', () => {
     })).toThrow('Session already exists: existing-session')
   })
 
+  it('forks a session with committed history and context overlay', async () => {
+    interface Context {
+      locale: string
+      userId?: string
+    }
+
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent<Context>({
+      context: { locale: 'en-US' },
+      instructions: context => JSON.stringify(context),
+      name: 'fork-context-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+    const source = agent.session({
+      context: { userId: 'source' },
+      id: 'source-session',
+    })
+
+    await readEventStream(source.run(message('Committed source turn.')))
+
+    const forked = await source.fork({
+      context: { userId: 'fork' },
+      id: 'fork-session',
+    })
+
+    expect(forked.id).toBe('fork-session')
+    expect(forked).not.toBe(source)
+
+    await readEventStream(forked.run(message('Fork turn.')))
+
+    expect(responsesFetch.inputs[1]).toEqual([
+      message('Committed source turn.'),
+      assistantMessage('response 1'),
+      message('Fork turn.'),
+    ])
+    expect(JSON.parse(String(responsesFetch.instructions[1]))).toEqual({
+      locale: 'en-US',
+      userId: 'fork',
+    })
+  })
+
+  it('forks only committed history while the source session is active', async () => {
+    const responsesFetch = createResponsesFetch(100)
+    const agent = createAgent({
+      instructions: 'You are a fork test assistant.',
+      name: 'fork-active-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+    })
+    const source = agent.session({ id: 'source-session' })
+
+    await readEventStream(source.run(message('Committed source turn.')))
+
+    const active = readEventStream(source.run(message('Active source turn.')))
+
+    for (let i = 0; i < 200; i += 1) {
+      if (responsesFetch.inputs.length >= 2)
+        break
+
+      await wait(5)
+    }
+
+    const forked = await source.fork({ id: 'fork-session' })
+
+    await readEventStream(forked.run(message('Fork turn.')))
+    await active
+
+    expect(responsesFetch.inputs[2]).toEqual([
+      message('Committed source turn.'),
+      assistantMessage('response 1'),
+      message('Fork turn.'),
+    ])
+  })
+
+  it('throws when forking into an existing session id', async () => {
+    const { agent } = createTestAgent()
+    const source = agent.session({ id: 'source-session' })
+
+    agent.session({ id: 'existing-session' })
+
+    await expect(source.fork({ id: 'existing-session' })).rejects.toThrow('Session already exists: existing-session')
+  })
+
+  it('hydrates a persisted source session before forking and saves the target session', async () => {
+    const storage = createMemoryStorage({
+      '["fork-storage-test","source-session"]': JSON.stringify({
+        context: { locale: 'en-US' },
+        items: [message('Persisted source turn.'), assistantMessage('persisted response')],
+        version: 7,
+      }),
+    })
+    const agent = createAgent<{ locale?: string }>({
+      instructions: 'You are a storage fork test assistant.',
+      name: 'fork-storage-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: createResponsesFetch().fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'storage',
+        storage,
+      }],
+    })
+    const source = agent.session({ id: 'source-session' })
+
+    await source.fork({ id: 'fork-session' })
+
+    expect(JSON.parse(String(storage.values.get('["fork-storage-test","fork-session"]')))).toEqual({
+      context: { locale: 'en-US' },
+      items: [message('Persisted source turn.'), assistantMessage('persisted response')],
+      version: 0,
+    })
+  })
+
   it('runs different sessions with isolated queues and contexts', async () => {
     interface Context {
       locale: string

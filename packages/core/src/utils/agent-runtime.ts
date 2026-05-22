@@ -17,6 +17,7 @@ export interface AgentRuntime<T = unknown> {
   interrupt: (reason?: unknown) => void
   send: (input: QueuedInput<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
+  snapshot: () => Promise<SessionState<T>>
 }
 
 export interface AgentRuntimeOptions<T> extends AgentCoreOptions<T> {
@@ -121,6 +122,12 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       session.setContext(context)
       await options.saveSession(session.snapshot())
     }).catch(() => undefined)
+  }
+
+  const snapshot: AgentRuntime<T>['snapshot'] = async () => {
+    await pendingMutation
+    await ensureLoaded()
+    return session.snapshot()
   }
 
   const completeTurn = (id: string, completion: TurnCompletion) => {
@@ -292,5 +299,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     interrupt,
     send,
     setContext,
+    snapshot,
   }
 }

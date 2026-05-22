@@ -28,6 +28,21 @@ session.clear()
 
 Calling `session()` with an existing `id` returns that session and merges the provided context. The `input` option only applies when creating a new session.
 
+## Forking sessions
+
+Use `session.fork()` to branch from the committed history and context of an existing session.
+
+```ts
+const draft = await session.fork({
+  context: { locale: 'zh-CN' },
+  id: 'conversation-1-draft',
+})
+
+draft.run(input)
+```
+
+Forked sessions are independent. They get their own queue and interrupt state, and later turns on the source session do not affect the fork. If the source session has an active turn, the fork copies only history that has already been committed.
+
 ## Session isolation
 
 Each session is fully isolated:
@@ -74,12 +89,13 @@ session.setContext({ locale: 'zh-CN' })
 
 ## Session methods
 
-Sessions expose the same methods as the root agent:
+Sessions expose conversation methods for one isolated session:
 
 ```ts
 interface AgentSession<T> {
   abort: (reason?: unknown) => void
   clear: () => void
+  fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   interrupt: (reason?: unknown) => void
   on: (eventListener: AgentEventListener) => () => boolean
@@ -140,6 +156,16 @@ Aborts the running turn, clears queued turns, and resets history to the initial 
 ```ts
 session.clear()
 ```
+
+### fork()
+
+Creates a new session from this session's committed history and session-level context.
+
+```ts
+const forked = await session.fork({ id: 'variant-a' })
+```
+
+Pass `context` to overlay the copied session context. Passing an existing `id` throws.
 
 ### setContext() / getContext()
 

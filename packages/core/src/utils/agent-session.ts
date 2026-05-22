@@ -13,6 +13,7 @@ export interface AgentSession<T> {
   abort: (reason?: unknown) => void
   clear: () => void
   emit: (channel: string, event: unknown) => void
+  fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   readonly id: string
   interrupt: (reason?: unknown) => void
@@ -21,4 +22,9 @@ export interface AgentSession<T> {
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
   subscribe: (channel: string, listener: PluginChannelListener<T>) => () => boolean
+}
+
+export interface SessionForkOptions<T> {
+  context?: Partial<AgentContext<T>>
+  id?: string
 }
