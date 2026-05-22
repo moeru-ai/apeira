@@ -142,22 +142,26 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const subscribe: Agent<T>['subscribe'] = (channel, listener) =>
     pluginApi.subscribe(channel, listener)
 
-  const saveSessionState = async (sessionId: string, state: SessionState<T>) => {
+  const withSessionStorage = async (
+    sessionId: string,
+    fn: (storage: NonNullable<AgentPlugin<T>['storage']>, key: string) => Promise<void> | void,
+  ) => {
+    const key = getSessionStorageKey(options.name, sessionId)
+
     for (const plugin of plugins) {
       if (plugin.storage == null)
         continue
 
-      await plugin.storage.setItem(getSessionStorageKey(options.name, sessionId), JSON.stringify(state))
+      await fn(plugin.storage, key)
     }
   }
 
-  const removeSessionState = async (sessionId: string) => {
-    for (const plugin of plugins) {
-      if (plugin.storage == null)
-        continue
+  const saveSessionState = async (sessionId: string, state: SessionState<T>) => {
+    await withSessionStorage(sessionId, async (storage, key) => storage.setItem(key, JSON.stringify(state)))
+  }
 
-      await plugin.storage.removeItem(getSessionStorageKey(options.name, sessionId))
-    }
+  const removeSessionState = async (sessionId: string) => {
+    await withSessionStorage(sessionId, async (storage, key) => storage.removeItem(key))
   }
 
   const createAgentSession = (id: string, sessionOptions: SessionOptions<T> = {}): AgentSession<T> => {
@@ -174,6 +178,18 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       if (removed || removing)
         throw createRemovedSessionError()
     }
+
+    const guard = <Args extends unknown[], Result>(fn: (...args: Args) => Result) =>
+      (...args: Args) => {
+        assertSessionOpen()
+        return fn(...args)
+      }
+
+    const guardAsync = <Args extends unknown[], Result>(fn: (...args: Args) => Promise<Result>) =>
+      async (...args: Args) => {
+        assertSessionOpen()
+        return fn(...args)
+      }
 
     const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
       merge(merge(context, currentSessionContext), runContext)
@@ -249,9 +265,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         eventListener(event)
       })
 
-    const run: AgentSession<T>['run'] = (input, runOptions = {}) => {
-      assertSessionOpen()
-
+    const run: AgentSession<T>['run'] = guard((input, runOptions = {}) => {
       const turnId = crypto.randomUUID()
       let unsubscribe: (() => boolean) | undefined
 
@@ -284,32 +298,25 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
           })
         },
       })
-    }
+    })
 
-    const send: AgentSession<T>['send'] = (input, runOptions = {}) => {
-      assertSessionOpen()
-
-      return runtime.send({
+    const send: AgentSession<T>['send'] = guard((input, runOptions = {}) =>
+      runtime.send({
         context: runOptions.context,
         input,
         signal: runOptions.signal,
-      })
-    }
+      }))
 
-    const interrupt: AgentSession<T>['interrupt'] = (reason) => {
-      assertSessionOpen()
+    const interrupt: AgentSession<T>['interrupt'] = guard((reason) => {
       runtime.interrupt(reason)
-    }
+    })
 
-    const setSessionContext: AgentSession<T>['setContext'] = (nextContext) => {
-      assertSessionOpen()
+    const setSessionContext: AgentSession<T>['setContext'] = guard((nextContext) => {
       currentSessionContext = merge(currentSessionContext, nextContext)
       runtime.setContext(nextContext)
-    }
+    })
 
-    const fork: AgentSession<T>['fork'] = async (forkOptions: SessionForkOptions<T> = {}) => {
-      assertSessionOpen()
-
+    const fork: AgentSession<T>['fork'] = guardAsync(async (forkOptions: SessionForkOptions<T> = {}) => {
       const forkId = forkOptions.id ?? crypto.randomUUID()
 
       if (sessions.has(forkId))
@@ -336,7 +343,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       })
 
       return forked
-    }
+    })
 
     const remove: AgentSession<T>['remove'] = async () => {
       assertSessionOpen()
@@ -360,37 +367,19 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     }
 
     return {
-      abort: (reason) => {
-        assertSessionOpen()
-        runtime.abort(reason)
-      },
-      clear: () => {
-        assertSessionOpen()
-        runtime.clear()
-      },
-      emit: (channel, event) => {
-        assertSessionOpen()
-        emitChannel(channel, event)
-      },
+      abort: guard(runtime.abort),
+      clear: guard(runtime.clear),
+      emit: guard(emitChannel),
       fork,
-      getContext: () => {
-        assertSessionOpen()
-        return resolveContext()
-      },
+      getContext: guard(() => resolveContext()),
       id,
       interrupt,
-      on: (eventListener) => {
-        assertSessionOpen()
-        return onSession(eventListener)
-      },
+      on: guard(onSession),
       remove,
       run,
       send,
       setContext: setSessionContext,
-      subscribe: (channel, listener) => {
-        assertSessionOpen()
-        return subscribe(channel, listener)
-      },
+      subscribe: guard(subscribe),
     }
   }
 

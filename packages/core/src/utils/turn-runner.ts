@@ -62,16 +62,23 @@ const mergeRunContext = <T>(
     context,
   )
 
+const createPluginHookBase = <T>(
+  options: RunTurnParams<T>,
+  context: AgentContext<T>,
+) => ({
+  agentName: options.agentName,
+  context,
+  sessionId: options.sessionId,
+  signal: options.controller.signal,
+  turnId: options.turn.id,
+})
+
 const createTurnStartOptions = <T>(
   options: RunTurnParams<T>,
   context: AgentContext<T>,
 ): TurnStartOptions<T> => ({
-  agentName: options.agentName,
-  context,
+  ...createPluginHookBase(options, context),
   input: options.turn.input,
-  sessionId: options.sessionId,
-  signal: options.controller.signal,
-  turnId: options.turn.id,
 })
 
 const createResponseOptions = <T>(
@@ -79,23 +86,13 @@ const createResponseOptions = <T>(
   context: AgentContext<T>,
   input: ItemParam[],
 ): ResponseOptions<T> => ({
-  agentName: options.agentName,
-  context,
+  ...createPluginHookBase(options, context),
   input,
-  sessionId: options.sessionId,
-  signal: options.controller.signal,
-  turnId: options.turn.id,
   turnInput: options.turn.input,
 })
 
-const mergeTools = (tools: Tool[]): Tool[] => {
-  const byName = new Map<string, Tool>()
-
-  for (const tool of tools)
-    byName.set(tool.function.name, tool)
-
-  return [...byName.values()]
-}
+const mergeTools = (tools: Tool[]): Tool[] =>
+  [...new Map(tools.map(tool => [tool.function.name, tool])).values()]
 
 const resolveInstructions = async <T>(
   options: RunTurnParams<T>,
