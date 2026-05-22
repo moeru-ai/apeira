@@ -101,14 +101,38 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     sessionId: options.sessionId,
   }
 
-  const clear: AgentRuntime<T>['clear'] = () => {
-    acceptingInputTurnId = undefined
-    abort('cleared')
+  const completeTurn = (id: string, completion: TurnCompletion) => {
+    pendingInput.delete(id)
 
-    pendingInput.clear()
+    if (completion.type === 'done')
+      return options.emit(id, { type: 'turn.done' })
 
+    if (completion.type === 'aborted')
+      return options.emit(id, { reason: completion.reason, type: 'turn.aborted' })
+
+    return options.emit(id, { error: completion.error, type: 'turn.failed' })
+  }
+
+  const abortQueuedTurn = (turn: QueuedInput<T>) =>
+    completeTurn(turn.id!, {
+      reason: turn.signal?.reason,
+      type: 'aborted',
+    })
+
+  const abortQueuedTurns = (reason: unknown) => {
     for (const turn of pendingTurns.drain())
-      options.emit(turn.id!, { reason: 'cleared', type: 'turn.aborted' })
+      completeTurn(turn.id!, { reason, type: 'aborted' })
+  }
+
+  const stopSession = (reason: unknown) => {
+    acceptingInputTurnId = undefined
+    abort(reason)
+    pendingInput.clear()
+    abortQueuedTurns(reason)
+  }
+
+  const clear: AgentRuntime<T>['clear'] = () => {
+    stopSession('cleared')
 
     void mutateSession(async () => {
       await ensureLoaded()
@@ -131,28 +155,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     await ensureLoaded()
     return session.snapshot()
   }
-
-  const completeTurn = (id: string, completion: TurnCompletion) => {
-    pendingInput.delete(id)
-
-    if (completion.type === 'done') {
-      options.emit(id, { type: 'turn.done' })
-      return
-    }
-
-    if (completion.type === 'aborted') {
-      options.emit(id, { reason: completion.reason, type: 'turn.aborted' })
-      return
-    }
-
-    options.emit(id, { error: completion.error, type: 'turn.failed' })
-  }
-
-  const abortQueuedTurn = (turn: QueuedInput<T>) =>
-    completeTurn(turn.id!, {
-      reason: turn.signal?.reason,
-      type: 'aborted',
-    })
 
   const pruneAbortedPendingTurns = () => {
     while (pendingTurns.size > 0) {
@@ -299,13 +301,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   }
 
   const remove: AgentRuntime<T>['remove'] = async (reason: unknown = 'removed') => {
-    acceptingInputTurnId = undefined
-    abort(reason)
-    pendingInput.clear()
-
-    for (const turn of pendingTurns.drain())
-      options.emit(turn.id!, { reason, type: 'turn.aborted' })
-
+    stopSession(reason)
     await pumpReady
     await pendingMutation
   }
