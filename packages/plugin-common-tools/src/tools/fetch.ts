@@ -3,7 +3,7 @@ import sanitizeHtml from 'sanitize-html'
 import { Readability } from '@mozilla/readability'
 import { rawTool } from '@xsai/tool'
 
-import { fetchAsBrowser, FetchError } from '../utils/fetch-as-browser'
+import { fetchAsBrowser } from '../utils/fetch-as-browser'
 import { getTurndown } from '../utils/get-turndown'
 
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
@@ -101,17 +101,6 @@ const buildMetadataBlock = (article: ReturnType<typeof Readability.prototype.par
 const buildResult = (content: string, url: string, bytes: number, durationMs: number, metadata: string[]) =>
   `${[...metadata, '', content || 'No readable content found.', '', `---\n*Fetched from ${url}*`].join('\n')}\n\n---\n*Fetched ${bytes} bytes in ${durationMs}ms*`
 
-const buildErrorResult = (url: string, durationMs: number, error: FetchError) => {
-  const errorParts = [`Error fetching ${url}`, `Reason: ${error.message}`]
-
-  if (error.status != null)
-    errorParts.push(`HTTP ${error.status}${error.statusText != null ? ` ${error.statusText}` : ''}`)
-
-  errorParts.push('', `---\n*Fetched in ${durationMs}ms*`)
-
-  return errorParts.join('\n')
-}
-
 const truncateContent = (content: string, max: number) => {
   if (content.length <= max)
     return content
@@ -144,12 +133,10 @@ export const createFetchTool = () => rawTool({
       return buildResult(truncated, url, bytes, durationMs, metadata)
     }
     catch (error) {
-      if (error instanceof FetchError) {
-        const durationMs = Date.now() - startTime
-        return buildErrorResult(url, durationMs, error)
-      }
+      const durationMs = Date.now() - startTime
+      const message = error instanceof Error ? error.message : String(error)
 
-      throw error
+      return `Error fetching ${url}\nReason: ${message}\n\n---\n*Fetched in ${durationMs}ms*`
     }
     finally {
       clearTimeout(timer)

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { createFetchTool } from '../src/tools/fetch'
+
 const mockHTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -71,13 +73,18 @@ const createMockResponse = (html: string, status = 200, contentType = 'text/html
 const mockFetchResponse = (response: Response) =>
   vi.spyOn(globalThis, 'fetch').mockResolvedValue(response)
 
+const EXECUTE_OPTIONS = {
+  abortSignal: new AbortController().signal,
+  messages: [],
+  toolCallId: 'test-call',
+}
+
 describe('createFetchTool', () => {
   it('returns markdown content for a successful fetch with article', async () => {
     const spy = mockFetchResponse(createMockResponse(mockHTML))
-    const { createFetchTool } = await import('./fetch')
 
     const tool = createFetchTool()
-    const result = await tool.execute({ url: 'https://example.com/article' })
+    const result = await tool.execute({ url: 'https://example.com/article' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('# Test Article')
     expect(result).toContain('This is the main content of the test article')
@@ -91,10 +98,9 @@ describe('createFetchTool', () => {
 
   it('returns text content when format is text', async () => {
     const spy = mockFetchResponse(createMockResponse(mockHTML))
-    const { createFetchTool } = await import('./fetch')
 
     const tool = createFetchTool()
-    const result = await tool.execute({ format: 'text', url: 'https://example.com/article' })
+    const result = await tool.execute({ format: 'text', url: 'https://example.com/article' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('Test Article')
     expect(result).toContain('This is the main content of the test article')
@@ -106,10 +112,9 @@ describe('createFetchTool', () => {
 
   it('returns HTML content when format is html', async () => {
     const spy = mockFetchResponse(createMockResponse(mockHTML))
-    const { createFetchTool } = await import('./fetch')
 
     const tool = createFetchTool()
-    const result = await tool.execute({ format: 'html', url: 'https://example.com/article' })
+    const result = await tool.execute({ format: 'html', url: 'https://example.com/article' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('This is the main content of the test article')
     expect(result).toContain('<code>console.log')
@@ -123,10 +128,10 @@ describe('createFetchTool', () => {
 
   it('strips dangerous HTML tags when format is html', async () => {
     const spy = mockFetchResponse(createMockResponse(mockHTMLWithDangerousContent))
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ format: 'html', url: 'https://example.com/dangerous' })
+    const result = await tool.execute({ format: 'html', url: 'https://example.com/dangerous' }, EXECUTE_OPTIONS)
 
     expect(result).not.toContain('<script>')
     expect(result).not.toContain('onclick')
@@ -138,10 +143,10 @@ describe('createFetchTool', () => {
 
   it('falls back to text extraction when Readability returns nothing', async () => {
     const spy = mockFetchResponse(createMockResponse(mockHTMLWithoutArticle))
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ url: 'https://example.com/simple' })
+    const result = await tool.execute({ url: 'https://example.com/simple' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('No Article Here')
     expect(result).toContain('This page has no article element')
@@ -154,10 +159,10 @@ describe('createFetchTool', () => {
   it('truncates content exceeding maxLength', async () => {
     const longContent = `<html><head><title>Long Page</title></head><body><article><p>${'a'.repeat(500)}</p></article></body></html>`
     const spy = mockFetchResponse(createMockResponse(longContent))
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ maxLength: 100, url: 'https://example.com/long' })
+    const result = await tool.execute({ maxLength: 100, url: 'https://example.com/long' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('...[truncated')
 
@@ -168,10 +173,10 @@ describe('createFetchTool', () => {
     const spy = mockFetchResponse(
       new Response(null, { status: 404, statusText: 'Not Found' }),
     )
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ url: 'https://example.com/404' })
+    const result = await tool.execute({ url: 'https://example.com/404' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('Error fetching')
     expect(result).toContain('HTTP 404')
@@ -188,10 +193,10 @@ describe('createFetchTool', () => {
         statusText: 'OK',
       }),
     )
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ url: 'https://example.com/doc.pdf' })
+    const result = await tool.execute({ url: 'https://example.com/doc.pdf' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('Error fetching')
     expect(result).toContain('binary')
@@ -201,10 +206,10 @@ describe('createFetchTool', () => {
 
   it('handles network errors gracefully', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('fetch failed'))
-    const { createFetchTool } = await import('./fetch')
+
 
     const tool = createFetchTool()
-    const result = await tool.execute({ url: 'https://example.com/unreachable' })
+    const result = await tool.execute({ url: 'https://example.com/unreachable' }, EXECUTE_OPTIONS)
 
     expect(result).toContain('Error fetching')
 

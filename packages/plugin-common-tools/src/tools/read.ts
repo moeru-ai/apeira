@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer'
-import { readFile } from 'node:fs/promises'
+import { open, readFile } from 'node:fs/promises'
 
 import { rawTool } from '@xsai/tool'
 
@@ -9,7 +9,7 @@ export const createReadTool = () => rawTool({
     const { filePath, limit, offset } = input as { filePath: string, limit?: number, offset?: number }
 
     if (offset != null || limit != null) {
-      const handle = await import('node:fs/promises').then(async m => m.open(filePath, 'r'))
+      const handle = await open(filePath, 'r')
 
       try {
         let remainingLines = limit ?? Number.POSITIVE_INFINITY

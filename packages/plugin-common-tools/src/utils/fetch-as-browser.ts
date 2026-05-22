@@ -45,17 +45,6 @@ export interface FetchResult {
   url: string
 }
 
-export class FetchError extends Error {
-  constructor(
-    message: string,
-    public readonly status?: number,
-    public readonly statusText?: string,
-  ) {
-    super(message)
-    this.name = 'FetchError'
-  }
-}
-
 const fetchWithSizeLimit = async (
   response: Response,
   maxBytes: number,
@@ -64,7 +53,7 @@ const fetchWithSizeLimit = async (
   const contentLength = response.headers.get('content-length')
 
   if (contentLength != null && Number.parseInt(contentLength, 10) > maxBytes)
-    throw new FetchError(`Response too large: ${contentLength} bytes exceeds ${maxBytes} byte limit`)
+    throw new Error(`Response too large: ${contentLength} bytes exceeds ${maxBytes} byte limit`)
 
   if (!response.body)
     return response.arrayBuffer()
@@ -76,7 +65,7 @@ const fetchWithSizeLimit = async (
   try {
     while (true) {
       if (signal?.aborted)
-        throw new FetchError('Request aborted')
+        throw new Error('Request aborted')
 
       const { done, value } = await reader.read()
 
@@ -87,7 +76,7 @@ const fetchWithSizeLimit = async (
 
       if (total > maxBytes) {
         void reader.cancel()
-        throw new FetchError(`Response exceeded ${maxBytes} byte limit`)
+        throw new Error(`Response exceeded ${maxBytes} byte limit`)
       }
 
       chunks.push(value)
@@ -123,22 +112,20 @@ export const fetchAsBrowser = async (url: string, signal?: AbortSignal): Promise
   }
   catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch'))
-      throw new FetchError(`Network error: unable to reach ${url}`)
+      throw new Error(`Network error: unable to reach ${url}`)
 
     throw error
   }
 
   if (!response.ok)
-    throw new FetchError(`HTTP ${response.status}: ${response.statusText}`, response.status, response.statusText)
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
 
   const contentType = response.headers.get('content-type') ?? ''
 
   if (isBinaryContentType(contentType)) {
     const shortType = contentType.split(';')[0].trim()
-    throw new FetchError(
+    throw new Error(
       `Cannot fetch binary content (${shortType}). Only text-based content types are supported.`,
-      415,
-      'Unsupported Media Type',
     )
   }
 

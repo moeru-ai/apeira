@@ -2,6 +2,8 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mcp } from '../src/index'
+
 const fixtures = vi.hoisted(() => ({
   clients: [] as MockClientFixture[],
   instances: [] as MockClient[],
@@ -77,7 +79,7 @@ describe('mcp', () => {
       })),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       servers: {
         docs: {
@@ -114,7 +116,7 @@ describe('mcp', () => {
       })),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       servers: {
         docs: {
@@ -146,7 +148,7 @@ describe('mcp', () => {
       })),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       servers: {
         docs: {
@@ -186,7 +188,7 @@ describe('mcp', () => {
       })),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       servers: {
         local: {
@@ -217,7 +219,7 @@ describe('mcp', () => {
       })),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       onError,
       servers: {
@@ -252,7 +254,7 @@ describe('mcp', () => {
       }),
     })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       onError: () => ({ invalid: true }),
       servers: {
@@ -274,7 +276,7 @@ describe('mcp', () => {
       .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'second' }] })
     fixtures.clients.push({ listTools })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       servers: {
         local: {
@@ -299,7 +301,7 @@ describe('mcp', () => {
       .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'second' }] })
     fixtures.clients.push({ listTools })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       refreshTools: 'turn',
       servers: {
@@ -333,7 +335,7 @@ describe('mcp', () => {
       .mockRejectedValueOnce(new Error('refresh failed'))
     fixtures.clients.push({ listTools })
 
-    const { mcp } = await import('../src/index')
+
     const plugin = mcp({
       refreshTools: 'turn',
       servers: {
