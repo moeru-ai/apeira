@@ -40,6 +40,9 @@ const parseFrontmatter = (content: string): { body: string, frontmatter: SkillFr
   }
 }
 
+const normalizeReferencePath = (value: string) =>
+  value.replace(/\\/g, '/')
+
 const collectReferenceFiles = async (
   directory: string,
   allowedExtensions: string[],
@@ -105,7 +108,7 @@ const readSkillReferences = async (
   }
 
   for (const absolutePath of await collectReferenceFiles(referencesDir, allowedExtensions, diagnostics)) {
-    const relativePath = path.relative(skillDir, absolutePath)
+    const relativePath = normalizeReferencePath(path.relative(skillDir, absolutePath))
 
     references.push({ path: relativePath })
   }
@@ -209,7 +212,8 @@ export const fsSkillSet = (options: FSSkillSetOptions): SkillSet => {
     if (skill == null)
       return undefined
 
-    const reference = skill.references?.find(candidate => candidate.path === referencePath)
+    const normalizedReferencePath = normalizeReferencePath(referencePath)
+    const reference = skill.references?.find(candidate => candidate.path === normalizedReferencePath)
 
     if (reference == null)
       return undefined
@@ -218,7 +222,7 @@ export const fsSkillSet = (options: FSSkillSetOptions): SkillSet => {
       return reference
 
     const skillDir = path.dirname(skill.filePath)
-    const absolutePath = path.resolve(skillDir, referencePath)
+    const absolutePath = path.resolve(skillDir, normalizedReferencePath)
     const relativePath = path.relative(skillDir, absolutePath)
 
     if (relativePath.startsWith('..') || path.isAbsolute(relativePath))

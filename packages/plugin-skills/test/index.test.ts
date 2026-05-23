@@ -262,6 +262,8 @@ describe('fsSkillSet', () => {
     const skillSet = fsSkillSet({ directory: testDir })
 
     await skillSet.refresh()
+    expect(skillSet.getSkill('math')?.references?.map(reference => reference.path)).toContain('references/formulas.md')
+
     const ref = await skillSet.getSkillReference('math', 'references/formulas.md')
     expect(ref?.content).toContain('E=mc^2')
   })
