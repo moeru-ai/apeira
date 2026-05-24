@@ -164,6 +164,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     let removed = false
     let removing = false
     const sessionCleanups = new Set<() => boolean>()
+    const wrappedListeners = new WeakMap<PluginChannelListener, PluginChannelListener>()
 
     const createRemovedSessionError = () =>
       new Error(`Session removed: ${id}`)
@@ -254,15 +255,21 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const subscribeSession = (channel: string, listener: PluginChannelListener) => {
       const register = () => {
         if (channel === 'apeira') {
-          const agentListener = listener as (event: AgentEvent) => void
-          const wrapped: PluginChannelListener = (event) => {
-            const agentEvent = event as AgentEvent
+          let wrapped = wrappedListeners.get(listener)
 
-            if (agentEvent.sessionId !== id)
-              return
+          if (!wrapped) {
+            wrapped = (event) => {
+              const agentEvent = event as AgentEvent
 
-            agentListener(agentEvent)
+              if (agentEvent.sessionId !== id)
+                return
+
+              const agentListener = listener as (event: AgentEvent) => void
+              agentListener(agentEvent)
+            }
+            wrappedListeners.set(listener, wrapped)
           }
+
           return pluginApi.subscribe('apeira', wrapped)
         }
         return pluginApi.subscribe(channel, listener)
