@@ -29,7 +29,7 @@ interface AgentPlugin {
 
 ### Lifecycle hooks
 
-- `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](/plugins#channels) below.
+- `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](#channels) below.
 - `onSessionInit` — called when a session is first accessed.
 - `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn.
 - `onEvent` — observe all agent events.
