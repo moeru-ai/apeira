@@ -163,6 +163,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     let currentSessionContext = initialSessionContext
     let removed = false
     let removing = false
+    const sessionCleanups = new Set<() => boolean>()
 
     const createRemovedSessionError = () =>
       new Error(`Session removed: ${id}`)
@@ -251,19 +252,29 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     })
 
     const subscribeSession = (channel: string, listener: PluginChannelListener) => {
-      if (channel === 'apeira') {
-        const agentListener = listener as (event: AgentEvent) => void
-        const wrapped: PluginChannelListener = (event) => {
-          const agentEvent = event as AgentEvent
+      const register = () => {
+        if (channel === 'apeira') {
+          const agentListener = listener as (event: AgentEvent) => void
+          const wrapped: PluginChannelListener = (event) => {
+            const agentEvent = event as AgentEvent
 
-          if (agentEvent.sessionId !== id)
-            return
+            if (agentEvent.sessionId !== id)
+              return
 
-          agentListener(agentEvent)
+            agentListener(agentEvent)
+          }
+          return pluginApi.subscribe('apeira', wrapped)
         }
-        return pluginApi.subscribe('apeira', wrapped)
+        return pluginApi.subscribe(channel, listener)
       }
-      return pluginApi.subscribe(channel, listener)
+
+      const unsub = register()
+      sessionCleanups.add(unsub)
+
+      return () => {
+        sessionCleanups.delete(unsub)
+        return unsub()
+      }
     }
 
     const run: AgentSession<T>['run'] = guard((input, runOptions = {}) => {
@@ -357,6 +368,9 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       removing = true
 
       try {
+        for (const cleanup of sessionCleanups)
+          cleanup()
+
         await runtime.remove()
         await removeSessionState(id)
 
