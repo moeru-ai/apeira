@@ -314,6 +314,36 @@ describe('mcp', () => {
       })
   })
 
+  it('returns model-visible error results for direct MCP tool call transport failures', async () => {
+    fixtures.clients.push({
+      callTool: vi.fn(async () => {
+        throw new Error('network down')
+      }),
+      listTools: vi.fn(async () => ({
+        tools: [{ inputSchema: { type: 'object' }, name: 'search' }],
+      })),
+    })
+
+    const plugin = mcp({
+      mcpServers: {
+        local: {
+          command: 'node',
+        },
+      },
+    })
+    const tools = await plugin.resolveTools?.(createResolveOptions())
+
+    await expect(tools?.[0]?.execute({}, { messages: [], toolCallId: 'call_1' }))
+      .resolves
+      .toEqual({
+        content: [{
+          text: 'MCP local/search callTool failed: network down',
+          type: 'text',
+        }],
+        isError: true,
+      })
+  })
+
   it('caches tools by default', async () => {
     const listTools = vi.fn()
       .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'first' }] })
@@ -443,6 +473,7 @@ describe('mcp', () => {
         toolName: 'search',
       }],
       query: 'documentation',
+      serverFailures: [],
       total: 1,
     })
 
@@ -482,6 +513,41 @@ describe('mcp', () => {
       { signal: undefined, timeout: 600_000 },
     )
     expect(listTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns model-visible error results for progressive MCP tool call transport failures', async () => {
+    fixtures.clients.push({
+      callTool: vi.fn(async () => {
+        throw new Error('network down')
+      }),
+      listTools: vi.fn(async () => ({
+        tools: [{ inputSchema: { type: 'object' }, name: 'search' }],
+      })),
+    })
+
+    const plugin = mcp({
+      mcpServers: {
+        local: {
+          command: 'node',
+        },
+      },
+      progressiveToolDiscovery: true,
+    })
+    const tools = await plugin.resolveTools?.(createResolveOptions())
+
+    await expect(tools?.[2]?.execute({
+      arguments: {},
+      name: 'mcp_local__search',
+    }, {
+      messages: [],
+      toolCallId: 'call_1',
+    })).resolves.toEqual({
+      content: [{
+        text: 'MCP local/search callTool failed: network down',
+        type: 'text',
+      }],
+      isError: true,
+    })
   })
 
   it('keeps healthy server tools in progressive discovery when another server fails', async () => {
@@ -524,6 +590,10 @@ describe('mcp', () => {
         toolName: 'search',
       }],
       query: 'documentation',
+      serverFailures: [{
+        message: 'bad list',
+        serverId: 'broken',
+      }],
       total: 1,
     })
   })

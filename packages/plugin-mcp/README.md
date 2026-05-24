@@ -139,7 +139,7 @@ Set `progressiveToolDiscovery: true` to expose only three stable meta tools inst
 | `get_mcp_tool_details` | Fetch the full schema for one matched MCP tool. |
 | `call_mcp_tool` | Call one MCP tool by name with arguments matching its schema. |
 
-This follows the catalog, inspect, execute pattern recommended by the MCP client best practices guide. The plugin still caches `tools/list` results host-side, but the model only sees full schemas for tools it asks to inspect.
+This follows the catalog, inspect, execute pattern recommended by the MCP client best practices guide. The plugin still caches `tools/list` results host-side, but the model only sees full schemas for tools it asks to inspect. If some servers fail during catalog discovery, `search_mcp_tools` includes them in `serverFailures` while still returning tools from healthy servers.
 
 ### Environment Variables
 
@@ -156,4 +156,4 @@ Connections are lazy and persistent. The plugin connects to each server the firs
 
 ### Errors
 
-MCP tool results with `isError: true` are returned to the model as normal tool results. Transport, connection, protocol, and timeout failures throw by default.
+MCP tool results with `isError: true` are returned to the model as normal tool results. Tool-call transport, protocol, and timeout failures are converted into model-visible `isError` tool results. Tool discovery failures for one server do not prevent healthy servers from exposing their tools.

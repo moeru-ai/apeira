@@ -1,25 +1,26 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 
 import type { NormalizedMCPServerConfig } from '../types/plugin'
-import type { MCPTool, MCPToolCatalogEntry } from '../types/runtime'
+import type { MCPTool, MCPToolCatalog } from '../types/runtime'
 
 import { rawTool } from '@xsai/tool'
 
 import { getRequestOptions } from './client'
+import { createErrorToolResult } from './result'
 
 export interface CreateProgressiveMCPToolsOptions {
   getConnectedClient: (serverId: string, signal?: AbortSignal) => Promise<Client>
-  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalogEntry[]>
+  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalog>
   servers: Record<string, NormalizedMCPServerConfig>
 }
 
 const findCatalogEntry = async (
-  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalogEntry[]>,
+  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalog>,
   name: string,
   signal?: AbortSignal,
 ) => {
   const catalog = await listToolCatalog(signal)
-  return catalog.find(entry => entry.name === name)
+  return catalog.entriesByName.get(name)
 }
 
 export const createProgressiveMCPTools = (
@@ -31,7 +32,7 @@ export const createProgressiveMCPTools = (
       const { limit = 10, query = '' } = input as { limit?: number, query?: string }
       const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
       const catalog = await options.listToolCatalog(executeOptions.abortSignal)
-      const matches = catalog
+      const matches = catalog.entries
         .map((entry) => {
           const haystack = [
             entry.name,
@@ -58,7 +59,8 @@ export const createProgressiveMCPTools = (
       return {
         matches,
         query,
-        total: catalog.length,
+        serverFailures: catalog.failures,
+        total: catalog.entries.length,
       }
     },
     name: 'search_mcp_tools',
@@ -125,14 +127,23 @@ export const createProgressiveMCPTools = (
       if (serverConfig == null)
         throw new Error(`Unknown MCP server: ${entry.serverId}`)
 
-      return client.callTool(
-        {
-          arguments: toolArguments,
-          name: entry.toolName,
-        },
-        undefined,
-        getRequestOptions(serverConfig, executeOptions.abortSignal),
-      )
+      try {
+        return await client.callTool(
+          {
+            arguments: toolArguments,
+            name: entry.toolName,
+          },
+          undefined,
+          getRequestOptions(serverConfig, executeOptions.abortSignal),
+        )
+      }
+      catch (error) {
+        return createErrorToolResult(error, {
+          operation: 'callTool',
+          serverId: entry.serverId,
+          toolName: entry.toolName,
+        })
+      }
     },
     name: 'call_mcp_tool',
     parameters: {

@@ -8,15 +8,27 @@ export interface MCPServerState {
   client?: Client
   connectPromise?: Promise<Client>
   definitions?: MCPToolDefinition[]
+  failure?: MCPToolCatalogFailure
   tools?: MCPTool[]
   transport?: Transport
 }
 
 export type MCPTool = ReturnType<typeof rawTool>
 
+export interface MCPToolCatalog {
+  entries: MCPToolCatalogEntry[]
+  entriesByName: Map<string, MCPToolCatalogEntry>
+  failures: MCPToolCatalogFailure[]
+}
+
 export interface MCPToolCatalogEntry {
   definition: MCPToolDefinition
   name: string
   serverId: string
   toolName: string
+}
+
+export interface MCPToolCatalogFailure {
+  message: string
+  serverId: string
 }
