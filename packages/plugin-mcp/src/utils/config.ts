@@ -43,7 +43,7 @@ const expandStringArray = (values: string[] | undefined, missingVars: Set<string
   values?.map(value => expandEnvVars(value, missingVars))
 
 const normalizeHTTPTransportOptions = (
-  server: Extract<MCPServerConfig, { headers?: Record<string, string>, url: string }>,
+  server: Extract<MCPServerConfig, { type: 'http' | 'streamable-http' }>,
   missingVars: Set<string>,
 ): StreamableHTTPClientTransportOptions | undefined => {
   const headers = expandStringRecord(server.headers, missingVars)
@@ -98,6 +98,16 @@ export const normalizeMCPConfig = (config: MCPConfig): Record<string, Normalized
           callTimeoutMs,
           transportOptions: normalizeSSETransportOptions(server, missingVars),
           type: 'sse',
+          url,
+        } satisfies NormalizedMCPServerConfig
+
+        return servers
+      }
+
+      if (server.type === 'ws') {
+        servers[serverId] = {
+          callTimeoutMs,
+          type: 'ws',
           url,
         } satisfies NormalizedMCPServerConfig
 

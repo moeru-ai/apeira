@@ -25,6 +25,7 @@ export type {
   MCPStdioServerConfig,
   MCPToolDefinition,
   MCPToolResult,
+  MCPWebSocketServerConfig,
 } from './types/plugin'
 
 export const mcp = (config: MCPConfig): AgentPlugin => {
