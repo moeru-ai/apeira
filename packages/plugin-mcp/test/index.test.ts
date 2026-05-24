@@ -10,6 +10,7 @@ const fixtures = vi.hoisted(() => ({
   instances: [] as MockClient[],
   sseTransports: [] as unknown[],
   stdioTransports: [] as unknown[],
+  wsTransports: [] as unknown[],
 }))
 
 interface MockClient {
@@ -81,6 +82,15 @@ vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
   },
 }))
 
+vi.mock('@modelcontextprotocol/sdk/client/websocket.js', () => ({
+  WebSocketClientTransport: class {
+    constructor(url: URL) {
+      fixtures.wsTransports.push(url.toString())
+      return createTransport()
+    }
+  },
+}))
+
 const createResolveOptions = () => ({
   agentName: 'agent',
   context: {},
@@ -99,6 +109,7 @@ describe('mcp', () => {
     fixtures.instances.length = 0
     fixtures.sseTransports.length = 0
     fixtures.stdioTransports.length = 0
+    fixtures.wsTransports.length = 0
     vi.unstubAllEnvs()
   })
 
@@ -251,6 +262,23 @@ describe('mcp', () => {
     })
     expect((fixtures.sseTransports[0] as { options: { eventSourceInit: { fetch: unknown } } }).options.eventSourceInit.fetch)
       .toEqual(expect.any(Function))
+  })
+
+  it('maps ws servers to WebSocketClientTransport', async () => {
+    fixtures.clients.push({})
+
+    const plugin = mcp({
+      mcpServers: {
+        events: {
+          type: 'ws',
+          url: 'ws://localhost:8080/mcp',
+        },
+      },
+    })
+
+    await plugin.resolveTools?.(createResolveOptions())
+
+    expect(fixtures.wsTransports).toEqual(['ws://localhost:8080/mcp'])
   })
 
   it('expands environment variables in .mcp.json string fields', async () => {

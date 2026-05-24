@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js'
 
 const DEFAULT_CLIENT_NAME = 'apeira-mcp-client'
 
@@ -29,6 +30,8 @@ export const createMCPTransport = async (config: NormalizedMCPServerConfig): Pro
       })
     case 'streamable-http':
       return new StreamableHTTPClientTransport(toUrl(config.url), config.transportOptions)
+    case 'ws':
+      return new WebSocketClientTransport(toUrl(config.url))
   }
 }
 

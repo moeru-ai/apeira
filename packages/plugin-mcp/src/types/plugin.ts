@@ -22,6 +22,7 @@ export type MCPServerConfig
   = | MCPHttpServerConfig
     | MCPSseServerConfig
     | MCPStdioServerConfig
+    | MCPWebSocketServerConfig
 
 export interface MCPServerConfigBase {
   timeout?: number
@@ -44,10 +45,16 @@ export type MCPToolDefinition = Awaited<ReturnType<Client['listTools']>>['tools'
 
 export type MCPToolResult = Awaited<ReturnType<Client['callTool']>>
 
+export interface MCPWebSocketServerConfig extends MCPServerConfigBase {
+  type: 'ws'
+  url: string
+}
+
 export type NormalizedMCPServerConfig
   = | NormalizedMCPSseServerConfig
     | NormalizedMCPStdioServerConfig
     | NormalizedMCPStreamableHTTPServerConfig
+    | NormalizedMCPWebSocketServerConfig
 
 export interface NormalizedMCPServerConfigBase {
   callTimeoutMs?: number
@@ -66,5 +73,10 @@ export interface NormalizedMCPStdioServerConfig extends NormalizedMCPServerConfi
 export interface NormalizedMCPStreamableHTTPServerConfig extends NormalizedMCPServerConfigBase {
   transportOptions?: StreamableHTTPClientTransportOptions
   type: 'streamable-http'
+  url: string | URL
+}
+
+export interface NormalizedMCPWebSocketServerConfig extends NormalizedMCPServerConfigBase {
+  type: 'ws'
   url: string | URL
 }
