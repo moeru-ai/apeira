@@ -10,6 +10,43 @@ pnpm add @apeira/plugin-mcp
 
 ## Usage
 
+### JavaScript config
+
+```ts
+import { createAgent } from '@apeira/core'
+import { mcp } from '@apeira/plugin-mcp'
+
+const agent = createAgent({
+  instructions: 'You are a helpful assistant.',
+  name: 'assistant',
+  options: {
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  },
+  plugins: [
+    mcp({
+      mcpServers: {
+        docs: {
+          headers: {
+            Authorization: `Bearer ${process.env.DOCS_MCP_TOKEN}`,
+          },
+          timeout: 600_000,
+          type: 'http',
+          url: 'https://example.com/mcp',
+        },
+        filesystem: {
+          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+          command: 'npx',
+        },
+      },
+    }),
+  ],
+})
+```
+
+### JSON config
+
 ```ts
 import { createAgent } from '@apeira/core'
 import { mcp } from '@apeira/plugin-mcp'
@@ -30,19 +67,7 @@ const agent = createAgent({
 })
 ```
 
-## API
-
-### `mcp(config)`
-
-Creates an Apeira plugin that converts MCP tools into `@xsai/tool` compatible function tools.
-
-```ts
-interface MCPConfig {
-  mcpServers: Record<string, MCPServerConfig>
-}
-```
-
-The config shape matches project-scoped `.mcp.json` files:
+Example `.mcp.json`:
 
 ```json
 {
@@ -65,6 +90,22 @@ The config shape matches project-scoped `.mcp.json` files:
   }
 }
 ```
+
+The plugin does not read `.mcp.json` from disk; pass an imported JSON object or an inline JavaScript object.
+
+## API
+
+### `mcp(config)`
+
+Creates an Apeira plugin that converts MCP tools into `@xsai/tool` compatible function tools.
+
+```ts
+interface MCPConfig {
+  mcpServers: Record<string, MCPServerConfig>
+}
+```
+
+The config shape matches project-scoped `.mcp.json` files.
 
 Supported server transports:
 

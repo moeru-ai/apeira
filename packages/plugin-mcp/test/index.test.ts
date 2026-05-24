@@ -273,14 +273,17 @@ describe('mcp', () => {
     })
   })
 
-  it('throws when a required environment variable is missing', () => {
+  it('throws once with all missing required environment variables', () => {
     expect(() => mcp({
       mcpServers: {
         local: {
           command: `${'$'}{MISSING_COMMAND}`,
+          env: {
+            API_TOKEN: `${'$'}{MISSING_TOKEN}`,
+          },
         },
       },
-    })).toThrow('Missing environment variable in MCP config: MISSING_COMMAND')
+    })).toThrow('Missing environment variables in MCP config: MISSING_COMMAND, MISSING_TOKEN')
   })
 
   it('returns MCP isError tool results without throwing', async () => {
