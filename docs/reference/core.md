@@ -39,19 +39,7 @@ interface CreateAgentOptions<T> {
 
 ## Agent
 
-```ts
-interface Agent<T> {
-  abort: (reason?: unknown) => void
-  clear: () => void
-  getContext: () => AgentContext<T>
-  interrupt: (reason?: unknown) => void
-  run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
-  send: (input: ItemParam, options?: AgentRunOptions<T>) => string
-  session: (options?: SessionOptions<T>) => AgentSession<T>
-  setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
-}
-```
+Agent methods operate as if on the default session (id = `'default'`) unless a session is explicitly created.
 
 ### run()
 
@@ -163,21 +151,6 @@ Returns a function that removes the listener and returns whether it was present.
 
 ## AgentSession
 
-```ts
-interface AgentSession<T> {
-  abort: (reason?: unknown) => void
-  clear: () => void
-  fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
-  getContext: () => AgentContext<T>
-  interrupt: (reason?: unknown) => void
-  remove: () => Promise<void>
-  run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
-  send: (input: ItemParam, options?: AgentRunOptions<T>) => string
-  setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
-}
-```
-
 Session methods operate on a single isolated conversation. See [Sessions](/guide/sessions) for usage.
 
 ### fork()
@@ -202,16 +175,3 @@ await session.remove()
 ```
 
 The default session cannot be removed. Removed handles reject later method calls; calling `agent.session({ id })` after removal creates a fresh session.
-
-## Types
-
-```ts
-type AgentEvent = WithTurnId<ApeiraEvent | XSAIEvent>
-
-type ItemParam = Exclude<ResponsesOptions['input'], string>[number]
-
-type WithTurnId<T> = T & {
-  sessionId: string
-  turnId: string
-}
-```

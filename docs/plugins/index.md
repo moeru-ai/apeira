@@ -99,23 +99,12 @@ Register it by passing it in the `plugins` array to `createAgent()`.
 
 Plugins communicate with the outside world through named channels. The `AgentPluginApi` passed to `setup()` exposes `emit` and `subscribe` for this purpose.
 
-```ts
-interface AgentPluginApi {
-  emit: (channel: string, event: unknown) => void
-  subscribe: ((channel: string, listener: PluginChannelListener) => () => boolean)
-    & (<K extends keyof AgentChannelMap>(channel: K, listener: PluginChannelListener<AgentChannelMap[K]>) => () => boolean)
-}
+- `api.emit(channel, event)` — emit an event on a named channel
+- `api.subscribe(channel, listener)` — listen for events on a named channel
 
-type PluginChannelListener<T = unknown> = (event: T) => void
-```
+Known channels (like `'apeira'`) provide typed events; unknown channels fall back to `unknown`.
 
-The built-in channel `'apeira'` carries core agent events:
-
-```ts
-interface AgentChannelMap {
-  apeira: AgentEvent
-}
-```
+The built-in channel `'apeira'` carries all core agent lifecycle and model streaming events.
 
 ### Declaring a typed channel
 

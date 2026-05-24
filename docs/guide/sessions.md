@@ -89,22 +89,7 @@ session.setContext({ locale: 'zh-CN' })
 
 ## Session methods
 
-Sessions expose conversation methods for one isolated session:
-
-```ts
-interface AgentSession<T> {
-  abort: (reason?: unknown) => void
-  clear: () => void
-  fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
-  getContext: () => AgentContext<T>
-  interrupt: (reason?: unknown) => void
-  remove: () => Promise<void>
-  run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
-  send: (input: ItemParam, options?: AgentRunOptions<T>) => string
-  setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
-}
-```
+Sessions expose conversation methods for one isolated session. See [Core API](/reference/core) for the full interface.
 
 ### run()
 
