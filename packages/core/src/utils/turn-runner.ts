@@ -140,14 +140,14 @@ const resolveTools = async <T>(
   return tools.length > 0 ? tools : options.responseOptions.tools
 }
 
-const chainStepHooks = <H extends (...args: any[]) => unknown>(
+const chainStepHooks = <H extends (step: never) => unknown>(
   ...hooks: (H | undefined)[]
 ): H | undefined => {
   const list = hooks.filter(Boolean) as H[]
   if (list.length === 0)
     return undefined
 
-  return (async (step) => {
+  return (async (step: Parameters<H>[0]) => {
     for (const hook of list)
       await hook(step)
   }) as H
