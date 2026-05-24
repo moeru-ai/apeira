@@ -337,6 +337,64 @@ describe('mcp', () => {
     expect(fixtures.instances[0]?.connect).toHaveBeenCalledTimes(1)
   })
 
+  it('lists tools across paginated MCP responses', async () => {
+    const listTools = vi.fn()
+      .mockResolvedValueOnce({
+        nextCursor: 'next',
+        tools: [{ inputSchema: { type: 'object' }, name: 'first' }],
+      })
+      .mockResolvedValueOnce({
+        tools: [{ inputSchema: { type: 'object' }, name: 'second' }],
+      })
+    fixtures.clients.push({ listTools })
+
+    const plugin = mcp({
+      mcpServers: {
+        local: {
+          command: 'node',
+        },
+      },
+    })
+    const resolveOptions = createResolveOptions()
+
+    expect((await plugin.resolveTools?.(resolveOptions))?.map(tool => tool.function.name))
+      .toEqual(['mcp_local__first', 'mcp_local__second'])
+    expect(listTools).toHaveBeenNthCalledWith(1, undefined, {
+      signal: resolveOptions.signal,
+      timeout: undefined,
+    })
+    expect(listTools).toHaveBeenNthCalledWith(2, { cursor: 'next' }, {
+      signal: resolveOptions.signal,
+      timeout: undefined,
+    })
+  })
+
+  it('keeps healthy server tools when another server fails during resolution', async () => {
+    fixtures.clients.push({
+      listTools: vi.fn(async () => {
+        throw new Error('bad list')
+      }),
+    }, {
+      listTools: vi.fn(async () => ({
+        tools: [{ inputSchema: { type: 'object' }, name: 'search' }],
+      })),
+    })
+
+    const plugin = mcp({
+      mcpServers: {
+        broken: {
+          command: 'node',
+        },
+        docs: {
+          command: 'node',
+        },
+      },
+    })
+
+    expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
+      .toEqual(['mcp_docs__search'])
+  })
+
   it('exposes stable progressive discovery tools when enabled', async () => {
     const listTools = vi.fn(async () => ({
       tools: [{
@@ -424,5 +482,49 @@ describe('mcp', () => {
       { signal: undefined, timeout: 600_000 },
     )
     expect(listTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps healthy server tools in progressive discovery when another server fails', async () => {
+    fixtures.clients.push({
+      listTools: vi.fn(async () => {
+        throw new Error('bad list')
+      }),
+    }, {
+      listTools: vi.fn(async () => ({
+        tools: [{
+          description: 'Search documentation.',
+          inputSchema: { type: 'object' },
+          name: 'search',
+        }],
+      })),
+    })
+
+    const plugin = mcp({
+      mcpServers: {
+        broken: {
+          command: 'node',
+        },
+        docs: {
+          command: 'node',
+        },
+      },
+      progressiveToolDiscovery: true,
+    })
+    const tools = await plugin.resolveTools?.(createResolveOptions())
+    const searchResult = await tools?.[0]?.execute({ query: 'documentation' }, {
+      messages: [],
+      toolCallId: 'call_1',
+    })
+
+    expect(searchResult).toEqual({
+      matches: [{
+        description: 'Search documentation.',
+        name: 'mcp_docs__search',
+        serverId: 'docs',
+        toolName: 'search',
+      }],
+      query: 'documentation',
+      total: 1,
+    })
   })
 })

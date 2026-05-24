@@ -78,14 +78,25 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
 
     const client: Client = await getConnectedClient(serverId, signal)
 
-    const listed = await client.listTools(undefined, getRequestOptions(config, signal))
-    state.definitions = listed.tools
+    const definitions: MCPToolDefinition[] = []
+    let cursor: string | undefined
 
-    return listed.tools
+    do {
+      const listed = await client.listTools(
+        cursor == null ? undefined : { cursor },
+        getRequestOptions(config, signal),
+      )
+
+      definitions.push(...listed.tools)
+      cursor = listed.nextCursor
+    } while (cursor != null)
+
+    state.definitions = definitions
+    return definitions
   }
 
   const listToolCatalog = async (signal?: AbortSignal): Promise<MCPToolCatalogEntry[]> => {
-    const toolGroups = await Promise.all([...states.keys()].map(async (serverId) => {
+    const results = await Promise.allSettled([...states.keys()].map(async (serverId) => {
       const definitions = await listServerToolDefinitions(serverId, signal)
 
       return definitions.map(definition => ({
@@ -96,7 +107,10 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
       }))
     }))
 
-    return toolGroups.flat()
+    if (signal?.aborted)
+      throw signal.reason ?? new Error('MCP tool resolution aborted.')
+
+    return results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
   }
 
   const listServerTools = async (serverId: string, signal?: AbortSignal): Promise<MCPTool[]> => {
@@ -146,8 +160,12 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
         })
       }
 
-      const toolGroups = await Promise.all([...states.keys()].map(async serverId => listServerTools(serverId, signal)))
-      return toolGroups.flat()
+      const results = await Promise.allSettled([...states.keys()].map(async serverId => listServerTools(serverId, signal)))
+
+      if (signal.aborted)
+        throw signal.reason ?? new Error('MCP tool resolution aborted.')
+
+      return results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
     },
     version,
   }
