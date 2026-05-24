@@ -4,14 +4,17 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { MCPConfig, MCPToolDefinition } from './types/plugin'
 import type { MCPServerState, MCPTool, MCPToolCatalog } from './types/runtime'
 
+import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { rawTool } from '@xsai/tool'
 
 import { name, version } from '../package.json'
 import { createMCPClient, createMCPTransport, getRequestOptions } from './utils/client'
 import { normalizeMCPConfig } from './utils/config'
-import { defaultNameMapper } from './utils/names'
+import { buildMcpToolName } from './utils/names'
 import { createProgressiveMCPTools } from './utils/progressive'
 import { createCatalogFailure, createErrorToolResult } from './utils/result'
+
+const MAX_MCP_DESCRIPTION_LENGTH = 2048
 
 export type {
   MCPConfig,
@@ -54,6 +57,12 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
 
         await client.connect(transport, getRequestOptions(config, signal))
 
+        client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+          state.definitions = undefined
+          state.tools = undefined
+          catalog = undefined
+        })
+
         state.client = client
         state.transport = transport
 
@@ -93,10 +102,15 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
       cursor = listed.nextCursor
     } while (cursor != null)
 
-    state.definitions = definitions
+    state.definitions = definitions.map(d => ({
+      ...d,
+      description: d.description != null
+        ? d.description.slice(0, MAX_MCP_DESCRIPTION_LENGTH)
+        : d.description,
+    }))
     state.failure = undefined
     catalog = undefined
-    return definitions
+    return state.definitions
   }
 
   const listToolCatalog = async (signal?: AbortSignal): Promise<MCPToolCatalog> => {
@@ -108,7 +122,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
 
       return definitions.map(definition => ({
         definition,
-        name: defaultNameMapper(serverId, definition.name),
+        name: buildMcpToolName(serverId, definition.name),
         serverId,
         toolName: definition.name,
       }))
@@ -157,7 +171,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     const tools: MCPTool[] = []
 
     for (const mcpTool of definitions) {
-      const localToolName = defaultNameMapper(serverId, mcpTool.name)
+      const localToolName = buildMcpToolName(serverId, mcpTool.name)
 
       tools.push(rawTool({
         description: mcpTool.description,

@@ -6,6 +6,7 @@ import type { MCPTool, MCPToolCatalog } from '../types/runtime'
 import { rawTool } from '@xsai/tool'
 
 import { getRequestOptions } from './client'
+import { mcpInfoFromString } from './names'
 import { createErrorToolResult } from './result'
 
 export interface CreateProgressiveMCPToolsOptions {
@@ -86,6 +87,11 @@ export const createProgressiveMCPTools = (
     description: 'Get the full schema and description for one MCP tool returned by search_mcp_tools.',
     execute: async (input, executeOptions) => {
       const { name } = input as { name: string }
+      const info = mcpInfoFromString(name)
+
+      if (info == null)
+        throw new Error(`Invalid MCP tool name format: ${name}`)
+
       const entry = await findCatalogEntry(options.listToolCatalog, name, executeOptions.abortSignal)
 
       if (entry == null)
@@ -116,6 +122,11 @@ export const createProgressiveMCPTools = (
     description: 'Call one MCP tool by name after inspecting it with get_mcp_tool_details.',
     execute: async (input, executeOptions) => {
       const { arguments: toolArguments = {}, name } = input as { arguments?: Record<string, unknown>, name: string }
+      const info = mcpInfoFromString(name)
+
+      if (info == null)
+        throw new Error(`Invalid MCP tool name format: ${name}`)
+
       const entry = await findCatalogEntry(options.listToolCatalog, name, executeOptions.abortSignal)
 
       if (entry == null)

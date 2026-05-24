@@ -16,12 +16,14 @@ interface MockClient {
   callTool: ReturnType<typeof vi.fn>
   connect: ReturnType<typeof vi.fn>
   listTools: ReturnType<typeof vi.fn>
+  setNotificationHandler?: ReturnType<typeof vi.fn>
 }
 
 interface MockClientFixture {
   callTool?: ReturnType<typeof vi.fn>
   connect?: ReturnType<typeof vi.fn>
   listTools?: ReturnType<typeof vi.fn>
+  setNotificationHandler?: ReturnType<typeof vi.fn>
 }
 
 const createTransport = () => ({
@@ -35,6 +37,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
     callTool: ReturnType<typeof vi.fn>
     connect: ReturnType<typeof vi.fn>
     listTools: ReturnType<typeof vi.fn>
+    setNotificationHandler: ReturnType<typeof vi.fn>
 
     constructor() {
       const fixture = fixtures.clients.shift() ?? {}
@@ -42,6 +45,7 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
       this.connect = fixture.connect ?? vi.fn(async () => undefined)
       this.listTools = fixture.listTools ?? vi.fn(async () => ({ tools: [] }))
       this.callTool = fixture.callTool ?? vi.fn(async () => ({ content: [] }))
+      this.setNotificationHandler = fixture.setNotificationHandler ?? vi.fn()
 
       fixtures.instances.push(this)
     }
@@ -133,7 +137,7 @@ describe('mcp', () => {
     expect(tools?.[0]).toMatchObject({
       function: {
         description: 'Search documentation.',
-        name: 'mcp_docs__search',
+        name: 'mcp__docs__search',
         parameters: {
           properties: { query: { type: 'string' } },
           required: ['query'],
@@ -359,9 +363,9 @@ describe('mcp', () => {
     })
 
     expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first'])
+      .toEqual(['mcp__local__first'])
     expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first'])
+      .toEqual(['mcp__local__first'])
 
     expect(listTools).toHaveBeenCalledTimes(1)
     expect(fixtures.instances[0]?.connect).toHaveBeenCalledTimes(1)
@@ -388,7 +392,7 @@ describe('mcp', () => {
     const resolveOptions = createResolveOptions()
 
     expect((await plugin.resolveTools?.(resolveOptions))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first', 'mcp_local__second'])
+      .toEqual(['mcp__local__first', 'mcp__local__second'])
     expect(listTools).toHaveBeenNthCalledWith(1, undefined, {
       signal: resolveOptions.signal,
       timeout: undefined,
@@ -422,7 +426,7 @@ describe('mcp', () => {
     })
 
     expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_docs__search'])
+      .toEqual(['mcp__docs__search'])
   })
 
   it('exposes stable progressive discovery tools when enabled', async () => {
@@ -468,7 +472,7 @@ describe('mcp', () => {
     expect(searchResult).toEqual({
       matches: [{
         description: 'Search documentation.',
-        name: 'mcp_docs__search',
+        name: 'mcp__docs__search',
         serverId: 'docs',
         toolName: 'search',
       }],
@@ -477,7 +481,7 @@ describe('mcp', () => {
       total: 1,
     })
 
-    const details = await tools?.[1]?.execute({ name: 'mcp_docs__search' }, {
+    const details = await tools?.[1]?.execute({ name: 'mcp__docs__search' }, {
       messages: [],
       toolCallId: 'call_2',
     })
@@ -489,14 +493,14 @@ describe('mcp', () => {
         required: ['query'],
         type: 'object',
       },
-      name: 'mcp_docs__search',
+      name: 'mcp__docs__search',
       serverId: 'docs',
       toolName: 'search',
     })
 
     await expect(tools?.[2]?.execute({
       arguments: { query: 'apeira' },
-      name: 'mcp_docs__search',
+      name: 'mcp__docs__search',
     }, {
       messages: [],
       toolCallId: 'call_3',
@@ -537,7 +541,7 @@ describe('mcp', () => {
 
     await expect(tools?.[2]?.execute({
       arguments: {},
-      name: 'mcp_local__search',
+      name: 'mcp__local__search',
     }, {
       messages: [],
       toolCallId: 'call_1',
@@ -548,6 +552,35 @@ describe('mcp', () => {
       }],
       isError: true,
     })
+  })
+
+  it('rejects invalid MCP tool names in progressive discovery', async () => {
+    fixtures.clients.push({
+      listTools: vi.fn(async () => ({
+        tools: [{ inputSchema: { type: 'object' }, name: 'search' }],
+      })),
+    })
+
+    const plugin = mcp({
+      mcpServers: {
+        docs: { command: 'node' },
+      },
+      progressiveToolDiscovery: true,
+    })
+    const tools = await plugin.resolveTools?.(createResolveOptions())
+
+    await expect(tools?.[1]?.execute({ name: 'not_an_mcp_tool' }, {
+      messages: [],
+      toolCallId: 'call_1',
+    })).rejects.toThrow('Invalid MCP tool name format: not_an_mcp_tool')
+
+    await expect(tools?.[2]?.execute({
+      arguments: {},
+      name: 'bad_format',
+    }, {
+      messages: [],
+      toolCallId: 'call_2',
+    })).rejects.toThrow('Invalid MCP tool name format: bad_format')
   })
 
   it('keeps healthy server tools in progressive discovery when another server fails', async () => {
@@ -585,7 +618,7 @@ describe('mcp', () => {
     expect(searchResult).toEqual({
       matches: [{
         description: 'Search documentation.',
-        name: 'mcp_docs__search',
+        name: 'mcp__docs__search',
         serverId: 'docs',
         toolName: 'search',
       }],
