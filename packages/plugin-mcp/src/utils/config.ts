@@ -3,7 +3,7 @@ import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol
 
 import type { MCPConfig, MCPServerConfig, NormalizedMCPServerConfig } from '../types/plugin'
 
-import process from 'node:process'
+import { env } from 'node:process'
 
 import { createFetchWithInit } from '@modelcontextprotocol/sdk/shared/transport.js'
 
@@ -18,7 +18,7 @@ const expandEnvVars = (value: string, missingVars: Set<string>) =>
     const fallback = fallbackSeparator === -1
       ? undefined
       : expression.slice(fallbackSeparator + 2)
-    const expanded = process.env[name]
+    const expanded = env[name]
 
     if (expanded !== undefined)
       return expanded
