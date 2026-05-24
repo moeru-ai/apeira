@@ -2,7 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext, Instructions } from '../types/context'
 import type { AgentEvent } from '../types/event'
-import type { AgentPlugin, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
+import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { AgentSession, SessionForkOptions } from './agent-session'
 
@@ -80,7 +80,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
   let context: AgentContext<T> = options.context ?? {} as AgentContext<T>
 
-  const pluginApi = {
+  const pluginApi: AgentPluginApi = {
     emit: (channel: string, event: unknown) => {
       for (const listener of [...(channelListeners.get(channel) ?? [])]) {
         try {
@@ -89,14 +89,13 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         catch {}
       }
     },
-    subscribe: (channel: string, listener: any) => {
-      const typedListener = listener as PluginChannelListener
+    subscribe: ((channel: string, listener: PluginChannelListener) => {
       const listeners = channelListeners.get(channel) ?? new Set<PluginChannelListener>()
-      listeners.add(typedListener)
+      listeners.add(listener)
       channelListeners.set(channel, listeners)
 
-      return () => listeners.delete(typedListener)
-    },
+      return () => listeners.delete(listener)
+    }) as AgentPluginApi['subscribe'],
   }
 
   const ready = (async () => {
@@ -133,7 +132,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const emitChannel: Agent<T>['emit'] = (channel, event) =>
     pluginApi.emit(channel, event)
 
-  const subscribe = (channel: string, listener: any) =>
+  const subscribe = (channel: string, listener: PluginChannelListener) =>
     pluginApi.subscribe(channel, listener)
 
   const withSessionStorage = async (
@@ -251,7 +250,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       sessionId: id,
     })
 
-    const subscribeSession = (channel: string, listener: any) => {
+    const subscribeSession = (channel: string, listener: PluginChannelListener) => {
       if (channel === 'apeira') {
         const agentListener = listener as (event: AgentEvent) => void
         const wrapped: PluginChannelListener = (event) => {
@@ -382,7 +381,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       run,
       send,
       setContext: setSessionContext,
-      subscribe: guard(subscribeSession),
+      subscribe: guard(subscribeSession) as AgentSession<T>['subscribe'],
     }
   }
 
@@ -421,6 +420,6 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     send: (input, runOptions) => defaultSession.send(input, runOptions),
     session,
     setContext,
-    subscribe,
+    subscribe: subscribe as Agent<T>['subscribe'],
   }
 }
