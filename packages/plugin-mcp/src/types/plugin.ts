@@ -5,6 +5,11 @@ import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol
 
 export interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
+  /**
+   * @see {@link https://modelcontextprotocol.io/docs/develop/clients/client-best-practices#progressive-tool-discovery}
+   * @default false
+   */
+  progressiveToolDiscovery?: boolean
 }
 
 export interface MCPHttpServerConfig extends MCPServerConfigBase {

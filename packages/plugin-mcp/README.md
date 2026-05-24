@@ -10,7 +10,7 @@ pnpm add @apeira/plugin-mcp
 
 ## Usage
 
-### JavaScript config
+### JS config
 
 ```ts
 import { createAgent } from '@apeira/core'
@@ -67,6 +67,15 @@ const agent = createAgent({
 })
 ```
 
+To override imported JSON config in JavaScript, spread it into the same object:
+
+```ts
+mcp({
+  ...config,
+  progressiveToolDiscovery: true,
+})
+```
+
 Example `.mcp.json`:
 
 ```json
@@ -102,6 +111,7 @@ Creates an Apeira plugin that converts MCP tools into `@xsai/tool` compatible fu
 ```ts
 interface MCPConfig {
   mcpServers: Record<string, MCPServerConfig>
+  progressiveToolDiscovery?: boolean
 }
 ```
 
@@ -118,6 +128,18 @@ Supported server transports:
 Stdio servers may omit `type`; any server with `command` is treated as `stdio`.
 
 Tool names are prefixed as `mcp_<serverId>__<toolName>` to avoid collisions with existing Apeira tools. Server and tool name parts are sanitized for function-tool compatibility.
+
+### Progressive Tool Discovery
+
+Set `progressiveToolDiscovery: true` to expose only three stable meta tools instead of every MCP tool schema upfront:
+
+| Tool | Purpose |
+|------|---------|
+| `search_mcp_tools` | Search available MCP tools by query and return concise matches. |
+| `get_mcp_tool_details` | Fetch the full schema for one matched MCP tool. |
+| `call_mcp_tool` | Call one MCP tool by name with arguments matching its schema. |
+
+This follows the catalog, inspect, execute pattern recommended by the MCP client best practices guide. The plugin still caches `tools/list` results host-side, but the model only sees full schemas for tools it asks to inspect.
 
 ### Environment Variables
 

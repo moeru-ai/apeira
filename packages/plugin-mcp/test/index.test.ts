@@ -336,4 +336,93 @@ describe('mcp', () => {
     expect(listTools).toHaveBeenCalledTimes(1)
     expect(fixtures.instances[0]?.connect).toHaveBeenCalledTimes(1)
   })
+
+  it('exposes stable progressive discovery tools when enabled', async () => {
+    const listTools = vi.fn(async () => ({
+      tools: [{
+        description: 'Search documentation.',
+        inputSchema: {
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+          type: 'object',
+        },
+        name: 'search',
+      }],
+    }))
+    const callTool = vi.fn(async () => ({
+      content: [{ text: 'Found result.', type: 'text' }],
+    }))
+    fixtures.clients.push({ callTool, listTools })
+
+    const plugin = mcp({
+      mcpServers: {
+        docs: {
+          command: 'node',
+          timeout: 600_000,
+        },
+      },
+      progressiveToolDiscovery: true,
+    })
+    const tools = await plugin.resolveTools?.(createResolveOptions())
+
+    expect(tools?.map(tool => tool.function.name)).toEqual([
+      'search_mcp_tools',
+      'get_mcp_tool_details',
+      'call_mcp_tool',
+    ])
+    expect(listTools).not.toHaveBeenCalled()
+
+    const searchResult = await tools?.[0]?.execute({ query: 'documentation' }, {
+      messages: [],
+      toolCallId: 'call_1',
+    })
+
+    expect(searchResult).toEqual({
+      matches: [{
+        description: 'Search documentation.',
+        name: 'mcp_docs__search',
+        serverId: 'docs',
+        toolName: 'search',
+      }],
+      query: 'documentation',
+      total: 1,
+    })
+
+    const details = await tools?.[1]?.execute({ name: 'mcp_docs__search' }, {
+      messages: [],
+      toolCallId: 'call_2',
+    })
+
+    expect(details).toEqual({
+      description: 'Search documentation.',
+      inputSchema: {
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+        type: 'object',
+      },
+      name: 'mcp_docs__search',
+      serverId: 'docs',
+      toolName: 'search',
+    })
+
+    await expect(tools?.[2]?.execute({
+      arguments: { query: 'apeira' },
+      name: 'mcp_docs__search',
+    }, {
+      messages: [],
+      toolCallId: 'call_3',
+    })).resolves.toEqual({
+      content: [{ text: 'Found result.', type: 'text' }],
+    })
+
+    expect(callTool).toHaveBeenCalledWith(
+      {
+        arguments: { query: 'apeira' },
+        name: 'search',
+      },
+      undefined,
+      { signal: undefined, timeout: 600_000 },
+    )
+    expect(listTools).toHaveBeenCalledTimes(1)
+  })
 })

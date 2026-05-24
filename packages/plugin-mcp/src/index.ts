@@ -1,8 +1,8 @@
 import type { AgentPlugin } from '@apeira/core'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 
-import type { MCPConfig } from './types/plugin'
-import type { MCPServerState, MCPTool } from './types/runtime'
+import type { MCPConfig, MCPToolDefinition } from './types/plugin'
+import type { MCPServerState, MCPTool, MCPToolCatalogEntry } from './types/runtime'
 
 import { rawTool } from '@xsai/tool'
 
@@ -10,6 +10,7 @@ import { name, version } from '../package.json'
 import { createMCPClient, createMCPTransport, getRequestOptions } from './utils/client'
 import { normalizeMCPConfig } from './utils/config'
 import { defaultNameMapper } from './utils/names'
+import { createProgressiveMCPTools } from './utils/progressive'
 
 export type {
   MCPConfig,
@@ -65,22 +66,54 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return state.connectPromise
   }
 
-  const listServerTools = async (serverId: string, signal?: AbortSignal): Promise<MCPTool[]> => {
+  const listServerToolDefinitions = async (serverId: string, signal?: AbortSignal): Promise<MCPToolDefinition[]> => {
     const config = servers[serverId]
     const state = states.get(serverId)
 
     if (config == null || state == null)
       throw new Error(`Unknown MCP server: ${serverId}`)
 
-    if (state.tools != null)
-      return state.tools
+    if (state.definitions != null)
+      return state.definitions
 
     const client: Client = await getConnectedClient(serverId, signal)
 
     const listed = await client.listTools(undefined, getRequestOptions(config, signal))
+    state.definitions = listed.tools
+
+    return listed.tools
+  }
+
+  const listToolCatalog = async (signal?: AbortSignal): Promise<MCPToolCatalogEntry[]> => {
+    const toolGroups = await Promise.all([...states.keys()].map(async (serverId) => {
+      const definitions = await listServerToolDefinitions(serverId, signal)
+
+      return definitions.map(definition => ({
+        definition,
+        name: defaultNameMapper(serverId, definition.name),
+        serverId,
+        toolName: definition.name,
+      }))
+    }))
+
+    return toolGroups.flat()
+  }
+
+  const listServerTools = async (serverId: string, signal?: AbortSignal): Promise<MCPTool[]> => {
+    const serverConfig = servers[serverId]
+    const state = states.get(serverId)
+
+    if (serverConfig == null || state == null)
+      throw new Error(`Unknown MCP server: ${serverId}`)
+
+    if (state.tools != null)
+      return state.tools
+
+    const definitions = await listServerToolDefinitions(serverId, signal)
+    const client: Client = await getConnectedClient(serverId, signal)
     const tools: MCPTool[] = []
 
-    for (const mcpTool of listed.tools) {
+    for (const mcpTool of definitions) {
       const localToolName = defaultNameMapper(serverId, mcpTool.name)
 
       tools.push(rawTool({
@@ -91,7 +124,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
             name: mcpTool.name,
           },
           undefined,
-          getRequestOptions(config, executeOptions.abortSignal),
+          getRequestOptions(serverConfig, executeOptions.abortSignal),
         ),
         name: localToolName,
         parameters: mcpTool.inputSchema,
@@ -105,6 +138,14 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
   return {
     name,
     resolveTools: async ({ signal }) => {
+      if (config.progressiveToolDiscovery === true) {
+        return createProgressiveMCPTools({
+          getConnectedClient,
+          listToolCatalog,
+          servers,
+        })
+      }
+
       const toolGroups = await Promise.all([...states.keys()].map(async serverId => listServerTools(serverId, signal)))
       return toolGroups.flat()
     },
