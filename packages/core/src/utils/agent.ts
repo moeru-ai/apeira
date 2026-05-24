@@ -275,12 +275,12 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         return pluginApi.subscribe(channel, listener)
       }
 
-      const unsub = register()
-      sessionCleanups.add(unsub)
+      const unsubscribe = register()
+      sessionCleanups.add(unsubscribe)
 
       return () => {
-        sessionCleanups.delete(unsub)
-        return unsub()
+        sessionCleanups.delete(unsubscribe)
+        return unsubscribe()
       }
     }
 
@@ -375,11 +375,11 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       removing = true
 
       try {
-        for (const cleanup of sessionCleanups)
-          cleanup()
-
         await runtime.remove()
         await removeSessionState(id)
+
+        for (const cleanup of sessionCleanups)
+          cleanup()
 
         sessions.delete(id)
         removed = true
