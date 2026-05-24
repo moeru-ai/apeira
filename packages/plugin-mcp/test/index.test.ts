@@ -6,7 +6,10 @@ import { mcp } from '../src/index'
 
 const fixtures = vi.hoisted(() => ({
   clients: [] as MockClientFixture[],
+  httpTransports: [] as unknown[],
   instances: [] as MockClient[],
+  sseTransports: [] as unknown[],
+  stdioTransports: [] as unknown[],
 }))
 
 interface MockClient {
@@ -20,6 +23,12 @@ interface MockClientFixture {
   connect?: ReturnType<typeof vi.fn>
   listTools?: ReturnType<typeof vi.fn>
 }
+
+const createTransport = () => ({
+  close: vi.fn(async () => undefined),
+  send: vi.fn(async () => undefined),
+  start: vi.fn(async () => undefined),
+}) satisfies Transport
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
   class Client {
@@ -41,11 +50,32 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
   return { Client }
 })
 
-const createTransport = () => ({
-  close: vi.fn(async () => undefined),
-  send: vi.fn(async () => undefined),
-  start: vi.fn(async () => undefined),
-}) satisfies Transport
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: class {
+    constructor(params: unknown) {
+      fixtures.stdioTransports.push(params)
+      return createTransport()
+    }
+  },
+}))
+
+vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+  StreamableHTTPClientTransport: class {
+    constructor(url: URL, options: unknown) {
+      fixtures.httpTransports.push({ options, url: url.toString() })
+      return createTransport()
+    }
+  },
+}))
+
+vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
+  SSEClientTransport: class {
+    constructor(url: URL, options: unknown) {
+      fixtures.sseTransports.push({ options, url: url.toString() })
+      return createTransport()
+    }
+  },
+}))
 
 const createResolveOptions = () => ({
   agentName: 'agent',
@@ -61,10 +91,14 @@ const createResolveOptions = () => ({
 describe('mcp', () => {
   beforeEach(() => {
     fixtures.clients.length = 0
+    fixtures.httpTransports.length = 0
     fixtures.instances.length = 0
+    fixtures.sseTransports.length = 0
+    fixtures.stdioTransports.length = 0
+    vi.unstubAllEnvs()
   })
 
-  it('maps MCP tools to prefixed xsai tools', async () => {
+  it('maps .mcp.json stdio servers to prefixed xsai tools', async () => {
     fixtures.clients.push({
       listTools: vi.fn(async () => ({
         tools: [{
@@ -80,15 +114,22 @@ describe('mcp', () => {
     })
 
     const plugin = mcp({
-      servers: {
+      mcpServers: {
         docs: {
-          createTransport,
-          type: 'custom',
+          args: ['server.js'],
+          command: 'node',
         },
       },
     })
     const tools = await plugin.resolveTools?.(createResolveOptions())
 
+    expect(fixtures.stdioTransports[0]).toEqual({
+      args: ['server.js'],
+      command: 'node',
+      cwd: undefined,
+      env: undefined,
+      stderr: undefined,
+    })
     expect(tools?.[0]).toMatchObject({
       function: {
         description: 'Search documentation.',
@@ -103,35 +144,7 @@ describe('mcp', () => {
     })
   })
 
-  it('filters tools by include, exclude, and custom filter', async () => {
-    fixtures.clients.push({
-      listTools: vi.fn(async () => ({
-        tools: [
-          { inputSchema: { type: 'object' }, name: 'keep' },
-          { inputSchema: { type: 'object' }, name: 'skip_excluded' },
-          { inputSchema: { type: 'object' }, name: 'skip_filtered' },
-          { inputSchema: { type: 'object' }, name: 'skip_not_included' },
-        ],
-      })),
-    })
-
-    const plugin = mcp({
-      servers: {
-        docs: {
-          createTransport,
-          excludeTools: ['skip_excluded'],
-          includeTools: ['keep', 'skip_excluded', 'skip_filtered'],
-          toolFilter: tool => tool.name !== 'skip_filtered',
-          type: 'custom',
-        },
-      },
-    })
-    const tools = await plugin.resolveTools?.(createResolveOptions())
-
-    expect(tools?.map(tool => tool.function.name)).toEqual(['mcp_docs__keep'])
-  })
-
-  it('calls the original MCP tool and returns structured results', async () => {
+  it('calls the original MCP tool with the configured timeout', async () => {
     const callTool = vi.fn(async () => ({
       content: [{ text: 'Found result.', type: 'text' }],
       structuredContent: { count: 1 },
@@ -147,10 +160,10 @@ describe('mcp', () => {
     })
 
     const plugin = mcp({
-      servers: {
+      mcpServers: {
         docs: {
-          createTransport,
-          type: 'custom',
+          command: 'node',
+          timeout: 600_000,
         },
       },
     })
@@ -166,12 +179,108 @@ describe('mcp', () => {
         name: 'search',
       },
       undefined,
-      { signal: undefined, timeout: undefined },
+      { signal: undefined, timeout: 600_000 },
     )
     expect(result).toEqual({
       content: [{ text: 'Found result.', type: 'text' }],
       structuredContent: { count: 1 },
     })
+  })
+
+  it('maps http and streamable-http servers to StreamableHTTP transports', async () => {
+    fixtures.clients.push({}, {})
+
+    const plugin = mcp({
+      mcpServers: {
+        docs: {
+          headers: { Authorization: 'Bearer token' },
+          type: 'http',
+          url: 'https://example.com/mcp',
+        },
+        search: {
+          type: 'streamable-http',
+          url: 'https://example.com/search',
+        },
+      },
+    })
+
+    await plugin.resolveTools?.(createResolveOptions())
+
+    expect(fixtures.httpTransports).toEqual([
+      {
+        options: {
+          requestInit: {
+            headers: { Authorization: 'Bearer token' },
+          },
+        },
+        url: 'https://example.com/mcp',
+      },
+      {
+        options: undefined,
+        url: 'https://example.com/search',
+      },
+    ])
+  })
+
+  it('passes headers to SSE event stream and request transports', async () => {
+    fixtures.clients.push({})
+
+    const plugin = mcp({
+      mcpServers: {
+        events: {
+          headers: { 'X-API-Key': 'secret' },
+          type: 'sse',
+          url: 'https://example.com/sse',
+        },
+      },
+    })
+
+    await plugin.resolveTools?.(createResolveOptions())
+
+    expect(fixtures.sseTransports[0]).toMatchObject({
+      options: {
+        requestInit: {
+          headers: { 'X-API-Key': 'secret' },
+        },
+      },
+      url: 'https://example.com/sse',
+    })
+    expect((fixtures.sseTransports[0] as { options: { eventSourceInit: { fetch: unknown } } }).options.eventSourceInit.fetch)
+      .toEqual(expect.any(Function))
+  })
+
+  it('expands environment variables in .mcp.json string fields', async () => {
+    vi.stubEnv('MCP_COMMAND', 'node')
+    vi.stubEnv('MCP_TOKEN', 'token')
+    fixtures.clients.push({})
+
+    const plugin = mcp({
+      mcpServers: {
+        local: {
+          args: [`${'$'}{MCP_SCRIPT:-server.js}`],
+          command: `${'$'}{MCP_COMMAND}`,
+          env: { API_TOKEN: `${'$'}{MCP_TOKEN}` },
+        },
+      },
+    })
+
+    await plugin.resolveTools?.(createResolveOptions())
+
+    expect(fixtures.stdioTransports[0]).toMatchObject({
+      args: ['server.js'],
+      command: 'node',
+      env: { API_TOKEN: 'token' },
+    })
+  })
+
+  it('throws when a required environment variable is missing', () => {
+    expect(() => mcp({
+      mcpServers: {
+        local: {
+          command: `${'$'}{MISSING_COMMAND}`,
+        },
+      },
+    })).toThrow('Missing environment variable in MCP config: MISSING_COMMAND')
   })
 
   it('returns MCP isError tool results without throwing', async () => {
@@ -186,10 +295,9 @@ describe('mcp', () => {
     })
 
     const plugin = mcp({
-      servers: {
+      mcpServers: {
         local: {
-          createTransport,
-          type: 'custom',
+          command: 'node',
         },
       },
     })
@@ -203,67 +311,6 @@ describe('mcp', () => {
       })
   })
 
-  it('uses a model-visible error result when onError handles tool call failures without a return value', async () => {
-    const onError = vi.fn()
-
-    fixtures.clients.push({
-      callTool: vi.fn(async () => {
-        throw new Error('network down')
-      }),
-      listTools: vi.fn(async () => ({
-        tools: [{ inputSchema: { type: 'object' }, name: 'search' }],
-      })),
-    })
-
-    const plugin = mcp({
-      onError,
-      servers: {
-        local: {
-          createTransport,
-          type: 'custom',
-        },
-      },
-    })
-    const tools = await plugin.resolveTools?.(createResolveOptions())
-
-    await expect(tools?.[0]?.execute({}, { messages: [], toolCallId: 'call_1' }))
-      .resolves
-      .toEqual({
-        content: [{
-          text: 'MCP local/search callTool failed: network down',
-          type: 'text',
-        }],
-        isError: true,
-      })
-    expect(onError).toHaveBeenCalledWith(expect.any(Error), {
-      operation: 'callTool',
-      serverId: 'local',
-      toolName: 'search',
-    })
-  })
-
-  it('requires onError to return tools or undefined for tool discovery failures', async () => {
-    fixtures.clients.push({
-      listTools: vi.fn(async () => {
-        throw new Error('bad list')
-      }),
-    })
-
-    const plugin = mcp({
-      onError: () => ({ invalid: true }),
-      servers: {
-        local: {
-          createTransport,
-          type: 'custom',
-        },
-      },
-    })
-
-    await expect(plugin.resolveTools?.(createResolveOptions()))
-      .rejects
-      .toThrow('MCP onError must return a Tool[] or undefined for listTools errors.')
-  })
-
   it('caches tools by default', async () => {
     const listTools = vi.fn()
       .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'first' }] })
@@ -271,10 +318,9 @@ describe('mcp', () => {
     fixtures.clients.push({ listTools })
 
     const plugin = mcp({
-      servers: {
+      mcpServers: {
         local: {
-          createTransport,
-          type: 'custom',
+          command: 'node',
         },
       },
     })
@@ -286,71 +332,5 @@ describe('mcp', () => {
 
     expect(listTools).toHaveBeenCalledTimes(1)
     expect(fixtures.instances[0]?.connect).toHaveBeenCalledTimes(1)
-  })
-
-  it('refreshes tools on turn when configured', async () => {
-    const listTools = vi.fn()
-      .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'first' }] })
-      .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'second' }] })
-    fixtures.clients.push({ listTools })
-
-    const plugin = mcp({
-      refreshTools: 'turn',
-      servers: {
-        local: {
-          createTransport,
-          type: 'custom',
-        },
-      },
-    })
-
-    expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first'])
-
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      input: { content: 'hello', role: 'user', type: 'message' },
-      sessionId: 'session',
-      signal: new AbortController().signal,
-      turnId: 'turn',
-    })
-
-    expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__second'])
-    expect(listTools).toHaveBeenCalledTimes(2)
-  })
-
-  it('keeps cached tools when turn refresh fails', async () => {
-    const listTools = vi.fn()
-      .mockResolvedValueOnce({ tools: [{ inputSchema: { type: 'object' }, name: 'first' }] })
-      .mockRejectedValueOnce(new Error('refresh failed'))
-    fixtures.clients.push({ listTools })
-
-    const plugin = mcp({
-      refreshTools: 'turn',
-      servers: {
-        local: {
-          createTransport,
-          type: 'custom',
-        },
-      },
-    })
-
-    expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first'])
-
-    await expect(plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      input: { content: 'hello', role: 'user', type: 'message' },
-      sessionId: 'session',
-      signal: new AbortController().signal,
-      turnId: 'turn',
-    })).resolves.toBeUndefined()
-
-    expect((await plugin.resolveTools?.(createResolveOptions()))?.map(tool => tool.function.name))
-      .toEqual(['mcp_local__first'])
-    expect(listTools).toHaveBeenCalledTimes(2)
   })
 })
