@@ -98,12 +98,11 @@ interface AgentSession<T> {
   fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   interrupt: (reason?: unknown) => void
-  on: (eventListener: AgentEventListener) => () => boolean
   remove: () => Promise<void>
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: (channel: string, listener: PluginChannelListener) => () => boolean
+  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
 }
 ```
 
@@ -187,14 +186,13 @@ session.setContext({ locale: 'zh-CN' })
 const ctx = session.getContext()
 ```
 
-### on()
+### subscribe('apeira')
 
-Listen to all events from this session.
+Listen to all core events from this session (filtered to the session).
 
 ```ts
-const unsubscribe = session.on(event =>
-  console.log(event.turnId, event.type)
-)
+const unsubscribe = session.subscribe('apeira', event =>
+  console.log(event.turnId, event.type))
 ```
 
 ## Persistence

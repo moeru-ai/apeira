@@ -331,7 +331,7 @@ describe('createAgent', () => {
       }],
     })
 
-    const unsubscribe = agent.on(event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
     const failedTurnId = agent.send(message('first'))
 
     try {
@@ -424,7 +424,7 @@ describe('createAgent', () => {
         },
       }],
     })
-    const unsubscribe = agent.on(event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
     const turnId = agent.send(message('slow load'))
 
     try {
@@ -662,7 +662,7 @@ describe('createAgent', () => {
     let turnId: string
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (
@@ -878,7 +878,7 @@ describe('createAgent', () => {
     const events: AgentEvent[] = []
     let updated = false
 
-    const unsubscribe = session.on((event) => {
+    const unsubscribe = session.subscribe('apeira', (event) => {
       events.push(event)
 
       if (event.type === 'step.start' && !updated) {
@@ -1125,7 +1125,7 @@ describe('createAgent', () => {
     const { agent } = createTestAgent(20)
     const session = agent.session({ id: 'remove-active-session' })
     let removing = false
-    const unsubscribe = session.on((event) => {
+    const unsubscribe = session.subscribe('apeira', (event) => {
       if (event.type !== 'turn.start' || removing)
         return
 
@@ -1165,7 +1165,7 @@ describe('createAgent', () => {
     expect(() => session.emit('test', {})).toThrow('Session removed: removed-handle-session')
     expect(() => session.getContext()).toThrow('Session removed: removed-handle-session')
     expect(() => session.interrupt()).toThrow('Session removed: removed-handle-session')
-    expect(() => session.on(() => {})).toThrow('Session removed: removed-handle-session')
+    expect(() => session.subscribe('apeira', () => {})).toThrow('Session removed: removed-handle-session')
     expect(() => session.run(message('old handle'))).toThrow('Session removed: removed-handle-session')
     expect(() => session.send(message('old handle'))).toThrow('Session removed: removed-handle-session')
     expect(() => session.setContext({})).toThrow('Session removed: removed-handle-session')
@@ -1231,7 +1231,7 @@ describe('createAgent', () => {
         model: 'test-model',
       },
     })
-    const unsubscribe = agent.on(event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
     const first = agent.session({
       context: { userId: 'first' },
       id: 'first-session',
@@ -1289,7 +1289,7 @@ describe('createAgent', () => {
   it('queues submitted top-level turns and runs them one at a time', async () => {
     const events: AgentEvent[] = []
     const { agent } = createTestAgent(2)
-    const unsubscribe = agent.on(event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
     const first = readEventStream(agent.run(message('First turn.')))
     const second = readEventStream(agent.run(message('Second turn.')))
@@ -1324,7 +1324,7 @@ describe('createAgent', () => {
     let turnId: string
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (
@@ -1365,7 +1365,7 @@ describe('createAgent', () => {
     let firstTurnId: string
     let secondTurnId: string | undefined
 
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (
@@ -1402,7 +1402,7 @@ describe('createAgent', () => {
     let secondTurnId: string | undefined
     let injectedTurnId: string | undefined
 
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (event.type === 'turn.queued') {
@@ -1444,7 +1444,7 @@ describe('createAgent', () => {
   it('aborts the running turn without clearing queued top-level turns', async () => {
     const { agent } = createTestAgent(2)
     let aborted = false
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       if (event.type !== 'turn.start' || aborted)
         return
 
@@ -1468,7 +1468,7 @@ describe('createAgent', () => {
     const { agent, inputs } = createTestAgent(2)
     let injectedTurnId: string | undefined
     let aborted = false
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (event.type !== 'turn.start' || aborted)
@@ -1505,7 +1505,7 @@ describe('createAgent', () => {
     let sentTurnId: string | undefined
     controller.abort('stale queued turn')
 
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
       firstTurnId ??= event.turnId
 
@@ -1549,7 +1549,7 @@ describe('createAgent', () => {
     const events: AgentEvent[] = []
     const { agent } = createTestAgent(2)
     let interrupted = false
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       events.push(event)
 
       if (event.type !== 'turn.start' || interrupted)
@@ -1587,7 +1587,7 @@ describe('createAgent', () => {
   it('clears the running turn, queued turns, and pending input', async () => {
     const { agent } = createTestAgent(2)
     let cleared = false
-    const unsubscribe = agent.on((event) => {
+    const unsubscribe = agent.subscribe('apeira', (event) => {
       if (event.type !== 'turn.start' || cleared)
         return
 

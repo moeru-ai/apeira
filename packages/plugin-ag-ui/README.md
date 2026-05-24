@@ -53,4 +53,4 @@ interface AGUIPluginOptions {
 }
 ```
 
-Events are emitted on a custom channel via `api.emit()` and delivered synchronously through the `onEvent` callback. Use `agent.subscribe()` with the channel name to receive AG-UI events from the event system.
+Events are emitted on a custom channel via `api.emit()` and delivered synchronously through the `onEvent` callback. Use `agent.subscribe('ag-ui', event => ...)` to receive typed AG-UI events — the package augments `AgentChannelMap` so `event` is automatically inferred as `AGUIEvent`.

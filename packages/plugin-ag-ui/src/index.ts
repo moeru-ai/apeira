@@ -5,6 +5,12 @@ import { EventType } from '@ag-ui/core'
 
 import { name, version } from '../package.json'
 
+declare module '@apeira/core' {
+  interface AgentChannelMap {
+    'ag-ui': AGUIEvent
+  }
+}
+
 export const AG_UI_CHANNEL = 'ag-ui'
 
 export type AGUIEventListener = (event: AGUIEvent) => void

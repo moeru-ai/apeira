@@ -37,7 +37,7 @@ Apeira forwards streaming events from `@xsai-ext/responses` and attaches the sam
 Use the `type` field to narrow the event you care about:
 
 ```ts
-agent.on((event) => {
+agent.subscribe('apeira', (event) => {
   if (event.type === 'turn.failed')
     console.error(event.error)
 
@@ -63,12 +63,11 @@ The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
 
 ## Global listeners
 
-`on()` receives all events from all sessions and turns.
+`subscribe('apeira', ...)` receives all core events from all sessions and turns.
 
 ```ts
-const unsubscribe = agent.on(event =>
-  console.log(event.turnId, event.type)
-)
+const unsubscribe = agent.subscribe('apeira', event =>
+  console.log(event.turnId, event.type))
 
 unsubscribe()
 ```

@@ -2,8 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext, Instructions } from '../types/context'
 import type { AgentEvent } from '../types/event'
-import type { AgentEventListener } from '../types/event-listener'
-import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
+import type { AgentPlugin, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { AgentSession, SessionForkOptions } from './agent-session'
 
@@ -76,27 +75,27 @@ const sortPlugins = <T>(plugins: AgentPluginOption<T>[]) => {
 
 export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<T> => {
   const plugins = sortPlugins(options.plugins ?? [])
-  const channelListeners = new Map<string, Set<PluginChannelListener<T>>>()
-  const eventListeners = new Set<AgentEventListener>()
+  const channelListeners = new Map<string, Set<PluginChannelListener>>()
   const sessions = new Map<string, AgentSession<T>>()
 
   let context: AgentContext<T> = options.context ?? {} as AgentContext<T>
 
-  const pluginApi: AgentPluginApi<T> = {
-    emit: (channel, event) => {
+  const pluginApi = {
+    emit: (channel: string, event: unknown) => {
       for (const listener of [...(channelListeners.get(channel) ?? [])]) {
         try {
-          listener(event, { channel, pluginApi })
+          listener(event)
         }
         catch {}
       }
     },
-    subscribe: (channel, listener) => {
-      const listeners = channelListeners.get(channel) ?? new Set<PluginChannelListener<T>>()
-      listeners.add(listener)
+    subscribe: (channel: string, listener: any) => {
+      const typedListener = listener as PluginChannelListener
+      const listeners = channelListeners.get(channel) ?? new Set<PluginChannelListener>()
+      listeners.add(typedListener)
       channelListeners.set(channel, listeners)
 
-      return () => listeners.delete(listener)
+      return () => listeners.delete(typedListener)
     },
   }
 
@@ -113,9 +112,9 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   ) => {
     const fullEvent = { ...event, sessionId, turnId } as AgentEvent
 
-    for (const fn of [...eventListeners]) {
+    for (const listener of [...(channelListeners.get('apeira') ?? [])]) {
       try {
-        fn(fullEvent)
+        listener(fullEvent)
       }
       catch {}
     }
@@ -134,12 +133,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   const emitChannel: Agent<T>['emit'] = (channel, event) =>
     pluginApi.emit(channel, event)
 
-  const on: Agent<T>['on'] = (eventListener) => {
-    eventListeners.add(eventListener)
-    return () => eventListeners.delete(eventListener)
-  }
-
-  const subscribe: Agent<T>['subscribe'] = (channel, listener) =>
+  const subscribe = (channel: string, listener: any) =>
     pluginApi.subscribe(channel, listener)
 
   const withSessionStorage = async (
@@ -257,13 +251,21 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       sessionId: id,
     })
 
-    const onSession: AgentSession<T>['on'] = eventListener =>
-      on((event) => {
-        if (event.sessionId !== id)
-          return
+    const subscribeSession = (channel: string, listener: any) => {
+      if (channel === 'apeira') {
+        const agentListener = listener as (event: AgentEvent) => void
+        const wrapped: PluginChannelListener = (event) => {
+          const agentEvent = event as AgentEvent
 
-        eventListener(event)
-      })
+          if (agentEvent.sessionId !== id)
+            return
+
+          agentListener(agentEvent)
+        }
+        return pluginApi.subscribe('apeira', wrapped)
+      }
+      return pluginApi.subscribe(channel, listener)
+    }
 
     const run: AgentSession<T>['run'] = guard((input, runOptions = {}) => {
       const turnId = crypto.randomUUID()
@@ -274,16 +276,18 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
           unsubscribe?.()
         },
         start: (controller) => {
-          unsubscribe = onSession((event) => {
-            if (event.turnId !== turnId)
+          unsubscribe = pluginApi.subscribe('apeira', (event: unknown) => {
+            const agentEvent = event as AgentEvent
+
+            if (agentEvent.sessionId !== id || agentEvent.turnId !== turnId)
               return
 
-            controller.enqueue(event)
+            controller.enqueue(agentEvent)
 
             if (
-              event.type === 'turn.aborted'
-              || event.type === 'turn.done'
-              || event.type === 'turn.failed'
+              agentEvent.type === 'turn.aborted'
+              || agentEvent.type === 'turn.done'
+              || agentEvent.type === 'turn.failed'
             ) {
               unsubscribe?.()
               controller.close()
@@ -374,12 +378,11 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       getContext: guard(() => resolveContext()),
       id,
       interrupt,
-      on: guard(onSession),
       remove,
       run,
       send,
       setContext: setSessionContext,
-      subscribe: guard(subscribe),
+      subscribe: guard(subscribeSession),
     }
   }
 
@@ -414,7 +417,6 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     emit: emitChannel,
     getContext,
     interrupt: reason => defaultSession.interrupt(reason),
-    on,
     run: (input, runOptions) => defaultSession.run(input, runOptions),
     send: (input, runOptions) => defaultSession.send(input, runOptions),
     session,

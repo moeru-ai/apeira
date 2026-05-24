@@ -45,12 +45,11 @@ interface Agent<T> {
   clear: () => void
   getContext: () => AgentContext<T>
   interrupt: (reason?: unknown) => void
-  on: (eventListener: AgentEventListener) => () => boolean
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   session: (options?: SessionOptions<T>) => AgentSession<T>
   setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: (channel: string, listener: PluginChannelListener) => () => boolean
+  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
 }
 ```
 
@@ -151,14 +150,13 @@ Returns the merged agent context.
 const context = agent.getContext()
 ```
 
-### on()
+### subscribe('apeira')
 
-Subscribes to all events from the agent.
+Subscribes to all core events from the agent.
 
 ```ts
-const unsubscribe = agent.on(event =>
-  console.log(event.turnId, event.type)
-)
+const unsubscribe = agent.subscribe('apeira', event =>
+  console.log(event.turnId, event.type))
 ```
 
 Returns a function that removes the listener and returns whether it was present.
@@ -172,12 +170,11 @@ interface AgentSession<T> {
   fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   interrupt: (reason?: unknown) => void
-  on: (eventListener: AgentEventListener) => () => boolean
   remove: () => Promise<void>
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: (channel: string, listener: PluginChannelListener) => () => boolean
+  subscribe: ((channel: 'apeira', listener: (event: AgentEvent) => void) => () => boolean) & ((channel: string, listener: PluginChannelListener) => () => boolean)
 }
 ```
 
@@ -210,8 +207,6 @@ The default session cannot be removed. Removed handles reject later method calls
 
 ```ts
 type AgentEvent = WithTurnId<ApeiraEvent | XSAIEvent>
-
-type AgentEventListener = (event: AgentEvent) => unknown
 
 type ItemParam = Exclude<ResponsesOptions['input'], string>[number]
 

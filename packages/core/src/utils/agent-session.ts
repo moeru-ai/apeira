@@ -1,7 +1,6 @@
 import type { AgentContext } from '../types/context'
 import type { AgentEvent } from '../types/event'
-import type { AgentEventListener } from '../types/event-listener'
-import type { PluginChannelListener } from '../types/plugin'
+import type { AgentChannelMap, PluginChannelListener } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 
 export interface AgentRunOptions<T> {
@@ -17,12 +16,11 @@ export interface AgentSession<T> {
   getContext: () => AgentContext<T>
   readonly id: string
   interrupt: (reason?: unknown) => void
-  on: (eventListener: AgentEventListener) => () => boolean
   remove: () => Promise<void>
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: (channel: string, listener: PluginChannelListener<T>) => () => boolean
+  subscribe: ((channel: string, listener: PluginChannelListener) => () => boolean) & (<K extends keyof AgentChannelMap>(channel: K, listener: PluginChannelListener<AgentChannelMap[K]>) => () => boolean)
 }
 
 export interface SessionForkOptions<T> {

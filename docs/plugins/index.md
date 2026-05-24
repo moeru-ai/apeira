@@ -29,7 +29,7 @@ interface AgentPlugin {
 
 ### Lifecycle hooks
 
-- `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels.
+- `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](/plugins#channels) below.
 - `onSessionInit` — called when a session is first accessed.
 - `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn.
 - `onEvent` — observe all agent events.
@@ -94,6 +94,66 @@ const loggingPlugin: AgentPlugin = {
 ```
 
 Register it by passing it in the `plugins` array to `createAgent()`.
+
+## Channels
+
+Plugins communicate with the outside world through named channels. The `AgentPluginApi` passed to `setup()` exposes `emit` and `subscribe` for this purpose.
+
+```ts
+interface AgentPluginApi {
+  emit: (channel: string, event: unknown) => void
+  subscribe: ((channel: string, listener: PluginChannelListener) => () => boolean)
+    & (<K extends keyof AgentChannelMap>(channel: K, listener: PluginChannelListener<AgentChannelMap[K]>) => () => boolean)
+}
+
+type PluginChannelListener<T = unknown> = (event: T) => void
+```
+
+The built-in channel `'apeira'` carries core agent events:
+
+```ts
+interface AgentChannelMap {
+  'apeira': AgentEvent
+}
+```
+
+### Declaring a typed channel
+
+If your plugin emits events on a custom channel, use `declare module` to register it in `AgentChannelMap`. This lets consumers get typed events when they `subscribe` to your channel.
+
+```ts
+import type { AGUIEvent } from '@ag-ui/core'
+
+declare module '@apeira/core' {
+  interface AgentChannelMap {
+    'ag-ui': AGUIEvent
+  }
+}
+```
+
+Once declared, `agent.subscribe('ag-ui', event => ...)` infers `event` as `AGUIEvent` — no manual casting needed.
+
+### Internal plugin communication
+
+Plugins can also use `api.subscribe()` and `api.emit()` to communicate with each other during `setup()`:
+
+```ts
+const pluginA: AgentPlugin = {
+  name: 'plugin-a',
+  setup: (api) => {
+    api.subscribe('custom-channel', event => {
+      // handle event from other plugins
+    })
+  },
+}
+
+const pluginB: AgentPlugin = {
+  name: 'plugin-b',
+  setup: (api) => {
+    api.emit('custom-channel', { ok: true })
+  },
+}
+```
 
 ## Next steps
 

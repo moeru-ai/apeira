@@ -1,6 +1,5 @@
 export * from './types/context'
 export * from './types/event'
-export * from './types/event-listener'
 export * from './types/maybe-promise'
 export * from './types/plugin'
 export * from './types/responses'

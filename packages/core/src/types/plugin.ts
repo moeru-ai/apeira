@@ -6,6 +6,10 @@ import type { AgentEvent } from './event'
 import type { MaybePromise } from './maybe-promise'
 import type { ItemParam } from './responses'
 
+export interface AgentChannelMap {
+  apeira: AgentEvent
+}
+
 export interface AgentPlugin<T = unknown> {
   enforce?: 'post' | 'pre'
   extendInstructions?: (options: ExtendInstructionsOptions<T>) => MaybePromise<string | void>
@@ -18,14 +22,14 @@ export interface AgentPlugin<T = unknown> {
   onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
   prepareStep?: ResponsesOptions['prepareStep']
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
-  setup?: (api: AgentPluginApi<T>) => MaybePromise<void>
+  setup?: (api: AgentPluginApi) => MaybePromise<void>
   storage?: StorageLike
   version?: string
 }
 
-export interface AgentPluginApi<T = unknown> {
+export interface AgentPluginApi {
   emit: (channel: string, event: unknown) => void
-  subscribe: (channel: string, listener: PluginChannelListener<T>) => () => boolean
+  subscribe: ((channel: string, listener: PluginChannelListener) => () => boolean) & (<K extends keyof AgentChannelMap>(channel: K, listener: PluginChannelListener<AgentChannelMap[K]>) => () => boolean)
 }
 
 export type AgentPluginOption<T = unknown>
@@ -39,15 +43,7 @@ export interface ExtendInstructionsOptions<T = unknown> extends PluginHookBase<T
   input: ItemParam
 }
 
-export type PluginChannelListener<T = unknown> = (
-  event: unknown,
-  options: PluginChannelListenerOptions<T>,
-) => void
-
-export interface PluginChannelListenerOptions<T = unknown> {
-  channel: string
-  pluginApi: AgentPluginApi<T>
-}
+export type PluginChannelListener<T = unknown> = (event: T) => void
 
 export interface PluginHookBase<T = unknown> {
   agentName: string

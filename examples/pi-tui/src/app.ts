@@ -411,7 +411,7 @@ export const createPiTuiExampleApp = () => {
     render()
   }
 
-  const unsubscribe = agent.on(onEvent)
+  const unsubscribe = agent.subscribe('apeira', onEvent)
 
   const shutdown = (code: number) => {
     if (stopped)
