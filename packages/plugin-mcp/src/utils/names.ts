@@ -1,5 +1,5 @@
 const normalizeNameForMCP = (value: string) =>
-  value.replace(/[^\w-]/g, '_')
+  value.replace(/[^\w-]/g, '_').replace(/_{2,}/g, '_')
 
 const getMcpPrefix = (serverId: string) =>
   `mcp__${normalizeNameForMCP(serverId)}__`
