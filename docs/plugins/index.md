@@ -113,7 +113,7 @@ The built-in channel `'apeira'` carries core agent events:
 
 ```ts
 interface AgentChannelMap {
-  'apeira': AgentEvent
+  apeira: AgentEvent
 }
 ```
 
@@ -141,7 +141,7 @@ Plugins can also use `api.subscribe()` and `api.emit()` to communicate with each
 const pluginA: AgentPlugin = {
   name: 'plugin-a',
   setup: (api) => {
-    api.subscribe('custom-channel', event => {
+    api.subscribe('custom-channel', (event) => {
       // handle event from other plugins
     })
   },
