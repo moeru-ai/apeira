@@ -1,9 +1,9 @@
 import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
-import type { Tool } from '@xsai/shared-chat'
+import type { Tool, ToolExecuteOptions } from '@xsai/shared-chat'
 
 import type { AgentContext, Instructions } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, SessionState, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ExtendInstructionsOptions, PluginPrivateStateApi, PostToolCallOptions, PreToolCallOptions, ResolveToolsOptions, ResponseOptions, SessionState, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
 import type { SessionStore } from './session-store'
 
@@ -62,12 +62,29 @@ const mergeRunContext = <T>(
     context,
   )
 
+const createPluginPrivateState = <T>(
+  session: SessionStore<T>,
+  pluginName: string,
+): PluginPrivateStateApi => ({
+  clear: () => {
+    session.setPluginState(pluginName, undefined)
+  },
+  get: <TState = unknown>() => session.getPluginState(pluginName) as TState | undefined,
+  set: state => session.setPluginState(pluginName, state),
+  update: <TState = unknown>(fn: (state: TState | undefined) => TState | undefined) => {
+    const current = session.getPluginState(pluginName) as TState | undefined
+    session.setPluginState(pluginName, fn(current))
+  },
+})
+
 const createPluginHookBase = <T>(
   options: RunTurnParams<T>,
   context: AgentContext<T>,
+  plugin?: AgentPlugin<T>,
 ) => ({
   agentName: options.agentName,
   context,
+  ...(plugin == null ? {} : { privateState: createPluginPrivateState(options.session, plugin.name) }),
   sessionId: options.sessionId,
   signal: options.controller.signal,
   turnId: options.turn.id,
@@ -109,6 +126,7 @@ const resolveInstructions = async <T>(
       agentName: options.agentName,
       context,
       input: options.turn.input,
+      privateState: createPluginPrivateState(options.session, plugin.name),
       sessionId: options.sessionId,
       signal: options.controller.signal,
       turnId: options.turn.id,
@@ -125,19 +143,115 @@ const resolveTools = async <T>(
   options: RunTurnParams<T>,
   pluginOptions: ResponseOptions<T>,
 ) => {
-  let tools = [...(options.responseOptions.tools ?? [])]
+  let tools = [...(options.responseOptions.tools ?? [])] as Tool[]
 
   for (const plugin of options.plugins) {
     if (plugin.resolveTools == null)
       continue
 
-    const resolvedTools = await plugin.resolveTools({ ...pluginOptions, tools } satisfies ResolveToolsOptions<T>)
+    const resolvedTools = await plugin.resolveTools({
+      ...pluginOptions,
+      privateState: createPluginPrivateState(options.session, plugin.name),
+      tools,
+    } satisfies ResolveToolsOptions<T>)
 
     if (resolvedTools != null)
       tools = mergeTools([...tools, ...resolvedTools])
   }
 
   return tools.length > 0 ? tools : options.responseOptions.tools
+}
+
+const createBlockedToolResult = (reason?: string, output?: unknown) =>
+  output ?? {
+    error: {
+      code: 'TOOL_CALL_BLOCKED',
+      message: reason ?? 'Tool call blocked.',
+    },
+    ok: false,
+  }
+
+const notifyPostToolCall = async <T>(
+  options: RunTurnParams<T>,
+  base: Omit<PostToolCallOptions<T>, 'privateState'>,
+) => {
+  for (const plugin of options.plugins) {
+    if (plugin.postToolCall == null)
+      continue
+
+    await plugin.postToolCall({
+      ...base,
+      privateState: createPluginPrivateState(options.session, plugin.name),
+    })
+  }
+}
+
+const wrapTools = <T>(
+  options: RunTurnParams<T>,
+  tools: Tool[] | undefined,
+  context: AgentContext<T>,
+): Tool[] | undefined => {
+  if (tools == null)
+    return tools
+
+  return tools.map(tool => ({
+    ...tool,
+    execute: async (input: unknown, executeOptions: ToolExecuteOptions) => {
+      const base = {
+        ...createPluginHookBase(options, context),
+        input,
+        tool,
+        toolName: tool.function.name,
+      } satisfies Omit<PreToolCallOptions<T>, 'privateState'>
+
+      for (const plugin of options.plugins) {
+        if (plugin.preToolCall == null)
+          continue
+
+        let result
+        try {
+          result = await plugin.preToolCall({
+            ...base,
+            privateState: createPluginPrivateState(options.session, plugin.name),
+          })
+        }
+        catch (error) {
+          result = {
+            reason: error instanceof Error ? error.message : String(error),
+            type: 'block' as const,
+          }
+        }
+
+        if (result?.type === 'block') {
+          const output = createBlockedToolResult(result.reason, result.output)
+          await notifyPostToolCall(options, {
+            ...base,
+            output,
+            status: 'blocked',
+          })
+          return output
+        }
+      }
+
+      try {
+        const output = await tool.execute(input, executeOptions)
+        await notifyPostToolCall(options, {
+          ...base,
+          output,
+          status: 'success',
+        })
+        return output
+      }
+      catch (error) {
+        await notifyPostToolCall(options, {
+          ...base,
+          error,
+          status: 'error',
+        })
+        throw error
+      }
+    },
+  }))
 }
 
 const chainStepHooks = <H extends (step: never) => unknown>(
@@ -197,7 +311,7 @@ const runResponse = async <T>(
   const responseInput = [...snapshot.items, ...input.map(item => item.input)]
   const context = mergeRunContext(options.getContext(), input)
   const responseOptions = createResponseOptions(options, context, responseInput)
-  const tools = await resolveTools(options, responseOptions)
+  const tools = wrapTools(options, await resolveTools(options, responseOptions), context)
 
   const result = responses({
     ...options.responseOptions,
@@ -235,8 +349,12 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
 
     const context = mergeRunContext(options.getContext(), [options.turn])
 
-    for (const plugin of options.plugins)
-      await plugin.onTurnStart?.(createTurnStartOptions(options, context))
+    for (const plugin of options.plugins) {
+      await plugin.onTurnStart?.({
+        ...createTurnStartOptions(options, context),
+        privateState: createPluginPrivateState(options.session, plugin.name),
+      })
+    }
 
     options.emit(options.turn.id, { type: 'turn.start' })
 
@@ -255,8 +373,9 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
         throw options.controller.signal.reason
 
       const drained = options.drainInput()
-      if (drained.length === 0)
+      if (drained.length === 0) {
         return { context: responseContext, type: 'done' }
+      }
 
       options.emit(options.turn.id, { count: drained.length, type: 'turn.input_drained' })
       nextInput = drained

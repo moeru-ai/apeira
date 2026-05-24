@@ -1,0 +1,16 @@
+{
+  "name": "@apeira/example-tool-approval-cli",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-tool-approval": "workspace:",
+    "@xsai/tool": "catalog:xsai"
+  }
+}

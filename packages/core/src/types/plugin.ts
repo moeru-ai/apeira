@@ -20,7 +20,9 @@ export interface AgentPlugin<T = unknown> {
   onStepFinish?: ResponsesOptions['onStepFinish']
   onTurnDone?: (options: TurnDoneOptions<T>) => MaybePromise<void>
   onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
+  postToolCall?: (options: PostToolCallOptions<T>) => MaybePromise<void>
   prepareStep?: ResponsesOptions['prepareStep']
+  preToolCall?: (options: PreToolCallOptions<T>) => MaybePromise<PreToolCallResult | void>
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
   storage?: StorageLike
@@ -52,10 +54,34 @@ export type PluginChannelListener<T = unknown> = (event: T) => void
 export interface PluginHookBase<T = unknown> {
   agentName: string
   context: AgentContext<T>
+  privateState?: PluginPrivateStateApi
   sessionId: string
   signal: AbortSignal
   turnId: string
 }
+
+export interface PluginPrivateStateApi {
+  clear: () => void
+  get: <TState = unknown>() => TState | undefined
+  set: (state: unknown) => void
+  update: <TState = unknown>(fn: (state: TState | undefined) => TState | undefined) => void
+}
+
+export interface PostToolCallOptions<T = unknown> extends PreToolCallOptions<T> {
+  error?: unknown
+  output?: unknown
+  status: 'blocked' | 'error' | 'success'
+}
+
+export interface PreToolCallOptions<T = unknown> extends PluginHookBase<T> {
+  input: unknown
+  tool: Tool
+  toolName: string
+}
+
+export type PreToolCallResult
+  = | { output?: unknown, reason?: string, type: 'block' }
+    | { type: 'continue' }
 
 export interface ResolveToolsOptions<T = unknown> extends ResponseOptions<T> {
   tools: readonly Tool[]
@@ -75,6 +101,7 @@ export interface SessionInitOptions<T = unknown> {
 export interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
   items: ItemParam[]
+  plugins?: Record<string, unknown>
   version: number
 }
 

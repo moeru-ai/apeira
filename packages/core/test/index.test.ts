@@ -129,6 +129,69 @@ const createResponsesFetch = (delayMs = 0) => {
   }
 }
 
+const createToolCallResponsesFetch = (toolName: string, args: Record<string, unknown> = {}) => {
+  const bodies: Array<{ input: unknown[], instructions?: unknown, tools?: unknown[] }> = []
+  const inputs: unknown[][] = []
+  const instructions: unknown[] = []
+  let calls = 0
+
+  const fetch: typeof globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { input: unknown[], instructions?: unknown, tools?: unknown[] }
+    bodies.push(body)
+    inputs.push(body.input)
+    instructions.push(body.instructions)
+    calls += 1
+
+    if (calls === 1) {
+      const functionCall = {
+        arguments: JSON.stringify(args),
+        call_id: 'call_1',
+        id: 'fc_1',
+        name: toolName,
+        status: 'completed',
+        type: 'function_call',
+      }
+
+      return new Response(new ReadableStream({
+        start: (controller) => {
+          const encoder = new TextEncoder()
+          controller.enqueue(encoder.encode(sse({ type: 'response.created' })))
+          controller.enqueue(encoder.encode(sse({
+            item: functionCall,
+            output_index: 0,
+            type: 'response.output_item.done',
+          })))
+          controller.enqueue(encoder.encode(sse({
+            response: {
+              output: [functionCall],
+              usage: {
+                input_tokens: 1,
+                output_tokens: 1,
+                total_tokens: 2,
+              },
+            },
+            type: 'response.completed',
+          })))
+          controller.close()
+        },
+      }), {
+        headers: {
+          'Content-Type': 'text/event-stream',
+        },
+      })
+    }
+
+    return createResponseStream(`done ${calls}`, 0)
+  }
+
+  return {
+    bodies,
+    fetch,
+    inputs,
+    instructions,
+  }
+}
+
 const createTestAgent = (delayMs = 0) => {
   const responsesFetch = createResponsesFetch(delayMs)
   const agent = createAgent({
@@ -264,6 +327,21 @@ describe('createSessionStore', () => {
     expect(store.snapshot()).toEqual({
       context: { locale: 'ja-JP' },
       items: [message('initial')],
+      version: 0,
+    })
+  })
+
+  it('stores plugin private state outside session context', () => {
+    const store = createSessionStore([message('initial')])
+
+    store.setPluginState('plugin-a', { allowed: ['read'] })
+    store.setContext({ metadata: { 'plugin-a': { allowed: ['write'] } } })
+
+    expect(store.getPluginState('plugin-a')).toEqual({ allowed: ['read'] })
+    expect(store.snapshot()).toEqual({
+      context: { metadata: { 'plugin-a': { allowed: ['write'] } } },
+      items: [message('initial')],
+      plugins: { 'plugin-a': { allowed: ['read'] } },
       version: 0,
     })
   })
@@ -622,6 +700,177 @@ describe('createAgent', () => {
       'event:turn.start',
       'event:turn.done',
     ]))
+  })
+
+  it('persists plugin private state through session storage', async () => {
+    const storage = createMemoryStorage()
+    const responsesFetch = createResponsesFetch()
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'plugin-private-state-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'private-plugin',
+        onTurnStart: ({ privateState }) => {
+          privateState?.set({ approved: ['read'] })
+        },
+      }, {
+        name: 'storage',
+        storage,
+      }],
+    })
+
+    await readEventStream(agent.run(message('persist private state')))
+
+    expect(JSON.parse(String(storage.values.get('["plugin-private-state-test","default"]')))).toMatchObject({
+      plugins: {
+        'private-plugin': { approved: ['read'] },
+      },
+    })
+  })
+
+  it('blocks tool execution through preToolCall and still runs postToolCall', async () => {
+    const calls: string[] = []
+    const responsesFetch = createToolCallResponsesFetch('weather', { city: 'Taipei' })
+    const weatherTool: Tool = {
+      execute: () => {
+        calls.push('execute')
+        return 'sunny'
+      },
+      function: {
+        name: 'weather',
+        parameters: {},
+      },
+      type: 'function',
+    }
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'tool-block-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'tools',
+        resolveTools: () => [weatherTool],
+      }, {
+        name: 'blocker',
+        postToolCall: ({ status }) => {
+          calls.push(`post:${status}`)
+        },
+        preToolCall: ({ input, toolName }) => {
+          calls.push(`pre:${toolName}:${JSON.stringify(input)}`)
+          return { output: { code: 'BLOCKED' }, type: 'block' }
+        },
+      }],
+    })
+
+    await readEventStream(agent.run(message('use weather')))
+
+    expect(calls).toEqual([
+      'pre:weather:{"city":"Taipei"}',
+      'post:blocked',
+    ])
+  })
+
+  it('runs postToolCall with success status after real tool execution', async () => {
+    const calls: string[] = []
+    const responsesFetch = createToolCallResponsesFetch('weather', { city: 'Taipei' })
+    const weatherTool: Tool = {
+      execute: (input) => {
+        calls.push(`execute:${JSON.stringify(input)}`)
+        return 'sunny'
+      },
+      function: {
+        name: 'weather',
+        parameters: {},
+      },
+      type: 'function',
+    }
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'tool-success-post-hook-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'tools',
+        resolveTools: () => [weatherTool],
+      }, {
+        name: 'observer',
+        postToolCall: ({ input, output, status, toolName }) => {
+          calls.push(`post:${status}:${toolName}:${JSON.stringify(input)}:${String(output)}`)
+        },
+        preToolCall: ({ input, toolName }) => {
+          calls.push(`pre:${toolName}:${JSON.stringify(input)}`)
+          return { type: 'continue' }
+        },
+      }],
+    })
+
+    await readEventStream(agent.run(message('use weather')))
+
+    expect(calls).toEqual([
+      'pre:weather:{"city":"Taipei"}',
+      'execute:{"city":"Taipei"}',
+      'post:success:weather:{"city":"Taipei"}:sunny',
+    ])
+  })
+
+  it('uses block wins when multiple preToolCall hooks are registered', async () => {
+    const calls: string[] = []
+    const responsesFetch = createToolCallResponsesFetch('weather')
+    const weatherTool: Tool = {
+      execute: () => {
+        calls.push('execute')
+        return 'sunny'
+      },
+      function: {
+        name: 'weather',
+        parameters: {},
+      },
+      type: 'function',
+    }
+    const agent = createAgent({
+      instructions: 'You are a plugin test assistant.',
+      name: 'tool-block-wins-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        name: 'tools',
+        resolveTools: () => [weatherTool],
+      }, {
+        name: 'allowing-hook',
+        preToolCall: () => {
+          calls.push('continue')
+          return { type: 'continue' }
+        },
+      }, {
+        name: 'blocking-hook',
+        preToolCall: () => {
+          calls.push('block')
+          return { output: 'blocked', type: 'block' }
+        },
+      }],
+    })
+
+    await readEventStream(agent.run(message('use weather')))
+
+    expect(calls).toEqual(['continue', 'block'])
   })
 
   it('uses the current response context for drained input hooks', async () => {

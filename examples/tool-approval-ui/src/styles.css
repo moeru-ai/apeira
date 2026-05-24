@@ -1,0 +1,265 @@
+:root {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --ink: #17202a;
+  --muted: #667085;
+  --line: #d8dee8;
+  --accent: #2563eb;
+  --danger: #dc2626;
+  --ok: #15803d;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  height: 100vh;
+  padding: 24px;
+}
+
+.chat,
+.side {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  min-height: 0;
+}
+
+.chat {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 0;
+}
+
+.side {
+  overflow: auto;
+}
+
+.header,
+.composer,
+.side-header {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 18px;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+}
+
+.header h1,
+.side h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.header p,
+.side-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.messages,
+.events {
+  overflow: auto;
+  padding: 14px 18px;
+}
+
+.messages {
+  min-height: 0;
+}
+
+.message {
+  max-width: 760px;
+  margin-bottom: 8px;
+  padding: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.message.user {
+  width: fit-content;
+  margin-left: auto;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 7px 11px;
+}
+
+.message.agent {
+  max-width: 680px;
+  line-height: 1.5;
+}
+
+.label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.composer input,
+.scenario select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.composer button,
+.approval-actions button {
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+.approval-actions .deny {
+  background: var(--danger);
+}
+
+.scenario {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.approval {
+  margin: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 14px;
+}
+
+.approval.pending {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.approval.empty {
+  border-color: var(--line);
+  background: #fbfcfe;
+  color: var(--muted);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 6px 10px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.kv span:nth-child(odd) {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.code {
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.empty-chat {
+  margin: 0;
+  color: var(--muted);
+}
+
+.event {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.event strong {
+  color: var(--accent);
+}
+
+.activity {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--ok);
+}
+
+.activity.blocked .activity-dot {
+  background: var(--danger);
+}
+
+.activity strong,
+.activity span,
+.activity code {
+  display: block;
+}
+
+.activity span {
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.activity code {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .chat {
+    min-height: 68vh;
+  }
+}

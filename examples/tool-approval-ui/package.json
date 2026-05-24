@@ -1,0 +1,16 @@
+{
+  "name": "@apeira/example-tool-approval-ui",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "dev": "vite",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-tool-approval": "workspace:",
+    "@xsai/tool": "catalog:xsai"
+  }
+}
