@@ -26,7 +26,7 @@ Provides:
 - fire-and-forget submission through `send()`
 - global event subscriptions
 - abort, interrupt, and clear behavior
-- in-memory history and session management
+- Episodic session history and session management
 
 ## @apeira/plugin-skills
 

@@ -49,4 +49,14 @@ See the [unstorage documentation](https://unstorage.unjs.io/) for the full list 
 
 ### How it works
 
-When a storage plugin is present, Apeira serializes session state (context + history + version) to JSON after each turn. Optimistic concurrency via a version counter prevents conflicting writes across sessions.
+When a storage plugin is present, Apeira serializes session state (`context` + `episodic` JSONL + `version`) to JSON after each successful turn and after session context changes. Optimistic concurrency via a version counter prevents conflicting writes across sessions.
+
+The persisted shape is:
+
+```ts
+interface SessionState<T = unknown> {
+  context: Partial<AgentContext<T>>
+  episodic: string
+  version: number
+}
+```

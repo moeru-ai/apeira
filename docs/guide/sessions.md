@@ -1,6 +1,6 @@
 # Sessions
 
-Sessions isolate conversations within an agent. Each session has its own queue, interrupt state, in-memory history, and context overlay. Different sessions can run concurrently.
+Sessions isolate conversations within an agent. Each session has its own queue, interrupt state, Episodic log, and context overlay. Different sessions can run concurrently.
 
 ## Default session
 
@@ -30,7 +30,7 @@ Calling `session()` with an existing `id` returns that session and merges the pr
 
 ## Forking sessions
 
-Use `session.fork()` to branch from the committed history and context of an existing session.
+Use `session.fork()` to branch from the committed Episodic log and context of an existing session.
 
 ```ts
 const draft = await session.fork({
@@ -41,14 +41,14 @@ const draft = await session.fork({
 draft.run(input)
 ```
 
-Forked sessions are independent. They get their own queue and interrupt state, and later turns on the source session do not affect the fork. If the source session has an active turn, the fork copies only history that has already been committed.
+Forked sessions are independent. They get their own queue, interrupt state, and Episodic log. Later turns on the source session do not affect the fork. If the source session has an active turn, the fork copies only episodes that have already been committed.
 
 ## Session isolation
 
 Each session is fully isolated:
 
 - **Queue** — turns are serialized within a session but concurrent across sessions
-- **History** — each session keeps its own in-memory conversation history
+- **Episodic** — each session keeps its own append-only event log
 - **Context** — session-level context is a partial overlay on top of agent-level context
 - **Interrupt state** — interrupting one session does not affect others
 
@@ -136,7 +136,7 @@ session.abort('user cancelled')
 
 ### clear()
 
-Aborts the running turn, clears queued turns, and resets history to the initial `input`.
+Aborts the running turn, clears queued turns, and resets the Episodic log to the initial `input`.
 
 ```ts
 session.clear()
@@ -144,7 +144,7 @@ session.clear()
 
 ### fork()
 
-Creates a new session from this session's committed history and session-level context.
+Creates a new session from this session's committed Episodic log and session-level context.
 
 ```ts
 const forked = await session.fork({ id: 'variant-a' })
@@ -182,7 +182,9 @@ const unsubscribe = session.subscribe('apeira', event =>
 
 ## Persistence
 
-When a storage plugin (e.g. `@apeira/plugin-unstorage`) is configured, session state — context, history, and version — is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
+When a storage plugin (e.g. `@apeira/plugin-unstorage`) is configured, session state — context, Episodic JSONL, and version — is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
+
+Persisted state uses the current `episodic` JSONL field; old `items` history arrays are not migrated.
 
 ```ts
 import fsDriver from 'unstorage/drivers/fs'
@@ -208,6 +210,7 @@ const agent = createAgent({
 
 ## Next steps
 
-- [Agent Lifecycle](/guide/agent-lifecycle) — history, queueing, and cancellation.
+- [Episodic](/guide/episodic) — session history, boundaries, Slice assembly, and persistence.
+- [Agent Lifecycle](/guide/agent-lifecycle) — queueing, interrupt, abort, and clear.
 - [Events](/guide/events) — understand the event system.
 - [Plugins](/plugins/) — storage plugins and session persistence.

@@ -1,8 +1,8 @@
 # Agent Lifecycle
 
-An Apeira agent owns one or more sessions. Each session keeps an in-memory history and runs submitted turns one at a time.
+An Apeira agent owns one or more sessions. Each session keeps an append-only Episodic log and runs submitted turns one at a time.
 
-## History
+## Episodic history
 
 The default session starts with the optional `input` passed to `createAgent()`. Explicit sessions can also receive their own initial `input`.
 
@@ -25,7 +25,7 @@ const agent = createAgent({
 })
 ```
 
-When a turn starts, Apeira appends the new input to the current history and forwards the full input state to `@xsai-ext/responses`. On success, the returned input state is committed as the next history.
+Initial `input` is appended to the session's Episodic log. When a turn starts, Apeira forks that log into a working copy, appends the new input, assembles a Slice, and forwards that Slice to `@xsai-ext/responses`. On success, only the new working episodes are merged back into the committed log. On failure or abort, the working log is discarded.
 
 ## Queueing
 
@@ -50,14 +50,14 @@ sessionB.run(input) // starts immediately
 
 ## Interrupt vs abort vs clear vs remove
 
-| Method | Records boundary | Clears queue | Resets history | Deletes session |
+| Method | Records boundary | Clears queue | Resets Episodic | Deletes session |
 |--------|-----------------|--------------|----------------|-----------------|
 | `interrupt(reason)` | Yes | No | No | No |
 | `abort(reason)` | No | No | No | No |
 | `clear()` | No | Yes | Yes | No |
 | `remove()` | No | Yes | Yes | Yes |
 
-**Interrupt** aborts the active turn and inserts a `<turn_aborted>` boundary visible to the model on the next turn. The queue continues.
+**Interrupt** aborts the active turn and appends an `interrupt` boundary visible to the model on the next turn. The queue continues.
 
 ```ts
 agent.interrupt('user interrupted')
@@ -69,7 +69,7 @@ agent.interrupt('user interrupted')
 agent.abort('user cancelled')
 ```
 
-**Clear** aborts the running turn, removes queued turns, and resets in-memory history to the original `input`. The running turn emits `turn.aborted` with reason `cleared`.
+**Clear** aborts the running turn, removes queued turns, and resets the Episodic log to the original `input`. The running turn emits `turn.aborted` with reason `cleared`.
 
 ```ts
 agent.clear()
@@ -83,7 +83,7 @@ await session.remove()
 
 ## Context
 
-Agent context is a three-layer merge: **agent context** > **session context** > **run context**. Each layer is a partial overlay.
+Agent context is a three-layer merge: **agent context**, then **session context**, then **run context**. Later layers override earlier fields.
 
 ```ts
 const agent = createAgent({
@@ -116,6 +116,6 @@ For more on session-level context, see [Sessions](/guide/sessions).
 ## Next steps
 
 - [Sessions](/guide/sessions) — isolate conversations with explicit sessions.
-
+- [Episodic](/guide/episodic) — understand session history and Slice assembly.
 - [Events](/guide/events) — explore the event system.
 - [Plugins](/plugins/) — extend the runtime lifecycle.

@@ -9,21 +9,34 @@ A plugin is an object that conforms to `AgentPlugin`:
 ```ts
 interface AgentPlugin {
   enforce?: 'post' | 'pre'
-  extendInstructions?: (context: AgentContext<unknown>) => MaybePromise<string | undefined>
+  extendInstructions?: (options: ExtendInstructionsOptions) => MaybePromise<string | void>
   onEvent?: (event: AgentEvent) => void
-  onFinish?: (...args: unknown[]) => MaybePromise<unknown>
-  onSessionInit?: (session: { id: string }) => MaybePromise<void>
-  onStepFinish?: (...args: unknown[]) => MaybePromise<unknown>
-  onTurnDone?: (event: { sessionId: string, turnId: string }) => MaybePromise<void>
-  onTurnStart?: (event: { sessionId: string, turnId: string }) => MaybePromise<void>
-  prepareStep?: (...args: unknown[]) => MaybePromise<unknown>
-  resolveTools?: (context: { sessionId: string }) => MaybePromise<Tool[] | undefined>
+  onFinish?: ResponsesOptions['onFinish']
+  onSessionInit?: (options: SessionInitOptions) => MaybePromise<void>
+  onStepFinish?: ResponsesOptions['onStepFinish']
+  onTurnDone?: (options: TurnDoneOptions) => MaybePromise<void>
+  onTurnStart?: (options: TurnStartOptions) => MaybePromise<TurnStartResult | void>
+  prepareStep?: ResponsesOptions['prepareStep']
+  resolveTools?: (options: ResolveToolsOptions) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
   storage?: {
-    getItem: (key: string) => MaybePromise<string | undefined>
+    getItem: (key: string) => MaybePromise<null | string | undefined>
     removeItem: (key: string) => MaybePromise<void>
     setItem: (key: string, value: string) => MaybePromise<void>
   }
+}
+
+interface PluginHookBase {
+  agentName: string
+  context: AgentContext<unknown>
+  episodic: Episodic
+  sessionId: string
+  signal: AbortSignal
+  turnId: string
+}
+
+interface TurnStartResult {
+  contributions?: SliceContribution[]
 }
 ```
 
@@ -31,18 +44,36 @@ interface AgentPlugin {
 
 - `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](#channels) below.
 - `onSessionInit` — called when a session is first accessed.
-- `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn.
+- `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn. Hooks receive the working `episodic` log for that turn.
 - `onEvent` — observe all agent events.
 
 ### Instruction and tool hooks
 
-- `extendInstructions` — append content to the system prompt. Receives the merged context.
+- `extendInstructions` — append content to the system prompt. Receives the merged context and working Episodic log.
 - `resolveTools` — inject tools into model calls for a session.
 - `onFinish`, `onStepFinish`, `prepareStep` — pass-through hooks to xsAI response lifecycle.
 
+`onTurnStart` may return Slice contributions. Contributions are sent to the model for this turn but are not persisted unless the plugin appends episodes itself.
+
+```ts
+const journalPlugin: AgentPlugin = {
+  name: 'journal',
+  onTurnStart: () => ({
+    contributions: [{
+      id: 'journal',
+      items: [{
+        content: 'User prefers concise answers.',
+        role: 'user',
+        type: 'message',
+      }],
+    }],
+  }),
+}
+```
+
 ### Storage
 
-Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (context + history + version) is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
+Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL + `version`) is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
 
 ### Ordering
 
@@ -88,8 +119,10 @@ import type { AgentPlugin } from '@apeira/core'
 const loggingPlugin: AgentPlugin = {
   name: 'logging',
   onEvent: event => event.type === 'turn.failed' && console.error(event.error),
-  onTurnDone: ({ turnId }) => console.log('turn finished:', turnId),
-  onTurnStart: ({ turnId }) => console.log('turn started:', turnId),
+  onTurnDone: ({ snapshot, turnId }) => console.log('turn finished:', turnId, snapshot.version),
+  onTurnStart: ({ episodic, turnId }) => {
+    console.log('turn started:', turnId, episodic.read({ limit: 1 }))
+  },
 }
 ```
 

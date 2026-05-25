@@ -36,6 +36,7 @@ interface CreateAgentOptions<T> {
 ```
 
 `options` are xsAI response options. Apeira owns the input state, instructions, and abort signal for each turn.
+`input` seeds the default session's Episodic log.
 
 ## Agent
 
@@ -96,7 +97,7 @@ agent.abort('user cancelled')
 
 ### clear()
 
-Aborts the running turn, clears queued turns, and resets in-memory history to the original `input`.
+Aborts the running turn, clears queued turns, and resets the default session's Episodic log to the original `input`.
 
 ```ts
 agent.clear()
@@ -104,7 +105,7 @@ agent.clear()
 
 ### session()
 
-Creates or addresses an explicit session. Each session has its own queue, interrupt state, in-memory history, and context overlay.
+Creates or addresses an explicit session. Each session has its own queue, interrupt state, Episodic log, and context overlay.
 
 ```ts
 const session = agent.session({ context: { userId: 'user_123' }, id: 'conversation-1' })
@@ -117,6 +118,18 @@ session.run({
 ```
 
 Calling `session()` with an existing `id` returns that session and merges the provided context. The `input` option only applies when creating a new session.
+
+```ts
+interface SessionOptions<T> {
+  context?: Partial<AgentContext<T>>
+  episodic?: string
+  id?: string
+  input?: ItemParam[]
+}
+```
+
+Use `episodic` to restore a session from a previously saved JSONL string. Use `input` only to seed a new log from raw items.
+If both are provided when creating a session, `episodic` is the restored log and `input` is ignored.
 
 For a full guide, see [Sessions](/guide/sessions).
 
@@ -155,7 +168,7 @@ Session methods operate on a single isolated conversation. See [Sessions](/guide
 
 ### fork()
 
-Creates a new session from the committed history and session context of an existing session.
+Creates a new session from the committed Episodic log and session context of an existing session.
 
 ```ts
 const forked = await session.fork({
@@ -164,7 +177,33 @@ const forked = await session.fork({
 })
 ```
 
-If the source session has an active turn, only already committed history is copied. Passing an existing target `id` throws.
+If the source session has an active turn, only already committed episodes are copied. Passing an existing target `id` throws.
+
+## Episodic exports
+
+Core also exports the Episodic types and helpers:
+
+```ts
+import {
+  createEpisodic,
+  type Episode,
+  type Episodic,
+  type EpisodicQuery,
+  type SessionState,
+} from '@apeira/core'
+```
+
+The persisted session state shape is:
+
+```ts
+interface SessionState<T = unknown> {
+  context: Partial<AgentContext<T>>
+  episodic: string
+  version: number
+}
+```
+
+For behavior details, see [Episodic](/guide/episodic).
 
 ### remove()
 

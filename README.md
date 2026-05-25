@@ -58,10 +58,11 @@ normally — any queued turns run after the interrupted turn is aborted.
 
 ### Agent Lifecycle
 
-Each session keeps an in-memory `history` of completed turns. When a turn starts,
-the new input is appended to the session history and passed to
-`@xsai-ext/responses`. When the turn completes successfully, the returned input
-state becomes the next session history.
+Each session keeps an append-only Episodic log. When a turn starts, Apeira forks
+that log into a working copy, appends the new input, assembles a prompt Slice,
+and passes the Slice to `@xsai-ext/responses`. When the turn completes
+successfully, only the new working episodes are merged back. Failed or aborted
+turns are discarded, except `interrupt()` records a boundary for the next turn.
 
 Top-level turns submitted to the same session with `run()` run one at a time. If
 `send()` is called while a turn is active or scheduled on that session, the new
@@ -145,8 +146,8 @@ Clear the session:
 agent.clear()
 ```
 
-`clear()` aborts the running turn, clears queued turns, and resets in-memory
-history.
+`clear()` aborts the running turn, clears queued turns, and resets the session
+Episodic log to its initial state.
 
 You can also pass an external `AbortSignal` to a single turn:
 
