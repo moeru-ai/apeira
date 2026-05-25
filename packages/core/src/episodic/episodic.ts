@@ -62,6 +62,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
         payload: { item },
         type: 'item',
       })),
+    // eslint-disable-next-line sonarjs/cognitive-complexity
     fromJSONL: (nextJSONL) => {
       episodes = []
       nextId = 1
@@ -149,7 +150,8 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     toJSONL: () => {
       let jsonl = ''
       for (let i = 0; i < episodes.length; i++) {
-        if (i > 0) jsonl += '\n'
+        if (i > 0)
+          jsonl += '\n'
         jsonl += JSON.stringify(episodes[i])
       }
       return jsonl

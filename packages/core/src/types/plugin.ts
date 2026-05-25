@@ -26,15 +26,6 @@ export interface AgentPlugin<T = unknown> {
   version?: string
 }
 
-export interface ChannelApi {
-  emit: {
-    <K extends string>(channel: K, event: K extends keyof AgentChannelMap ? AgentChannelMap[K] : unknown): void
-  }
-  subscribe: {
-    <K extends string>(channel: K, listener: K extends keyof AgentChannelMap ? PluginChannelListener<AgentChannelMap[K]> : PluginChannelListener): () => boolean
-  }
-}
-
 export interface AgentPluginApi extends ChannelApi {}
 
 export type AgentPluginOption<T = unknown>
@@ -43,6 +34,15 @@ export type AgentPluginOption<T = unknown>
     | false
     | null
     | undefined
+
+export interface ChannelApi {
+  emit: {
+    <K extends string>(channel: K, event: K extends keyof AgentChannelMap ? AgentChannelMap[K] : unknown): void
+  }
+  subscribe: {
+    <K extends string>(channel: K, listener: K extends keyof AgentChannelMap ? PluginChannelListener<AgentChannelMap[K]> : PluginChannelListener): () => boolean
+  }
+}
 
 export interface ExtendInstructionsOptions<T = unknown> extends PluginHookBase<T> {
   input: ItemParam

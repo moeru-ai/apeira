@@ -1,8 +1,7 @@
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { createEpisodic } from '@apeira/core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mcp } from '../src/index'
 
