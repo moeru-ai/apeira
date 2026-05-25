@@ -1,9 +1,8 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { AgentContext, Instructions } from '../types/context'
+import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
 import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
-import type { ItemParam } from '../types/responses'
 import type { AgentSession, SessionForkOptions } from './agent-session'
 
 import { merge } from '@moeru/std/merge'
@@ -14,16 +13,8 @@ export interface Agent<T> extends Omit<AgentSession<T>, 'fork' | 'id' | 'remove'
   session: (options?: SessionOptions<T>) => AgentSession<T>
 }
 
-export type CreateAgentOptions<T = unknown> = CreateAgentBaseOptions<T> & CreateAgentContextOptions<T>
-
-export interface SessionOptions<T> {
-  context?: Partial<AgentContext<T>>
-  episodic?: string
-  id?: string
-  input?: ItemParam[]
-}
-
-interface CreateAgentBaseOptions<T> {
+export interface CreateAgentOptions<T = unknown> {
+  context?: AgentContext<T>
   input?: ItemParam[]
   instructions: Instructions<T>
   name: string
@@ -31,13 +22,12 @@ interface CreateAgentBaseOptions<T> {
   plugins?: AgentPluginOption<T>[]
 }
 
-type CreateAgentContextOptions<T> = [RequiredKeys<T>] extends [never]
-  ? { context?: AgentContext<T> }
-  : { context: AgentContext<T> }
-
-type RequiredKeys<T> = {
-  [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? never : K
-}[keyof T]
+export interface SessionOptions<T> {
+  context?: Partial<AgentContext<T>>
+  episodic?: string
+  id?: string
+  input?: ItemParam[]
+}
 
 const DEFAULT_SESSION_ID = 'default'
 
@@ -300,18 +290,16 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
           unsubscribe?.()
         },
         start: (controller) => {
-          unsubscribe = pluginApi.subscribe('apeira', (event: unknown) => {
-            const agentEvent = event as AgentEvent
-
-            if (agentEvent.sessionId !== id || agentEvent.turnId !== turnId)
+          unsubscribe = subscribeSession('apeira', (event) => {
+            if (event.turnId !== turnId)
               return
 
-            controller.enqueue(agentEvent)
+            controller.enqueue(event)
 
             if (
-              agentEvent.type === 'turn.aborted'
-              || agentEvent.type === 'turn.done'
-              || agentEvent.type === 'turn.failed'
+              event.type === 'turn.aborted'
+              || event.type === 'turn.done'
+              || event.type === 'turn.failed'
             ) {
               unsubscribe?.()
               controller.close()

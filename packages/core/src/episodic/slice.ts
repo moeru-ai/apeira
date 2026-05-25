@@ -1,4 +1,4 @@
-import type { ItemParam } from '../types/responses'
+import type { ItemParam } from '../types/base'
 import type { AssembleInput, BoundaryEpisode, Episode, Episodic, MetaEpisode, SliceConfig, SliceResult, TurnUsageData } from './types'
 
 import { normalizeItems } from './normalize'
@@ -78,7 +78,7 @@ const findOverflowStartIndex = (
   return turnIndex >= 0 ? turnIndex : episodes.length
 }
 
-export const createSlice = () => (episodic: Episodic, input: AssembleInput): SliceResult => {
+export const createSlice = (episodic: Episodic, input: AssembleInput): SliceResult => {
   const config: SliceConfig = {
     contributions: input.contributions,
     maxTokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,

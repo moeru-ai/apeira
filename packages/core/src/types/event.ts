@@ -1,14 +1,6 @@
 import type { Event as XSAIEvent } from '@xsai-ext/responses'
 
-// export interface AgentEndEvent {
-//   type: 'agent.end'
-// }
-
 export type AgentEvent = WithId<ApeiraEvent | XSAIEvent>
-
-// export interface AgentStartEvent {
-//   type: 'agent.start'
-// }
 
 export type ApeiraEvent
   = | TurnAbortedEvent

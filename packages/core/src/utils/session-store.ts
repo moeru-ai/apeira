@@ -1,7 +1,8 @@
 import type { AssembleInput, Episodic, SliceResult } from '../episodic'
-import type { AgentContext } from '../types/context'
+import type { AgentContext, ItemParam } from '../types/base'
 import type { SessionState } from '../types/plugin'
-import type { ItemParam } from '../types/responses'
+
+import { merge } from '@moeru/std/merge'
 
 import { createEpisodic, createSlice } from '../episodic'
 
@@ -23,7 +24,6 @@ export const createSessionStore = <T = unknown>(
   initialEpisodic?: string,
 ): SessionStore<T> => {
   const initialSessionContext = { ...initialContext }
-  const slice = createSlice()
   let episodic = createEpisodic(initialEpisodic)
   let context = { ...initialContext }
   let version = 0
@@ -32,7 +32,7 @@ export const createSessionStore = <T = unknown>(
     episodic.appendItems(initialItems, { source: 'user' })
 
   return ({
-    assemble: (input = {}) => slice(episodic, input),
+    assemble: (input = {}) => createSlice(episodic, input),
     get episodic() {
       return episodic
     },
@@ -62,7 +62,7 @@ export const createSessionStore = <T = unknown>(
       version += 1
     },
     setContext: (nextContext) => {
-      context = { ...context, ...nextContext }
+      context = merge(context, nextContext)
     },
     snapshot: () => ({
       context: { ...context },

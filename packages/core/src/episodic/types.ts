@@ -1,6 +1,6 @@
 import type { Usage } from '@xsai-ext/responses'
 
-import type { ItemParam } from '../types/responses'
+import type { ItemParam } from '../types/base'
 
 export interface AssembleInput {
   context?: unknown

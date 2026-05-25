@@ -1,19 +1,15 @@
-import type { AgentContext } from '../types/context'
+import type { AgentContext, ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
-import type { AgentChannelMap, PluginChannelListener } from '../types/plugin'
-import type { ItemParam } from '../types/responses'
+import type { AgentChannelMap, ChannelApi, PluginChannelListener } from '../types/plugin'
 
 export interface AgentRunOptions<T> {
   context?: Partial<AgentContext<T>>
   signal?: AbortSignal
 }
 
-export interface AgentSession<T> {
+export interface AgentSession<T> extends ChannelApi {
   abort: (reason?: unknown) => void
   clear: () => void
-  emit: {
-    <K extends string>(channel: K, event: K extends keyof AgentChannelMap ? AgentChannelMap[K] : unknown): void
-  }
   fork: (options?: SessionForkOptions<T>) => Promise<AgentSession<T>>
   getContext: () => AgentContext<T>
   readonly id: string
@@ -22,9 +18,6 @@ export interface AgentSession<T> {
   run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
   send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   setContext: (context: Partial<AgentContext<T>>) => void
-  subscribe: {
-    <K extends string>(channel: K, listener: K extends keyof AgentChannelMap ? PluginChannelListener<AgentChannelMap[K]> : PluginChannelListener): () => boolean
-  }
 }
 
 export interface SessionForkOptions<T> {

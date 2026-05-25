@@ -1,6 +1,5 @@
-import type { AgentContext } from '../types/context'
+import type { AgentContext, ItemParam } from '../types/base'
 import type { SessionState, TurnDoneOptions } from '../types/plugin'
-import type { ItemParam } from '../types/responses'
 import type { AgentCoreOptions, QueuedInput, TurnCompletion, TurnOptions } from './turn-runner'
 
 import Queue from 'yocto-queue'
@@ -257,22 +256,16 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     pumping = true
 
     pumpReady = (async () => {
-      try {
-        while (true) {
-          const turn = pendingTurns.dequeue()
-          if (turn == null)
-            break
+      do {
+        const turn = pendingTurns.dequeue()
+        if (turn == null)
+          break
 
-          await runQueuedTurn(turn)
-        }
-      }
-      finally {
-        pumping = false
-
-        if (pendingTurns.size > 0)
-          await pumpTurns()
-      }
-    })()
+        await runQueuedTurn(turn)
+      } while (pendingTurns.size > 0)
+    })().finally(() => {
+      pumping = false
+    })
 
     return pumpReady
   }

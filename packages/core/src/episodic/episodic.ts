@@ -1,4 +1,4 @@
-import type { ItemParam } from '../types/responses'
+import type { ItemParam } from '../types/base'
 import type { Episode, EpisodeMeta, Episodic } from './types'
 
 const DEFAULT_READ_LIMIT = 100

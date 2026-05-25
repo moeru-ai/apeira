@@ -1,4 +1,4 @@
-import type { ItemParam } from '../types/responses'
+import type { ItemParam } from '../types/base'
 
 const MAX_TOOL_OUTPUT_LENGTH = 8_000
 const TRUNCATE_PREFIX_LENGTH = 4_000

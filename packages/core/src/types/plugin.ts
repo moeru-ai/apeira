@@ -2,10 +2,8 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
 import type { Episodic, SliceContribution } from '../episodic'
-import type { AgentContext } from './context'
+import type { AgentContext, ItemParam, MaybePromise } from './base'
 import type { AgentEvent } from './event'
-import type { MaybePromise } from './maybe-promise'
-import type { ItemParam } from './responses'
 
 export interface AgentChannelMap {
   apeira: AgentEvent
@@ -28,7 +26,7 @@ export interface AgentPlugin<T = unknown> {
   version?: string
 }
 
-export interface AgentPluginApi {
+export interface ChannelApi {
   emit: {
     <K extends string>(channel: K, event: K extends keyof AgentChannelMap ? AgentChannelMap[K] : unknown): void
   }
@@ -36,6 +34,8 @@ export interface AgentPluginApi {
     <K extends string>(channel: K, listener: K extends keyof AgentChannelMap ? PluginChannelListener<AgentChannelMap[K]> : PluginChannelListener): () => boolean
   }
 }
+
+export interface AgentPluginApi extends ChannelApi {}
 
 export type AgentPluginOption<T = unknown>
   = | AgentPlugin<T>
