@@ -291,15 +291,17 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         },
         start: (controller) => {
           unsubscribe = subscribeSession('apeira', (event) => {
-            if (event.turnId !== turnId)
+            const agentEvent = event as AgentEvent
+
+            if (agentEvent.turnId !== turnId)
               return
 
-            controller.enqueue(event)
+            controller.enqueue(agentEvent)
 
             if (
-              event.type === 'turn.aborted'
-              || event.type === 'turn.done'
-              || event.type === 'turn.failed'
+              agentEvent.type === 'turn.aborted'
+              || agentEvent.type === 'turn.done'
+              || agentEvent.type === 'turn.failed'
             ) {
               unsubscribe?.()
               controller.close()

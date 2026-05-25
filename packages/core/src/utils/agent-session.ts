@@ -1,6 +1,6 @@
 import type { AgentContext, ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
-import type { AgentChannelMap, ChannelApi, PluginChannelListener } from '../types/plugin'
+import type { ChannelApi } from '../types/plugin'
 
 export interface AgentRunOptions<T> {
   context?: Partial<AgentContext<T>>

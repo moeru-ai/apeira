@@ -1,7 +1,7 @@
 import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentEvent } from '../src/index'
-import type { ItemParam } from '../src/types/responses'
+import type { ItemParam } from '../src/types/base'
 
 import Queue from 'yocto-queue'
 
@@ -63,7 +63,7 @@ const usageFromEpisodic = (jsonl: string) =>
 const parseSessionState = (value: string | undefined): { context: unknown, episodic: string, version: number } =>
   JSON.parse(String(value)) as { context: unknown, episodic: string, version: number }
 
-const assistantMessage = (text: string): import('../src/types/responses').ItemParam => ({
+const assistantMessage = (text: string): import('../src/types/base').ItemParam => ({
   content: [{ text, type: 'output_text' }],
   phase: 'final_answer',
   role: 'assistant',

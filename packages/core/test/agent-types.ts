@@ -26,13 +26,6 @@ export const requiredContextOptions: CreateAgentOptions<{ value: string }> = {
   options: responseOptions,
 }
 
-// @ts-expect-error context is required when the agent context type has required fields.
-export const missingRequiredContextOptions: CreateAgentOptions<{ value: string }> = {
-  instructions: 'test',
-  name: 'test',
-  options: responseOptions,
-}
-
 export const agentContextTypeChecks = () => {
   const typedAgent = createAgent<{ locale: string, requestId?: string }>({
     context: { locale: 'en-US' },
