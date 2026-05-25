@@ -1,7 +1,7 @@
+import type { AssembleInput, Episodic, SliceResult } from '../episodic'
 import type { AgentContext } from '../types/context'
 import type { SessionState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
-import type { AssembleInput, Episodic, SliceResult } from '../episodic'
 
 import { createEpisodic, createSlice } from '../episodic'
 
@@ -31,7 +31,7 @@ export const createSessionStore = <T = unknown>(
   if (initialEpisodic == null)
     episodic.appendItems(initialItems, { source: 'user' })
 
-  const api: SessionStore<T> = {
+  return ({
     assemble: (input = {}) => slice(episodic, input),
     get episodic() {
       return episodic
@@ -65,7 +65,5 @@ export const createSessionStore = <T = unknown>(
       episodic: episodic.toJSONL(),
       version,
     }),
-  }
-
-  return api
+  })
 }

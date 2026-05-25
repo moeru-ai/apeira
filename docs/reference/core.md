@@ -184,12 +184,11 @@ If the source session has an active turn, only already committed episodes are co
 Core also exports the Episodic types and helpers:
 
 ```ts
+import type { Episode, Episodic, EpisodicQuery, SessionState } from '@apeira/core'
+
 import {
-  createEpisodic,
-  type Episode,
-  type Episodic,
-  type EpisodicQuery,
-  type SessionState,
+  createEpisodic
+
 } from '@apeira/core'
 ```
 

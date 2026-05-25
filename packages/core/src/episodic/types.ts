@@ -2,20 +2,14 @@ import type { Usage } from '@xsai-ext/responses'
 
 import type { ItemParam } from '../types/responses'
 
-export type BoundaryReason = 'checkpoint' | 'intent' | 'interrupt' | 'overflow' | 'segment'
-
-export type Episode = BoundaryEpisode | ItemEpisode | MetaEpisode
-
-export interface EpisodeMeta {
-  source: 'agent' | 'model' | 'runtime' | 'tool' | 'user'
+export interface AssembleInput {
+  context?: unknown
+  contributions?: SliceContribution[]
+  maxTokens?: number
+  normalize?: NormalizeFn
+  reserveOutputTokens?: number
+  start?: SliceStart
   turnId?: string
-}
-
-export interface ItemEpisode {
-  id: number
-  kind: 'item'
-  meta: EpisodeMeta
-  payload: { item: ItemParam }
 }
 
 export interface BoundaryEpisode {
@@ -25,35 +19,19 @@ export interface BoundaryEpisode {
   payload: BoundaryPayload
 }
 
-export interface MetaEpisode {
-  id: number
-  kind: 'meta'
-  meta: EpisodeMeta
-  payload: MetaPayload
-}
+export type BoundaryPayload
+  = | { confidence?: number, reason: 'intent', title: string }
+    | { content: string, reason: 'checkpoint', title: string }
+    | { content?: string, reason: 'interrupt', title: string }
+    | { content?: string, reason: 'overflow', title: string }
+    | { content?: string, reason: 'segment', title: string }
 
-export type BoundaryPayload =
-  | { content: string, reason: 'checkpoint', title: string }
-  | { confidence?: number, reason: 'intent', title: string }
-  | { content?: string, reason: 'interrupt', title: string }
-  | { content?: string, reason: 'overflow', title: string }
-  | { content?: string, reason: 'segment', title: string }
+export type BoundaryReason = 'checkpoint' | 'intent' | 'interrupt' | 'overflow' | 'segment'
 
-export interface MetaPayload {
-  data?: Record<string, unknown>
-  event: string
-  pluginId?: string
-}
+export type Episode = BoundaryEpisode | ItemEpisode | MetaEpisode
 
-export type NewEpisode = Omit<Episode, 'id' | 'meta'> & {
-  meta?: Partial<EpisodeMeta>
-}
-
-export interface EpisodicQuery {
-  afterBoundary?: BoundaryReason | 'last'
-  fromId?: number
-  kind?: Episode['kind'] | Episode['kind'][]
-  limit?: number
+export interface EpisodeMeta {
+  source: 'agent' | 'model' | 'runtime' | 'tool' | 'user'
   turnId?: string
 }
 
@@ -66,20 +44,41 @@ export interface Episodic {
   toJSONL: () => string
 }
 
-export interface SliceContribution {
-  id: string
-  items: ItemParam[]
-}
-
-export interface AssembleInput {
-  context?: unknown
-  contributions?: SliceContribution[]
-  maxTokens?: number
-  normalize?: NormalizeFn
-  reserveOutputTokens?: number
-  start?: SliceStart
+export interface EpisodicQuery {
+  afterBoundary?: 'last' | BoundaryReason
+  fromId?: number
+  kind?: Episode['kind'] | Episode['kind'][]
+  limit?: number
   turnId?: string
 }
+
+export interface ItemEpisode {
+  id: number
+  kind: 'item'
+  meta: EpisodeMeta
+  payload: { item: ItemParam }
+}
+
+export interface MetaEpisode {
+  id: number
+  kind: 'meta'
+  meta: EpisodeMeta
+  payload: MetaPayload
+}
+
+export interface MetaPayload {
+  data?: Record<string, unknown>
+  event: string
+  pluginId?: string
+}
+
+export type NewEpisode = Omit<Episode, 'id' | 'meta'> & {
+  meta?: Partial<EpisodeMeta>
+}
+
+export type NormalizeFn = (items: ItemParam[]) => ItemParam[]
+
+export type Slice = (episodic: Episodic, input: AssembleInput) => SliceResult
 
 export interface SliceConfig {
   contributions?: SliceContribution[]
@@ -90,13 +89,9 @@ export interface SliceConfig {
   turnId?: string
 }
 
-export type SliceStart =
-  | { type: 'beginning' }
-  | { reason?: BoundaryReason, type: 'last-boundary' }
-
-export interface SliceResult {
+export interface SliceContribution {
+  id: string
   items: ItemParam[]
-  meta: SliceMeta
 }
 
 export interface SliceMeta {
@@ -105,8 +100,13 @@ export interface SliceMeta {
   truncated: boolean
 }
 
-export type NormalizeFn = (items: ItemParam[]) => ItemParam[]
+export interface SliceResult {
+  items: ItemParam[]
+  meta: SliceMeta
+}
 
-export type Slice = (episodic: Episodic, input: AssembleInput) => SliceResult
+export type SliceStart
+  = | { reason?: BoundaryReason, type: 'last-boundary' }
+    | { type: 'beginning' }
 
 export interface TurnUsageData extends Record<string, unknown>, Usage {}

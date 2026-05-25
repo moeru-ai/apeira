@@ -242,8 +242,8 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const runtime = createAgentRuntime({
       agentName: options.name,
       emit: (turnId, event) => emit(id, turnId, event),
-      getContext: resolveContext,
       episodic: sessionOptions.episodic,
+      getContext: resolveContext,
       input: sessionOptions.input,
       instructions: options.instructions,
       loadSession,

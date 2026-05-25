@@ -61,7 +61,8 @@ const usageFromEpisodic = (jsonl: string) =>
     .filter(Boolean)
     .map(line => JSON.parse(line) as { kind: string, payload?: { data?: unknown, event?: string } })
     .find(episode => episode.kind === 'meta' && episode.payload?.event === 'turn.usage')
-    ?.payload?.data
+    ?.payload
+    ?.data
 
 const assistantMessage = (text: string) => ({
   content: [{ text, type: 'output_text' }],
@@ -265,7 +266,7 @@ describe('createEpisodic', () => {
   it('skips bad JSONL lines and records parse errors', () => {
     const episodic = createEpisodic(`not json\n{}\n${episodicFromItems([message('valid')])}`)
 
-    expect(episodic.read({ kind: 'meta', fromId: 0 })).toEqual([
+    expect(episodic.read({ fromId: 0, kind: 'meta' })).toEqual([
       expect.objectContaining({
         payload: {
           data: {
@@ -295,8 +296,8 @@ describe('createEpisodic', () => {
     const episodic = createEpisodic()
     episodic.append({
       kind: 'boundary',
-      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
       meta: { source: 'agent' },
+      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
     })
 
     for (let i = 0; i < 101; i += 1)
@@ -312,8 +313,8 @@ describe('createEpisodic', () => {
     const episodic = createEpisodic()
     episodic.append({
       kind: 'boundary',
-      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
       meta: { source: 'agent' },
+      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
     })
 
     for (let i = 0; i < 5; i += 1)

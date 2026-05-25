@@ -15,7 +15,7 @@ The log preserves raw facts. Trimming, normalization, and plugin contributions h
 ## Episode kinds
 
 ```ts
-type Episode = ItemEpisode | BoundaryEpisode | MetaEpisode
+type Episode = BoundaryEpisode | ItemEpisode | MetaEpisode
 ```
 
 `item` episodes store raw xsAI `ItemParam` values:
@@ -36,12 +36,12 @@ episodic.appendItems([{
 ```ts
 episodic.append({
   kind: 'boundary',
+  meta: { source: 'runtime', turnId },
   payload: {
     content: 'The previous turn was interrupted; tools may have partially executed.',
     reason: 'interrupt',
     title: 'turn interrupted',
   },
-  meta: { source: 'runtime', turnId },
 })
 ```
 
@@ -50,11 +50,11 @@ episodic.append({
 ```ts
 episodic.append({
   kind: 'meta',
+  meta: { source: 'runtime', turnId },
   payload: {
     data: { inputTokens: 120, outputTokens: 24, totalTokens: 144 },
     event: 'turn.usage',
   },
-  meta: { source: 'runtime', turnId },
 })
 ```
 
@@ -72,8 +72,8 @@ const recentItems = episodic.read({ kind: 'item', limit: 12 })
 `read()` has a safety default: with no query, it returns the latest 100 episodes. Add a query when you mean something else:
 
 ```ts
-episodic.read()                         // latest 100
-episodic.read({ fromId: 0 })            // full log
+episodic.read() // latest 100
+episodic.read({ fromId: 0 }) // full log
 episodic.read({ kind: 'item', limit: 6 })
 episodic.read({ afterBoundary: 'checkpoint' })
 episodic.read({ turnId })

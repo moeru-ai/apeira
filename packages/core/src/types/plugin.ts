@@ -1,11 +1,11 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
+import type { Episodic, SliceContribution } from '../episodic'
 import type { AgentContext } from './context'
 import type { AgentEvent } from './event'
 import type { MaybePromise } from './maybe-promise'
 import type { ItemParam } from './responses'
-import type { Episodic, SliceContribution } from '../episodic'
 
 export interface AgentChannelMap {
   apeira: AgentEvent

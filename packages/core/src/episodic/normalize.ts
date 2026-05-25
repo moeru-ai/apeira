@@ -23,7 +23,7 @@ const truncateToolOutput = (item: ItemParam): ItemParam => {
   return {
     ...item,
     output: `${item.output.slice(0, TRUNCATE_PREFIX_LENGTH)}\n\n(truncated: ${omitted} chars omitted)\n\n${item.output.slice(-TRUNCATE_SUFFIX_LENGTH)}`,
-  } as ItemParam
+  }
 }
 
 export const normalizeItems = (items: ItemParam[]): ItemParam[] => {

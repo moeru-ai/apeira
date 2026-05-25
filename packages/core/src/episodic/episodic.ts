@@ -1,5 +1,5 @@
-import type { Episode, EpisodeMeta, Episodic } from './types'
 import type { ItemParam } from '../types/responses'
+import type { Episode, EpisodeMeta, Episodic } from './types'
 
 const DEFAULT_READ_LIMIT = 100
 const MAX_PARSE_ERROR_SAMPLES = 5
@@ -38,7 +38,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
 
   const appendParsed = (episode: Episode) => {
     const id = Math.max(episode.id, nextId)
-    const imported = { ...episode, id } as Episode
+    const imported = { ...episode, id }
     episodes.push(imported)
     nextId = id + 1
     return imported
@@ -89,11 +89,11 @@ export const createEpisodic = (jsonl?: string): Episodic => {
       if (errorCount > 0) {
         api.append({
           kind: 'meta',
+          meta: { source: 'runtime' },
           payload: {
             data: { count: errorCount, errors },
             event: 'error.parse',
           },
-          meta: { source: 'runtime' },
         })
       }
     },
@@ -132,8 +132,9 @@ export const createEpisodic = (jsonl?: string): Episodic => {
         && query.fromId == null
         && query.kind == null
         && query.turnId == null
-      )
+      ) {
         result = result.slice(-DEFAULT_READ_LIMIT)
+      }
 
       return [...result]
     },

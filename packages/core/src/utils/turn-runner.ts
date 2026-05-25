@@ -1,11 +1,11 @@
 import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
+import type { SliceContribution } from '../episodic'
 import type { AgentContext, Instructions } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
 import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
-import type { SliceContribution } from '../episodic'
 import type { SessionStore } from './session-store'
 
 import { merge } from '@moeru/std/merge'
@@ -196,8 +196,8 @@ const runResponse = async <T>(
     turnId: options.turn.id,
   })
   const assembled = options.session.assemble({
-    contributions,
     context,
+    contributions,
     reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
       ? options.responseOptions.maxOutputTokens
       : undefined,
