@@ -166,6 +166,32 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     return undefined
   }
 
+  const runWorkingTurn = async (
+    controller: AbortController,
+    turn: QueuedInput<T>,
+  ): Promise<TurnCompletion<T>> => {
+    const workingSession = session.fork()
+    const completion = await runTurn<T>({
+      ...turnOptions,
+      controller,
+      drainInput: () => pendingInput.drain(turn.id!),
+      session: workingSession,
+      turn: turn as QueuedInput<T> & { id: string },
+    })
+
+    if (completion.type !== 'done')
+      return completion
+
+    await mutateSession(async () => {
+      session.merge(workingSession)
+      await options.saveSession(session.snapshot())
+    })
+
+    return controller.signal.aborted
+      ? { reason: controller.signal.reason, type: 'aborted' }
+      : completion
+  }
+
   const runQueuedTurn = async (turn: QueuedInput<T>) => {
     if (turn.signal?.aborted === true) {
       abortQueuedTurn(turn)
@@ -193,25 +219,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
         completion = { reason: controller.signal.reason, type: 'aborted' }
       }
       else {
-        const workingSession = session.fork()
-
-        completion = await runTurn<T>({
-          ...turnOptions,
-          controller,
-          drainInput: () => pendingInput.drain(turn.id!),
-          session: workingSession,
-          turn: turn as QueuedInput<T> & { id: string },
-        })
-
-        if (completion.type === 'done') {
-          await mutateSession(async () => {
-            session.merge(workingSession)
-            await options.saveSession(session.snapshot())
-          })
-
-          if (controller.signal.aborted)
-            completion = { reason: controller.signal.reason, type: 'aborted' }
-        }
+        completion = await runWorkingTurn(controller, turn)
       }
     }
     catch (error) {

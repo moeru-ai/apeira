@@ -64,6 +64,9 @@ const usageFromEpisodic = (jsonl: string) =>
     ?.payload
     ?.data
 
+const parseSessionState = (value: string | undefined): { context: unknown, episodic: string, version: number } =>
+  JSON.parse(String(value)) as { context: unknown, episodic: string, version: number }
+
 const assistantMessage = (text: string) => ({
   content: [{ text, type: 'output_text' }],
   phase: 'final_answer',
@@ -265,18 +268,12 @@ describe('createEpisodic', () => {
 
   it('skips bad JSONL lines and records parse errors', () => {
     const episodic = createEpisodic(`not json\n{}\n${episodicFromItems([message('valid')])}`)
+    const meta = episodic.read({ fromId: 0, kind: 'meta' })[0]
+    const data = meta?.payload.data as undefined | { count?: unknown, errors?: unknown }
 
-    expect(episodic.read({ fromId: 0, kind: 'meta' })).toEqual([
-      expect.objectContaining({
-        payload: {
-          data: {
-            count: 2,
-            errors: expect.arrayContaining([expect.any(String)]),
-          },
-          event: 'error.parse',
-        },
-      }),
-    ])
+    expect(meta?.payload.event).toBe('error.parse')
+    expect(data?.count).toBe(2)
+    expect(Array.isArray(data?.errors)).toBe(true)
     expect(itemsFromEpisodic(episodic.toJSONL())).toEqual([message('valid')])
   })
 
@@ -394,11 +391,9 @@ describe('createSessionStore', () => {
 
     expect(store.assemble().items).toEqual([message('initial')])
     expect(itemsFromEpisodic(snapshot.episodic)).toEqual([message('initial')])
-    expect(snapshot).toEqual({
-      context: {},
-      episodic: expect.any(String),
-      version: 0,
-    })
+    expect(snapshot.context).toEqual({})
+    expect(typeof snapshot.episodic).toBe('string')
+    expect(snapshot.version).toBe(0)
   })
 
   it('appends items through episodic and merges forks atomically', () => {
@@ -421,11 +416,10 @@ describe('createSessionStore', () => {
     store.setContext({ locale: 'ja-JP' })
 
     expect(store.getContext()).toEqual({ locale: 'ja-JP' })
-    expect(store.snapshot()).toEqual({
-      context: { locale: 'ja-JP' },
-      episodic: expect.any(String),
-      version: 0,
-    })
+    const snapshot = store.snapshot()
+    expect(snapshot.context).toEqual({ locale: 'ja-JP' })
+    expect(typeof snapshot.episodic).toBe('string')
+    expect(snapshot.version).toBe(0)
     expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial')])
   })
 })
@@ -1058,15 +1052,10 @@ describe('createAgent', () => {
     }
 
     expect(events.at(-1)?.type).toBe('turn.done')
-    const contextRaceState = JSON.parse(String(storage.values.get('["context-race-test","race-session"]'))) as { context: unknown, episodic: string, version: number }
-    expect({
-      ...contextRaceState,
-      episodic: expect.any(String),
-    }).toEqual({
-      context: { locale: 'ja-JP' },
-      episodic: expect.any(String),
-      version: 1,
-    })
+    const contextRaceState = parseSessionState(storage.values.get('["context-race-test","race-session"]'))
+    expect(contextRaceState.context).toEqual({ locale: 'ja-JP' })
+    expect(typeof contextRaceState.episodic).toBe('string')
+    expect(contextRaceState.version).toBe(1)
     expect(itemsFromEpisodic(contextRaceState.episodic)).toEqual([
       message('Keep both context and response.'),
       assistantMessage('response 1'),
@@ -1250,15 +1239,10 @@ describe('createAgent', () => {
 
     await source.fork({ id: 'fork-session' })
 
-    const forkState = JSON.parse(String(storage.values.get('["fork-storage-test","fork-session"]'))) as { context: unknown, episodic: string, version: number }
-    expect({
-      ...forkState,
-      episodic: expect.any(String),
-    }).toEqual({
-      context: { locale: 'en-US' },
-      episodic: expect.any(String),
-      version: 0,
-    })
+    const forkState = parseSessionState(storage.values.get('["fork-storage-test","fork-session"]'))
+    expect(forkState.context).toEqual({ locale: 'en-US' })
+    expect(typeof forkState.episodic).toBe('string')
+    expect(forkState.version).toBe(0)
     expect(itemsFromEpisodic(forkState.episodic)).toEqual([message('Persisted source turn.'), assistantMessage('persisted response')])
   })
 

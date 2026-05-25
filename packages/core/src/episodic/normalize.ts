@@ -7,10 +7,8 @@ const TRUNCATE_SUFFIX_LENGTH = 4_000
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value != null
 
-const getCallId = (item: ItemParam): string | undefined => {
-  const record = item as unknown as Record<string, unknown>
-  return typeof record.call_id === 'string' ? record.call_id : undefined
-}
+const getCallId = (item: Record<string, unknown>): string | undefined =>
+  typeof item.call_id === 'string' ? item.call_id : undefined
 
 const truncateToolOutput = (item: ItemParam): ItemParam => {
   if (!isRecord(item) || item.type !== 'function_call_output' || typeof item.output !== 'string')

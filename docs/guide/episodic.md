@@ -135,8 +135,13 @@ Every plugin hook receives `episodic` in its hook base:
 const plugin = {
   name: 'recent-items',
   onTurnStart: ({ episodic }) => {
-    const recent = episodic.read({ kind: 'item', limit: 6 })
-    // inspect recent episodes or append meta/boundary episodes
+    return {
+      contributions: [{
+        id: 'recent',
+        items: episodic.read({ kind: 'item', limit: 6 })
+          .map(episode => episode.payload.item),
+      }],
+    }
   },
 }
 ```
@@ -144,16 +149,19 @@ const plugin = {
 `onTurnStart` can also return Slice contributions:
 
 ```ts
-onTurnStart: () => ({
-  contributions: [{
-    id: 'journal',
-    items: [{
-      content: 'User prefers concise answers.',
-      role: 'user',
-      type: 'message',
+const plugin = {
+  name: 'journal',
+  onTurnStart: () => ({
+    contributions: [{
+      id: 'journal',
+      items: [{
+        content: 'User prefers concise answers.',
+        role: 'user',
+        type: 'message',
+      }],
     }],
-  }],
-})
+  }),
+}
 ```
 
 Contributions affect only the assembled Slice. They do not mutate the session log unless the plugin explicitly appends episodes.
