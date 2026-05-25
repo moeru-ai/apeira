@@ -313,7 +313,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       void mutateSession(async () => {
         await ensureLoaded()
         session.episodic.append({
-          kind: 'boundary',
+          type: 'boundary',
           meta: { source: 'runtime', turnId: turn.id },
           payload: {
             content: TURN_ABORTED_CONTENT,

@@ -17,7 +17,7 @@ const parseEpisode = (value: unknown): Episode | undefined => {
   if (typeof episode.id !== 'number')
     return undefined
 
-  if (episode.kind !== 'item' && episode.kind !== 'boundary' && episode.kind !== 'meta')
+  if (episode.type !== 'item' && episode.type !== 'boundary' && episode.type !== 'meta')
     return undefined
 
   if (typeof episode.payload !== 'object' || episode.payload == null)
@@ -58,7 +58,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     },
     appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) =>
       items.map(item => api.append({
-        kind: 'item',
+        type: 'item',
         meta,
         payload: { item },
       })),
@@ -88,7 +88,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
 
       if (errorCount > 0) {
         api.append({
-          kind: 'meta',
+          type: 'meta',
           meta: { source: 'runtime' },
           payload: {
             data: { count: errorCount, errors },
@@ -99,16 +99,16 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     },
     importEpisodes: nextEpisodes => nextEpisodes.map(appendParsed),
     read: (query = {}) => {
-      const kinds = Array.isArray(query.kind)
-        ? new Set(query.kind)
-        : query.kind == null
+      const kinds = Array.isArray(query.type)
+        ? new Set(query.type)
+        : query.type == null
           ? undefined
-          : new Set([query.kind])
+          : new Set([query.type])
       let result = episodes
 
       if (query.afterBoundary != null) {
         const index = episodes.findLastIndex(episode =>
-          episode.kind === 'boundary'
+          episode.type === 'boundary'
           && (query.afterBoundary === 'last' || episode.payload.reason === query.afterBoundary))
 
         result = index >= 0 ? episodes.slice(index + 1) : episodes
@@ -118,7 +118,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
         result = result.filter(episode => episode.id > query.fromId!)
 
       if (kinds != null)
-        result = result.filter(episode => kinds.has(episode.kind))
+        result = result.filter(episode => kinds.has(episode.type))
 
       if (query.turnId != null)
         result = result.filter(episode => episode.meta.turnId === query.turnId)
@@ -130,7 +130,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
       else if (
         query.afterBoundary == null
         && query.fromId == null
-        && query.kind == null
+        && query.type == null
         && query.turnId == null
       ) {
         result = result.slice(-DEFAULT_READ_LIMIT)

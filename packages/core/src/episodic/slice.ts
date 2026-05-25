@@ -20,7 +20,7 @@ const boundaryMessage = (episode: BoundaryEpisode): ItemParam | undefined => {
 }
 
 const isUsageMeta = (episode: Episode): episode is MetaEpisode =>
-  episode.kind === 'meta' && episode.payload.event === 'turn.usage'
+  episode.type === 'meta' && episode.payload.event === 'turn.usage'
 
 const getUsage = (episode: MetaEpisode): TurnUsageData | undefined => {
   const data = episode.payload.data
@@ -40,7 +40,7 @@ const getStartEpisodes = (episodes: Episode[], config: SliceConfig) => {
 
   const { reason } = config.start
   const index = episodes.findLastIndex(episode =>
-    episode.kind === 'boundary'
+    episode.type === 'boundary'
     && (reason == null || episode.payload.reason === reason))
 
   return index >= 0 ? episodes.slice(index) : episodes
@@ -65,7 +65,7 @@ const findOverflowStartIndex = (
     return 0
 
   const boundaryIndex = episodes.findLastIndex(episode =>
-    episode.kind === 'boundary'
+    episode.type === 'boundary'
     && (episode.payload.reason === 'checkpoint' || episode.payload.reason === 'interrupt'))
 
   if (boundaryIndex >= 0)
@@ -91,10 +91,10 @@ export const createSlice = () => (episodic: Episodic, input: AssembleInput): Sli
   const startIndex = findOverflowStartIndex(episodes, config.maxTokens, config.reserveOutputTokens, config.turnId)
   const selected = episodes.slice(startIndex)
   const items = selected.flatMap((episode): ItemParam[] => {
-    if (episode.kind === 'item')
+    if (episode.type === 'item')
       return [episode.payload.item]
 
-    if (episode.kind === 'boundary') {
+    if (episode.type === 'boundary') {
       const item = boundaryMessage(episode)
       return item == null ? [] : [item]
     }

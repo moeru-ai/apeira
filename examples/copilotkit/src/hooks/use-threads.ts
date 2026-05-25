@@ -37,15 +37,15 @@ const readThreadState = (threadId: string) => {
   }
 }
 
-const isItemEpisode = (episode: { kind: string, payload?: { item?: ItemParam } }): episode is { kind: 'item', payload: { item: ItemParam } } =>
-  episode.kind === 'item' && episode.payload?.item != null
+const isItemEpisode = (episode: { type: string, payload?: { item?: ItemParam } }): episode is { type: 'item', payload: { item: ItemParam } } =>
+  episode.type === 'item' && episode.payload?.item != null
 
 const readThreadItems = (threadId: string): ItemParam[] => {
   try {
     return (readThreadState(threadId).episodic ?? '')
       .split('\n')
       .filter(Boolean)
-      .map(line => JSON.parse(line) as { kind: string, payload?: { item?: ItemParam } })
+      .map(line => JSON.parse(line) as { type: string, payload?: { item?: ItemParam } })
       .filter(isItemEpisode)
       .map(episode => episode.payload.item)
   }

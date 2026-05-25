@@ -237,7 +237,7 @@ const runResponse = async <T>(
 
   if (usage != null) {
     options.session.episodic.append({
-      kind: 'meta',
+      type: 'meta',
       meta: { source: 'runtime', turnId: options.turn.id },
       payload: {
         data: {

@@ -12,7 +12,7 @@ Episodic is Apeira's session history kernel. Each session stores an append-only 
 
 The log preserves raw facts. Trimming, normalization, and plugin contributions happen while building a Slice, not by editing old episodes.
 
-## Episode kinds
+## Episode types
 
 ```ts
 type Episode = BoundaryEpisode | ItemEpisode | MetaEpisode
@@ -35,7 +35,7 @@ episodic.appendItems([{
 
 ```ts
 episodic.append({
-  kind: 'boundary',
+  type: 'boundary',
   meta: { source: 'runtime', turnId },
   payload: {
     content: 'The previous turn was interrupted; tools may have partially executed.',
@@ -49,7 +49,7 @@ episodic.append({
 
 ```ts
 episodic.append({
-  kind: 'meta',
+  type: 'meta',
   meta: { source: 'runtime', turnId },
   payload: {
     data: { inputTokens: 120, outputTokens: 24, totalTokens: 144 },
@@ -66,7 +66,7 @@ The `Episodic` API is exported from `@apeira/core`:
 import { createEpisodic } from '@apeira/core'
 
 const episodic = createEpisodic()
-const recentItems = episodic.read({ kind: 'item', limit: 12 })
+const recentItems = episodic.read({ type: 'item', limit: 12 })
 ```
 
 `read()` has a safety default: with no query, it returns the latest 100 episodes. Add a query when you mean something else:
@@ -74,7 +74,7 @@ const recentItems = episodic.read({ kind: 'item', limit: 12 })
 ```ts
 episodic.read() // latest 100
 episodic.read({ fromId: 0 }) // full log
-episodic.read({ kind: 'item', limit: 6 })
+episodic.read({ type: 'item', limit: 6 })
 episodic.read({ afterBoundary: 'checkpoint' })
 episodic.read({ turnId })
 ```
@@ -138,7 +138,7 @@ const plugin = {
     return {
       contributions: [{
         id: 'recent',
-        items: episodic.read({ kind: 'item', limit: 6 })
+        items: episodic.read({ type: 'item', limit: 6 })
           .map(episode => episode.payload.item),
       }],
     }
