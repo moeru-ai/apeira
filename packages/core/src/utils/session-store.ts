@@ -48,6 +48,7 @@ export const createSessionStore = <T = unknown>(
       version = state.version
     },
     merge: (session) => {
+      // assumes the working session was forked from this store and only appends.
       const lastId = episodic.read({ limit: 1 })[0]?.id ?? 0
       const nextEpisodes = session.episodic.read({ fromId: lastId })
 

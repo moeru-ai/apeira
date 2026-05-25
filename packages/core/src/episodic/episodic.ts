@@ -67,23 +67,31 @@ export const createEpisodic = (jsonl?: string): Episodic => {
       nextId = 1
       const errors: string[] = []
       let errorCount = 0
+      let lineStart = 0
 
-      for (const line of nextJSONL.split('\n')) {
-        if (line.trim().length === 0)
-          continue
+      while (true) {
+        const nl = nextJSONL.indexOf('\n', lineStart)
+        const lineEnd = nl === -1 ? nextJSONL.length : nl
+        const line = nextJSONL.slice(lineStart, lineEnd).trim()
+        lineStart = lineEnd + 1
 
-        try {
-          const parsed = parseEpisode(JSON.parse(line))
-          if (parsed == null)
-            throw new Error('Invalid episode.')
+        if (line.length > 0) {
+          try {
+            const parsed = parseEpisode(JSON.parse(line))
+            if (parsed == null)
+              throw new Error('Invalid episode.')
 
-          appendParsed(parsed)
+            appendParsed(parsed)
+          }
+          catch (error) {
+            errorCount += 1
+            if (errors.length < MAX_PARSE_ERROR_SAMPLES)
+              errors.push(error instanceof Error ? error.message : String(error))
+          }
         }
-        catch (error) {
-          errorCount += 1
-          if (errors.length < MAX_PARSE_ERROR_SAMPLES)
-            errors.push(error instanceof Error ? error.message : String(error))
-        }
+
+        if (nl === -1)
+          break
       }
 
       if (errorCount > 0) {
@@ -138,7 +146,14 @@ export const createEpisodic = (jsonl?: string): Episodic => {
 
       return [...result]
     },
-    toJSONL: () => episodes.map(episode => JSON.stringify(episode)).join('\n'),
+    toJSONL: () => {
+      let jsonl = ''
+      for (let i = 0; i < episodes.length; i++) {
+        if (i > 0) jsonl += '\n'
+        jsonl += JSON.stringify(episodes[i])
+      }
+      return jsonl
+    },
   }
 
   if (jsonl != null)
