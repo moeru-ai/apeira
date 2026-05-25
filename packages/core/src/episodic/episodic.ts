@@ -14,7 +14,7 @@ const parseEpisode = (value: unknown): Episode | undefined => {
     return undefined
 
   const episode = value as Partial<Episode>
-  if (typeof episode.id !== 'number')
+  if (!Number.isSafeInteger(episode.id))
     return undefined
 
   if (episode.type !== 'item' && episode.type !== 'boundary' && episode.type !== 'meta')
@@ -30,7 +30,7 @@ const parseEpisode = (value: unknown): Episode | undefined => {
 }
 
 const normalizeLimit = (limit: number): number =>
-  Math.max(0, Math.trunc(limit))
+  Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0
 
 export const createEpisodic = (jsonl?: string): Episodic => {
   let episodes: Episode[] = []
@@ -147,15 +147,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
 
       return [...result]
     },
-    toJSONL: () => {
-      let jsonl = ''
-      for (let i = 0; i < episodes.length; i++) {
-        if (i > 0)
-          jsonl += '\n'
-        jsonl += JSON.stringify(episodes[i])
-      }
-      return jsonl
-    },
+    toJSONL: () => episodes.map(episode => JSON.stringify(episode)).join('\n'),
   }
 
   if (jsonl != null)
