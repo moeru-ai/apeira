@@ -36,7 +36,11 @@ export const createSessionStore = <T = unknown>(
     get episodic() {
       return episodic
     },
-    fork: () => createSessionStore<T>([], context, episodic.toJSONL()),
+    fork: () => {
+      const store = createSessionStore<T>([], context)
+      store.episodic.importEpisodes(episodic.read({ fromId: 0 }))
+      return store
+    },
     getContext: () => ({ ...context }),
     hydrate: (state) => {
       episodic = createEpisodic(state.episodic)
@@ -44,7 +48,7 @@ export const createSessionStore = <T = unknown>(
       version = state.version
     },
     merge: (session) => {
-      const lastId = episodic.read({ fromId: 0 }).at(-1)?.id ?? 0
+      const lastId = episodic.read({ limit: 1 })[0]?.id ?? 0
       const nextEpisodes = session.episodic.read({ fromId: lastId })
 
       episodic.importEpisodes(nextEpisodes)

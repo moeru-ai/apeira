@@ -46,7 +46,12 @@ const getStartEpisodes = (episodes: Episode[], config: SliceConfig) => {
   return index >= 0 ? episodes.slice(index) : episodes
 }
 
-const findOverflowStartIndex = (episodes: Episode[], maxTokens: number, reserveOutputTokens = 0) => {
+const findOverflowStartIndex = (
+  episodes: Episode[],
+  maxTokens: number,
+  reserveOutputTokens = 0,
+  turnId?: string,
+) => {
   if (!Number.isFinite(maxTokens))
     return 0
 
@@ -63,7 +68,14 @@ const findOverflowStartIndex = (episodes: Episode[], maxTokens: number, reserveO
     episode.kind === 'boundary'
     && (episode.payload.reason === 'checkpoint' || episode.payload.reason === 'interrupt'))
 
-  return boundaryIndex >= 0 ? boundaryIndex : 0
+  if (boundaryIndex >= 0)
+    return boundaryIndex
+
+  const turnIndex = turnId == null
+    ? -1
+    : episodes.findIndex(episode => episode.meta.turnId === turnId)
+
+  return turnIndex >= 0 ? turnIndex : episodes.length
 }
 
 export const createSlice = () => (episodic: Episodic, input: AssembleInput): SliceResult => {
@@ -76,7 +88,7 @@ export const createSlice = () => (episodic: Episodic, input: AssembleInput): Sli
     turnId: input.turnId,
   }
   const episodes = getStartEpisodes(episodic.read({ fromId: 0 }), config)
-  const startIndex = findOverflowStartIndex(episodes, config.maxTokens, config.reserveOutputTokens)
+  const startIndex = findOverflowStartIndex(episodes, config.maxTokens, config.reserveOutputTokens, config.turnId)
   const selected = episodes.slice(startIndex)
   const items = selected.flatMap((episode): ItemParam[] => {
     if (episode.kind === 'item')

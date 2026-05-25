@@ -359,9 +359,9 @@ describe('assemble', () => {
     expect(JSON.stringify(items[1])).not.toContain('orphan')
   })
 
-  it('does not trim to a single episode when usage is over budget without a checkpoint', () => {
+  it('keeps current turn input when usage is over budget without a checkpoint', () => {
     const episodic = createEpisodic()
-    episodic.appendItems([message('keep me')], { source: 'user' })
+    episodic.appendItems([message('drop old')], { source: 'user', turnId: 'old-turn' })
     episodic.append({
       kind: 'meta',
       meta: { source: 'runtime' },
@@ -370,11 +370,12 @@ describe('assemble', () => {
         event: 'turn.usage',
       },
     })
+    episodic.appendItems([message('keep current')], { source: 'user', turnId: 'current-turn' })
     const store = createSessionStore([], {}, episodic.toJSONL())
-    const assembled = store.assemble({ maxTokens: 1 })
+    const assembled = store.assemble({ maxTokens: 1, turnId: 'current-turn' })
 
-    expect(assembled.items).toEqual([message('keep me')])
-    expect(assembled.meta.truncated).toBe(false)
+    expect(assembled.items).toEqual([message('keep current')])
+    expect(assembled.meta.truncated).toBe(true)
   })
 
   it('supports custom normalize functions', () => {

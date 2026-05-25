@@ -118,7 +118,7 @@ Every turn runs against a working Episodic fork:
 
 ## Slice assembly
 
-Slice is the prompt builder. It selects visible episodes, adds plugin contributions, and normalizes the final `ItemParam[]`. Slice assembly applies a coarse budget heuristic based on the previous turn's xsAI usage metadata: if the last known input tokens exceed the budget, it attempts to restart from the nearest `checkpoint` or `interrupt` boundary; otherwise it keeps the full context.
+Slice is the prompt builder. It selects visible episodes, adds plugin contributions, and normalizes the final `ItemParam[]`. Slice assembly applies a coarse budget heuristic based on the previous turn's xsAI usage metadata: if the last known input tokens exceed the budget, it attempts to restart from the nearest `checkpoint` or `interrupt` boundary. If there is no such boundary, it keeps the current turn's episodes when a `turnId` is available; otherwise it returns no historical episodes.
 
 Visible boundaries:
 
