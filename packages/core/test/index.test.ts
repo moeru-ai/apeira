@@ -16,12 +16,8 @@ const createMemoryStorage = (initial: Record<string, string> = {}) => {
 
   return {
     getItem: (key: string) => values.get(key),
-    removeItem: (key: string) => {
-      values.delete(key)
-    },
-    setItem: (key: string, value: string) => {
-      values.set(key, value)
-    },
+    removeItem: (key: string) => { values.delete(key) },
+    setItem: (key: string, value: string) => { values.set(key, value) },
     values,
   }
 }
@@ -51,7 +47,7 @@ const itemsFromEpisodic = (jsonl: string): ItemParam[] =>
   jsonl
     .split('\n')
     .filter(Boolean)
-    .map(line => JSON.parse(line) as { type: string, payload?: { item?: ItemParam } })
+    .map(line => JSON.parse(line) as { payload?: { item?: ItemParam }, type: string })
     .filter(episode => episode.type === 'item')
     .map(episode => episode.payload!.item!)
 
@@ -59,7 +55,7 @@ const usageFromEpisodic = (jsonl: string) =>
   jsonl
     .split('\n')
     .filter(Boolean)
-    .map(line => JSON.parse(line) as { type: string, payload?: { data?: unknown, event?: string } })
+    .map(line => JSON.parse(line) as { payload?: { data?: unknown, event?: string }, type: string })
     .find(episode => episode.type === 'meta' && episode.payload?.event === 'turn.usage')
     ?.payload
     ?.data
@@ -67,7 +63,7 @@ const usageFromEpisodic = (jsonl: string) =>
 const parseSessionState = (value: string | undefined): { context: unknown, episodic: string, version: number } =>
   JSON.parse(String(value)) as { context: unknown, episodic: string, version: number }
 
-const assistantMessage = (text: string) => ({
+const assistantMessage = (text: string): import('../src/types/responses').ItemParam => ({
   content: [{ text, type: 'output_text' }],
   phase: 'final_answer',
   role: 'assistant',
@@ -254,21 +250,21 @@ describe('createEpisodic', () => {
 
     episodic.appendItems([message('first')], { source: 'user', turnId: 'turn-1' })
     episodic.append({
-      type: 'boundary',
       meta: { source: 'agent', turnId: 'turn-1' },
       payload: { content: 'checkpoint content', reason: 'checkpoint', title: 'checkpoint' },
+      type: 'boundary',
     })
 
     const restored = createEpisodic(episodic.toJSONL())
 
     expect(restored.read({ fromId: 0 }).map(episode => episode.id)).toEqual([1, 2])
     expect(restored.read({ afterBoundary: 'checkpoint' })).toEqual([])
-    expect(restored.read({ type: 'item', turnId: 'turn-1' })).toHaveLength(1)
+    expect(restored.read({ turnId: 'turn-1', type: 'item' })).toHaveLength(1)
   })
 
   it('skips bad JSONL lines and records parse errors', () => {
     const episodic = createEpisodic(`not json\n{}\n${episodicFromItems([message('valid')])}`)
-    const meta = episodic.read({ fromId: 0, type: 'meta' })[0]
+    const meta = episodic.read({ fromId: 0, type: 'meta' })[0] as import('../src/episodic/types').MetaEpisode | undefined
     const data = meta?.payload.data as undefined | { count?: unknown, errors?: unknown }
 
     expect(meta?.payload.event).toBe('error.parse')
@@ -292,9 +288,9 @@ describe('createEpisodic', () => {
   it('does not apply the default limit to afterBoundary queries', () => {
     const episodic = createEpisodic()
     episodic.append({
-      type: 'boundary',
       meta: { source: 'agent' },
       payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
+      type: 'boundary',
     })
 
     for (let i = 0; i < 101; i += 1)
@@ -309,16 +305,16 @@ describe('createEpisodic', () => {
   it('applies explicit limit after query filters', () => {
     const episodic = createEpisodic()
     episodic.append({
-      type: 'boundary',
       meta: { source: 'agent' },
       payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
+      type: 'boundary',
     })
 
     for (let i = 0; i < 5; i += 1)
       episodic.appendItems([message(`item-${i}`)], { source: 'user' })
 
     expect(episodic.read({ afterBoundary: 'checkpoint', limit: 2 }).map(episode => episode.id)).toEqual([5, 6])
-    expect(episodic.read({ type: 'item', limit: 3 }).map(episode => episode.id)).toEqual([4, 5, 6])
+    expect(episodic.read({ limit: 3, type: 'item' }).map(episode => episode.id)).toEqual([4, 5, 6])
     expect(episodic.read({ limit: 0 })).toEqual([])
     expect(episodic.read({ limit: -1 })).toEqual([])
   })
@@ -329,9 +325,9 @@ describe('assemble', () => {
     const episodic = createEpisodic()
     episodic.appendItems([message('before')], { source: 'user' })
     episodic.append({
-      type: 'boundary',
       meta: { source: 'agent' },
       payload: { content: 'checkpoint content', reason: 'checkpoint', title: 'checkpoint' },
+      type: 'boundary',
     })
     episodic.appendItems([message('after')], { source: 'user' })
     const store = createSessionStore([], {}, episodic.toJSONL())
@@ -363,12 +359,12 @@ describe('assemble', () => {
     const episodic = createEpisodic()
     episodic.appendItems([message('drop old')], { source: 'user', turnId: 'old-turn' })
     episodic.append({
-      type: 'meta',
       meta: { source: 'runtime' },
       payload: {
         data: { inputTokens: 100, outputTokens: 1, totalTokens: 101 },
         event: 'turn.usage',
       },
+      type: 'meta',
     })
     episodic.appendItems([message('keep current')], { source: 'user', turnId: 'current-turn' })
     const store = createSessionStore([], {}, episodic.toJSONL())
@@ -403,11 +399,11 @@ describe('createSessionStore', () => {
     const fork = store.fork()
 
     fork.episodic.appendItems([message('appended')], { source: 'user' })
-    const forkEpisodeId = fork.episodic.read({ type: 'item', limit: 1 })[0]?.id
+    const forkEpisodeId = fork.episodic.read({ limit: 1, type: 'item' })[0]?.id
     store.merge(fork)
 
     expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial'), message('appended')])
-    expect(store.episodic.read({ type: 'item', limit: 1 })[0]?.id).toBe(forkEpisodeId)
+    expect(store.episodic.read({ limit: 1, type: 'item' })[0]?.id).toBe(forkEpisodeId)
     expect(store.snapshot().version).toBe(snapshot.version + 1)
   })
 

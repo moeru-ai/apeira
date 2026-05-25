@@ -14,9 +14,9 @@ export interface AssembleInput {
 
 export interface BoundaryEpisode {
   id: number
-  type: 'boundary'
   meta: EpisodeMeta
   payload: BoundaryPayload
+  type: 'boundary'
 }
 
 export type BoundaryPayload
@@ -47,23 +47,23 @@ export interface Episodic {
 export interface EpisodicQuery {
   afterBoundary?: 'last' | BoundaryReason
   fromId?: number
-  type?: Episode['type'] | Episode['type'][]
   limit?: number
   turnId?: string
+  type?: Episode['type'] | Episode['type'][]
 }
 
 export interface ItemEpisode {
   id: number
-  type: 'item'
   meta: EpisodeMeta
   payload: { item: ItemParam }
+  type: 'item'
 }
 
 export interface MetaEpisode {
   id: number
-  type: 'meta'
   meta: EpisodeMeta
   payload: MetaPayload
+  type: 'meta'
 }
 
 export interface MetaPayload {

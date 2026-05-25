@@ -58,9 +58,9 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     },
     appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) =>
       items.map(item => api.append({
-        type: 'item',
         meta,
         payload: { item },
+        type: 'item',
       })),
     fromJSONL: (nextJSONL) => {
       episodes = []
@@ -88,12 +88,12 @@ export const createEpisodic = (jsonl?: string): Episodic => {
 
       if (errorCount > 0) {
         api.append({
-          type: 'meta',
           meta: { source: 'runtime' },
           payload: {
             data: { count: errorCount, errors },
             event: 'error.parse',
           },
+          type: 'meta',
         })
       }
     },

@@ -35,13 +35,13 @@ episodic.appendItems([{
 
 ```ts
 episodic.append({
-  type: 'boundary',
   meta: { source: 'runtime', turnId },
   payload: {
     content: 'The previous turn was interrupted; tools may have partially executed.',
     reason: 'interrupt',
     title: 'turn interrupted',
   },
+  type: 'boundary',
 })
 ```
 
@@ -49,12 +49,12 @@ episodic.append({
 
 ```ts
 episodic.append({
-  type: 'meta',
   meta: { source: 'runtime', turnId },
   payload: {
     data: { inputTokens: 120, outputTokens: 24, totalTokens: 144 },
     event: 'turn.usage',
   },
+  type: 'meta',
 })
 ```
 
@@ -66,7 +66,7 @@ The `Episodic` API is exported from `@apeira/core`:
 import { createEpisodic } from '@apeira/core'
 
 const episodic = createEpisodic()
-const recentItems = episodic.read({ type: 'item', limit: 12 })
+const recentItems = episodic.read({ limit: 12, type: 'item' })
 ```
 
 `read()` has a safety default: with no query, it returns the latest 100 episodes. Add a query when you mean something else:
@@ -74,7 +74,7 @@ const recentItems = episodic.read({ type: 'item', limit: 12 })
 ```ts
 episodic.read() // latest 100
 episodic.read({ fromId: 0 }) // full log
-episodic.read({ type: 'item', limit: 6 })
+episodic.read({ limit: 6, type: 'item' })
 episodic.read({ afterBoundary: 'checkpoint' })
 episodic.read({ turnId })
 ```
@@ -138,7 +138,7 @@ const plugin = {
     return {
       contributions: [{
         id: 'recent',
-        items: episodic.read({ type: 'item', limit: 6 })
+        items: episodic.read({ limit: 6, type: 'item' })
           .map(episode => episode.payload.item),
       }],
     }

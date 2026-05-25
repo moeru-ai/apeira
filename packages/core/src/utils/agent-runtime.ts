@@ -313,13 +313,13 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       void mutateSession(async () => {
         await ensureLoaded()
         session.episodic.append({
-          type: 'boundary',
           meta: { source: 'runtime', turnId: turn.id },
           payload: {
             content: TURN_ABORTED_CONTENT,
             reason: 'interrupt',
             title: 'turn interrupted',
           },
+          type: 'boundary',
         })
         await options.saveSession(session.snapshot())
       }).catch(() => undefined)
