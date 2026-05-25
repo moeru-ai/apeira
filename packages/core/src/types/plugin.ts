@@ -5,6 +5,7 @@ import type { AgentContext } from './context'
 import type { AgentEvent } from './event'
 import type { MaybePromise } from './maybe-promise'
 import type { ItemParam } from './responses'
+import type { Episodic, SliceContribution } from '../episodic'
 
 export interface AgentChannelMap {
   apeira: AgentEvent
@@ -19,7 +20,7 @@ export interface AgentPlugin<T = unknown> {
   onSessionInit?: (options: SessionInitOptions<T>) => MaybePromise<void>
   onStepFinish?: ResponsesOptions['onStepFinish']
   onTurnDone?: (options: TurnDoneOptions<T>) => MaybePromise<void>
-  onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
+  onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<TurnStartResult | void>
   prepareStep?: ResponsesOptions['prepareStep']
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
@@ -52,6 +53,7 @@ export type PluginChannelListener<T = unknown> = (event: T) => void
 export interface PluginHookBase<T = unknown> {
   agentName: string
   context: AgentContext<T>
+  episodic: Episodic
   sessionId: string
   signal: AbortSignal
   turnId: string
@@ -74,7 +76,7 @@ export interface SessionInitOptions<T = unknown> {
 
 export interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
-  items: ItemParam[]
+  episodic: string
   version: number
 }
 
@@ -90,4 +92,8 @@ export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {
 
 export interface TurnStartOptions<T = unknown> extends PluginHookBase<T> {
   input: ItemParam
+}
+
+export interface TurnStartResult {
+  contributions?: SliceContribution[]
 }

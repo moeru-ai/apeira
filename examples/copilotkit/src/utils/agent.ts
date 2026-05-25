@@ -14,7 +14,7 @@ import { AGENT_ID, AGENT_NAME } from './const'
 
 type PersistedMessageItem = Extract<ItemParam, { type: 'message' }>
 interface PersistedThreadState {
-  items?: ItemParam[]
+  episodic?: string
 }
 
 type PersistedUserMessageItem = Extract<PersistedMessageItem, { role: 'user' }>
@@ -220,7 +220,15 @@ const readPersistedMessages = (threadId: string): Message[] => {
       return []
 
     const state = JSON.parse(raw) as PersistedThreadState
-    const items = state.items ?? []
+    const isItemEpisode = (episode: { kind: string, payload?: { item?: ItemParam } }): episode is { kind: 'item', payload: { item: ItemParam } } =>
+      episode.kind === 'item' && episode.payload?.item != null
+
+    const items = (state.episodic ?? '')
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line) as { kind: string, payload?: { item?: ItemParam } })
+      .filter(isItemEpisode)
+      .map(episode => episode.payload.item)
 
     return items.flatMap((item): Message[] => {
       // TODO

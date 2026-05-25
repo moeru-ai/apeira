@@ -18,7 +18,7 @@ export interface LocalThread {
 }
 
 interface PersistedThreadState {
-  items?: ItemParam[]
+  episodic?: string
 }
 
 const now = () => Date.now()
@@ -37,13 +37,30 @@ const readThreadState = (threadId: string) => {
   }
 }
 
+const isItemEpisode = (episode: { kind: string, payload?: { item?: ItemParam } }): episode is { kind: 'item', payload: { item: ItemParam } } =>
+  episode.kind === 'item' && episode.payload?.item != null
+
+const readThreadItems = (threadId: string): ItemParam[] => {
+  try {
+    return (readThreadState(threadId).episodic ?? '')
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line) as { kind: string, payload?: { item?: ItemParam } })
+      .filter(isItemEpisode)
+      .map(episode => episode.payload.item)
+  }
+  catch {
+    return []
+  }
+}
+
 const getText = (content: Extract<ItemParam, { type: 'message' }>['content']) =>
   typeof content === 'string'
     ? content
     : content.flatMap(part => 'text' in part ? [part.text] : []).join(' ')
 
 const getThreadName = (threadId: string) => {
-  const message = readThreadState(threadId).items?.find((item): item is Extract<ItemParam, { role: 'user', type: 'message' }> =>
+  const message = readThreadItems(threadId).find((item): item is Extract<ItemParam, { role: 'user', type: 'message' }> =>
     item.type === 'message' && item.role === 'user',
   )
   const text = message == null ? '' : getText(message.content).trim()
@@ -96,8 +113,7 @@ export const useThreads = () => {
   }, [updateThread])
 
   const touchThread = useCallback((threadId: string) => {
-    const state = readThreadState(threadId)
-    if ((state.items?.length ?? 0) === 0)
+    if (readThreadItems(threadId).length === 0)
       return
 
     setThreads((current) => {

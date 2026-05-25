@@ -22,9 +22,11 @@ export interface AgentRuntime<T = unknown> {
 }
 
 export interface AgentRuntimeOptions<T> extends AgentCoreOptions<T> {
+  episodic?: string
   input?: ItemParam[]
   loadSession: () => Promise<SessionState<T> | void> | SessionState<T> | void
   onTurnDone: (options: TurnDoneOptions<T>) => Promise<void> | void
+  saveSession: (state: SessionState<T>) => Promise<void> | void
   sessionContext?: Partial<AgentContext<T>>
 }
 
@@ -34,16 +36,12 @@ interface ActiveTurn {
   input: ItemParam
 }
 
-const createTurnAbortedBoundary = (): ItemParam => ({
-  content: '<turn_aborted>\nThe previous turn was interrupted on purpose. Any tool calls that were running may have partially executed.\n</turn_aborted>',
-  role: 'user',
-  type: 'message',
-})
+const TURN_ABORTED_CONTENT = '<turn_aborted>\nThe previous turn was interrupted on purpose. Any tool calls that were running may have partially executed.\n</turn_aborted>'
 
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const pendingInput = createPendingInput<T>()
   const pendingTurns = new Queue<QueuedInput<T>>()
-  const session = createSessionStore<T>(options.input, options.sessionContext)
+  const session = createSessionStore<T>(options.input, options.sessionContext, options.episodic)
 
   let acceptingInputTurnId: string | undefined
   let activeTurn: ActiveTurn | undefined
@@ -92,11 +90,9 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     emit: options.emit,
     getContext: options.getContext,
     instructions: options.instructions,
-    mutateSession,
     plugins: options.plugins,
     ready: options.ready,
     responseOptions: options.responseOptions,
-    saveSession: options.saveSession,
     session,
     sessionId: options.sessionId,
   }
@@ -197,12 +193,25 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
         completion = { reason: controller.signal.reason, type: 'aborted' }
       }
       else {
+        const workingSession = session.fork()
+
         completion = await runTurn<T>({
           ...turnOptions,
           controller,
           drainInput: () => pendingInput.drain(turn.id!),
+          session: workingSession,
           turn: turn as QueuedInput<T> & { id: string },
         })
+
+        if (completion.type === 'done') {
+          await mutateSession(async () => {
+            session.merge(workingSession)
+            await options.saveSession(session.snapshot())
+          })
+
+          if (controller.signal.aborted)
+            completion = { reason: controller.signal.reason, type: 'aborted' }
+        }
       }
     }
     catch (error) {
@@ -295,7 +304,16 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
       void mutateSession(async () => {
         await ensureLoaded()
-        session.append([createTurnAbortedBoundary()])
+        session.episodic.append({
+          kind: 'boundary',
+          meta: { source: 'runtime', turnId: turn.id },
+          payload: {
+            content: TURN_ABORTED_CONTENT,
+            reason: 'interrupt',
+            title: 'turn interrupted',
+          },
+        })
+        await options.saveSession(session.snapshot())
       }).catch(() => undefined)
     }
   }

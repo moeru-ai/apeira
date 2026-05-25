@@ -1,12 +1,17 @@
 import type { AgentContext } from '../types/context'
 import type { SessionState } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
+import type { AssembleInput, Episodic, SliceResult } from '../episodic'
+
+import { createEpisodic, createSlice } from '../episodic'
 
 export interface SessionStore<T = unknown> {
-  append: (items: ItemParam[]) => void
-  commit: (version: number, items: ItemParam[]) => boolean
+  assemble: (input?: AssembleInput) => SliceResult
+  readonly episodic: Episodic
+  fork: () => SessionStore<T>
   getContext: () => Partial<AgentContext<T>>
   hydrate: (state: SessionState<T>) => void
+  merge: (session: SessionStore<T>) => void
   reset: () => void
   setContext: (context: Partial<AgentContext<T>>) => void
   snapshot: () => SessionState<T>
@@ -15,37 +20,40 @@ export interface SessionStore<T = unknown> {
 export const createSessionStore = <T = unknown>(
   initialItems: ItemParam[] = [],
   initialContext: Partial<AgentContext<T>> = {},
+  initialEpisodic?: string,
 ): SessionStore<T> => {
-  const initial = [...initialItems]
   const initialSessionContext = { ...initialContext }
-  let items = [...initialItems]
+  const slice = createSlice()
+  let episodic = createEpisodic(initialEpisodic)
   let context = { ...initialContext }
   let version = 0
 
-  return {
-    append: (nextItems) => {
-      if (nextItems.length === 0)
-        return
+  if (initialEpisodic == null)
+    episodic.appendItems(initialItems, { source: 'user' })
 
-      items = [...items, ...nextItems]
-      version += 1
+  const api: SessionStore<T> = {
+    assemble: (input = {}) => slice(episodic, input),
+    get episodic() {
+      return episodic
     },
-    commit: (expectedVersion, nextItems) => {
-      if (expectedVersion !== version)
-        return false
-
-      items = [...nextItems]
-      version += 1
-      return true
-    },
+    fork: () => createSessionStore<T>([], context, episodic.toJSONL()),
     getContext: () => ({ ...context }),
     hydrate: (state) => {
-      items = [...state.items]
+      episodic = createEpisodic(state.episodic)
       context = { ...state.context }
       version = state.version
     },
+    merge: (session) => {
+      const lastId = episodic.read({ fromId: 0 }).at(-1)?.id ?? 0
+      const nextEpisodes = session.episodic.read({ fromId: lastId })
+
+      episodic.importEpisodes(nextEpisodes)
+
+      if (nextEpisodes.length > 0)
+        version += 1
+    },
     reset: () => {
-      items = [...initial]
+      episodic = createEpisodic()
       context = { ...initialSessionContext }
       version += 1
     },
@@ -54,8 +62,10 @@ export const createSessionStore = <T = unknown>(
     },
     snapshot: () => ({
       context: { ...context },
-      items: [...items],
+      episodic: episodic.toJSONL(),
       version,
     }),
   }
+
+  return api
 }

@@ -7,7 +7,7 @@ import Queue from 'yocto-queue'
 
 import { describe, expect, it } from 'vitest'
 
-import { createAgent } from '../src/index'
+import { createAgent, createEpisodic } from '../src/index'
 import { createPendingInput } from '../src/utils/pending-input'
 import { createSessionStore } from '../src/utils/session-store'
 
@@ -40,6 +40,28 @@ const message = (content: string): ItemParam => ({
   role: 'user',
   type: 'message',
 })
+
+const episodicFromItems = (items: ItemParam[]) => {
+  const episodic = createEpisodic()
+  episodic.appendItems(items, { source: 'user' })
+  return episodic.toJSONL()
+}
+
+const itemsFromEpisodic = (jsonl: string): ItemParam[] =>
+  jsonl
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line) as { kind: string, payload?: { item?: ItemParam } })
+    .filter(episode => episode.kind === 'item')
+    .map(episode => episode.payload!.item!)
+
+const usageFromEpisodic = (jsonl: string) =>
+  jsonl
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line) as { kind: string, payload?: { data?: unknown, event?: string } })
+    .find(episode => episode.kind === 'meta' && episode.payload?.event === 'turn.usage')
+    ?.payload?.data
 
 const assistantMessage = (text: string) => ({
   content: [{ text, type: 'output_text' }],
@@ -222,37 +244,174 @@ describe('createPendingInput', () => {
   })
 })
 
-describe('createSessionStore', () => {
-  it('commits by version and isolates stored items from caller mutations', () => {
-    const store = createSessionStore([message('initial')])
-    const snapshot = store.snapshot()
-    const nextItems = [message('next')]
+describe('createEpisodic', () => {
+  it('appends episodes with increasing ids and roundtrips JSONL', () => {
+    const episodic = createEpisodic()
 
-    expect(store.commit(snapshot.version, nextItems)).toBe(true)
-    nextItems.push(message('mutated'))
-
-    expect(store.snapshot()).toEqual({
-      context: {},
-      items: [message('next')],
-      version: snapshot.version + 1,
+    episodic.appendItems([message('first')], { source: 'user', turnId: 'turn-1' })
+    episodic.append({
+      kind: 'boundary',
+      meta: { source: 'agent', turnId: 'turn-1' },
+      payload: { content: 'checkpoint content', reason: 'checkpoint', title: 'checkpoint' },
     })
-    expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
-    expect(store.snapshot().items).toEqual([message('next')])
+
+    const restored = createEpisodic(episodic.toJSONL())
+
+    expect(restored.read({ fromId: 0 }).map(episode => episode.id)).toEqual([1, 2])
+    expect(restored.read({ afterBoundary: 'checkpoint' })).toEqual([])
+    expect(restored.read({ kind: 'item', turnId: 'turn-1' })).toHaveLength(1)
   })
 
-  it('appends items and invalidates stale snapshots', () => {
+  it('skips bad JSONL lines and records parse errors', () => {
+    const episodic = createEpisodic(`not json\n{}\n${episodicFromItems([message('valid')])}`)
+
+    expect(episodic.read({ kind: 'meta', fromId: 0 })).toEqual([
+      expect.objectContaining({
+        payload: {
+          data: {
+            count: 2,
+            errors: expect.arrayContaining([expect.any(String)]),
+          },
+          event: 'error.parse',
+        },
+      }),
+    ])
+    expect(itemsFromEpisodic(episodic.toJSONL())).toEqual([message('valid')])
+  })
+
+  it('limits unconstrained reads to the latest 100 episodes', () => {
+    const episodic = createEpisodic()
+
+    for (let i = 0; i < 101; i += 1)
+      episodic.appendItems([message(String(i))], { source: 'user' })
+
+    const read = episodic.read()
+
+    expect(read).toHaveLength(100)
+    expect(read[0]?.id).toBe(2)
+  })
+
+  it('does not apply the default limit to afterBoundary queries', () => {
+    const episodic = createEpisodic()
+    episodic.append({
+      kind: 'boundary',
+      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
+      meta: { source: 'agent' },
+    })
+
+    for (let i = 0; i < 101; i += 1)
+      episodic.appendItems([message(String(i))], { source: 'user' })
+
+    const read = episodic.read({ afterBoundary: 'checkpoint' })
+
+    expect(read).toHaveLength(101)
+    expect(read[0]?.id).toBe(2)
+  })
+
+  it('applies explicit limit after query filters', () => {
+    const episodic = createEpisodic()
+    episodic.append({
+      kind: 'boundary',
+      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
+      meta: { source: 'agent' },
+    })
+
+    for (let i = 0; i < 5; i += 1)
+      episodic.appendItems([message(`item-${i}`)], { source: 'user' })
+
+    expect(episodic.read({ afterBoundary: 'checkpoint', limit: 2 }).map(episode => episode.id)).toEqual([5, 6])
+    expect(episodic.read({ kind: 'item', limit: 3 }).map(episode => episode.id)).toEqual([4, 5, 6])
+    expect(episodic.read({ limit: 0 })).toEqual([])
+    expect(episodic.read({ limit: -1 })).toEqual([])
+  })
+})
+
+describe('assemble', () => {
+  it('starts from the last checkpoint and injects visible boundaries', () => {
+    const episodic = createEpisodic()
+    episodic.appendItems([message('before')], { source: 'user' })
+    episodic.append({
+      kind: 'boundary',
+      meta: { source: 'agent' },
+      payload: { content: 'checkpoint content', reason: 'checkpoint', title: 'checkpoint' },
+    })
+    episodic.appendItems([message('after')], { source: 'user' })
+    const store = createSessionStore([], {}, episodic.toJSONL())
+
+    expect(store.assemble({ start: { reason: 'checkpoint', type: 'last-boundary' } }).items).toEqual([
+      expect.objectContaining({ content: '<checkpoint>\ncheckpoint content\n</checkpoint>' }),
+      message('after'),
+    ])
+  })
+
+  it('keeps function call outputs paired and truncates oversized tool output', () => {
+    const longOutput = `${'x'.repeat(4_001)}middle${('y').repeat(4_001)}`
+    const call = { arguments: '{}', call_id: 'call-1', name: 'tool', type: 'function_call' } as ItemParam
+    const orphan = { call_id: 'missing', output: 'orphan', type: 'function_call_output' } as ItemParam
+    const output = { call_id: 'call-1', output: longOutput, type: 'function_call_output' } as ItemParam
+    const store = createSessionStore([orphan, call, output])
+    const items = store.assemble().items
+
+    expect(items[0]).toEqual(call)
+    expect(items).toHaveLength(2)
+    expect(items[1]).toMatchObject({ call_id: 'call-1', type: 'function_call_output' })
+    expect(JSON.stringify(items[1])).toContain('(truncated: 8 chars omitted)')
+    expect(JSON.stringify(items[1])).toContain('xxxx')
+    expect(JSON.stringify(items[1])).toContain('yyyy')
+    expect(JSON.stringify(items[1])).not.toContain('orphan')
+  })
+
+  it('does not trim to a single episode when usage is over budget without a checkpoint', () => {
+    const episodic = createEpisodic()
+    episodic.appendItems([message('keep me')], { source: 'user' })
+    episodic.append({
+      kind: 'meta',
+      meta: { source: 'runtime' },
+      payload: {
+        data: { inputTokens: 100, outputTokens: 1, totalTokens: 101 },
+        event: 'turn.usage',
+      },
+    })
+    const store = createSessionStore([], {}, episodic.toJSONL())
+    const assembled = store.assemble({ maxTokens: 1 })
+
+    expect(assembled.items).toEqual([message('keep me')])
+    expect(assembled.meta.truncated).toBe(false)
+  })
+
+  it('supports custom normalize functions', () => {
+    const store = createSessionStore([message('original')])
+
+    expect(store.assemble({ normalize: () => [message('custom')] }).items).toEqual([message('custom')])
+  })
+})
+
+describe('createSessionStore', () => {
+  it('assembles initial items and snapshots episodic JSONL', () => {
     const store = createSessionStore([message('initial')])
     const snapshot = store.snapshot()
 
-    store.append([message('appended')])
-
-    expect(store.snapshot()).toEqual({
+    expect(store.assemble().items).toEqual([message('initial')])
+    expect(itemsFromEpisodic(snapshot.episodic)).toEqual([message('initial')])
+    expect(snapshot).toEqual({
       context: {},
-      items: [message('initial'), message('appended')],
-      version: snapshot.version + 1,
+      episodic: expect.any(String),
+      version: 0,
     })
-    expect(store.commit(snapshot.version, [message('stale')])).toBe(false)
-    expect(store.snapshot().items).toEqual([message('initial'), message('appended')])
+  })
+
+  it('appends items through episodic and merges forks atomically', () => {
+    const store = createSessionStore([message('initial')])
+    const snapshot = store.snapshot()
+    const fork = store.fork()
+
+    fork.episodic.appendItems([message('appended')], { source: 'user' })
+    const forkEpisodeId = fork.episodic.read({ kind: 'item', limit: 1 })[0]?.id
+    store.merge(fork)
+
+    expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial'), message('appended')])
+    expect(store.episodic.read({ kind: 'item', limit: 1 })[0]?.id).toBe(forkEpisodeId)
+    expect(store.snapshot().version).toBe(snapshot.version + 1)
   })
 
   it('stores session context alongside items', () => {
@@ -263,9 +422,10 @@ describe('createSessionStore', () => {
     expect(store.getContext()).toEqual({ locale: 'ja-JP' })
     expect(store.snapshot()).toEqual({
       context: { locale: 'ja-JP' },
-      items: [message('initial')],
+      episodic: expect.any(String),
       version: 0,
     })
+    expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial')])
   })
 })
 
@@ -274,7 +434,7 @@ describe('createAgent', () => {
     const storage = createMemoryStorage({
       '["clear-storage-test","default"]': JSON.stringify({
         context: { locale: 'en-US' },
-        items: [message('persisted history')],
+        episodic: episodicFromItems([message('persisted history')]),
         version: 10,
       }),
     })
@@ -298,7 +458,7 @@ describe('createAgent', () => {
 
     expect(JSON.parse(String(storage.values.get('["clear-storage-test","default"]')))).toEqual({
       context: {},
-      items: [],
+      episodic: '',
       version: 11,
     })
   })
@@ -369,8 +529,8 @@ describe('createAgent', () => {
           getItem: () => undefined,
           removeItem: () => {},
           setItem: async (_key, value) => {
-            const state = JSON.parse(value) as { items: unknown[] }
-            const phase = state.items.length > 0 ? 'response' : 'clear'
+            const state = JSON.parse(value) as { episodic: string }
+            const phase = itemsFromEpisodic(state.episodic).length > 0 ? 'response' : 'clear'
             saves.push(`${phase}:start`)
 
             if (phase === 'response') {
@@ -526,7 +686,7 @@ describe('createAgent', () => {
     const storage = createMemoryStorage({
       '["plugin-test","default"]': JSON.stringify({
         context: {},
-        items: [message('loaded history')],
+        episodic: episodicFromItems([message('loaded history')]),
         version: 0,
       }),
     })
@@ -585,8 +745,8 @@ describe('createAgent', () => {
           },
           removeItem: key => storage.removeItem(key),
           setItem: (key, value) => {
-            const state = JSON.parse(value) as { items: unknown[] }
-            calls.push(`saveSession:${state.items.length}`)
+            const state = JSON.parse(value) as { episodic: string }
+            calls.push(`saveSession:${itemsFromEpisodic(state.episodic).length}`)
             storage.setItem(key, value)
           },
         },
@@ -647,10 +807,11 @@ describe('createAgent', () => {
           getItem: key => storage.getItem(key),
           removeItem: key => storage.removeItem(key),
           setItem: (key, value) => {
-            const state = JSON.parse(value) as { context: { requestId?: string }, items: ItemParam[] }
+            const state = JSON.parse(value) as { context: { requestId?: string }, episodic: string }
+            const items = itemsFromEpisodic(state.episodic)
             records.push({
               hook: 'saveSession',
-              lastInput: state.items.at(-1),
+              lastInput: items.at(-1),
               requestId: state.context.requestId,
             })
             storage.setItem(key, value)
@@ -896,13 +1057,23 @@ describe('createAgent', () => {
     }
 
     expect(events.at(-1)?.type).toBe('turn.done')
-    expect(JSON.parse(String(storage.values.get('["context-race-test","race-session"]')))).toEqual({
+    const contextRaceState = JSON.parse(String(storage.values.get('["context-race-test","race-session"]'))) as { context: unknown, episodic: string, version: number }
+    expect({
+      ...contextRaceState,
+      episodic: expect.any(String),
+    }).toEqual({
       context: { locale: 'ja-JP' },
-      items: [
-        message('Keep both context and response.'),
-        assistantMessage('response 1'),
-      ],
+      episodic: expect.any(String),
       version: 1,
+    })
+    expect(itemsFromEpisodic(contextRaceState.episodic)).toEqual([
+      message('Keep both context and response.'),
+      assistantMessage('response 1'),
+    ])
+    expect(usageFromEpisodic(contextRaceState.episodic)).toEqual({
+      inputTokens: 1,
+      outputTokens: 1,
+      totalTokens: 2,
     })
   })
 
@@ -1056,7 +1227,7 @@ describe('createAgent', () => {
     const storage = createMemoryStorage({
       '["fork-storage-test","source-session"]': JSON.stringify({
         context: { locale: 'en-US' },
-        items: [message('Persisted source turn.'), assistantMessage('persisted response')],
+        episodic: episodicFromItems([message('Persisted source turn.'), assistantMessage('persisted response')]),
         version: 7,
       }),
     })
@@ -1078,11 +1249,16 @@ describe('createAgent', () => {
 
     await source.fork({ id: 'fork-session' })
 
-    expect(JSON.parse(String(storage.values.get('["fork-storage-test","fork-session"]')))).toEqual({
+    const forkState = JSON.parse(String(storage.values.get('["fork-storage-test","fork-session"]'))) as { context: unknown, episodic: string, version: number }
+    expect({
+      ...forkState,
+      episodic: expect.any(String),
+    }).toEqual({
       context: { locale: 'en-US' },
-      items: [message('Persisted source turn.'), assistantMessage('persisted response')],
+      episodic: expect.any(String),
       version: 0,
     })
+    expect(itemsFromEpisodic(forkState.episodic)).toEqual([message('Persisted source turn.'), assistantMessage('persisted response')])
   })
 
   it('removes an explicit session from memory and storage', async () => {

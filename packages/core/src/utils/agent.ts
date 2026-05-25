@@ -18,6 +18,7 @@ export type CreateAgentOptions<T = unknown> = CreateAgentBaseOptions<T> & Create
 
 export interface SessionOptions<T> {
   context?: Partial<AgentContext<T>>
+  episodic?: string
   id?: string
   input?: ItemParam[]
 }
@@ -48,7 +49,12 @@ const parseSessionState = <T>(value: null | string | undefined): SessionState<T>
     return undefined
 
   try {
-    return JSON.parse(value) as SessionState<T>
+    const state = JSON.parse(value) as Partial<SessionState<T>>
+
+    if (typeof state.episodic !== 'string' || typeof state.version !== 'number')
+      return undefined
+
+    return state as SessionState<T>
   }
   catch {
     return undefined
@@ -237,6 +243,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       agentName: options.name,
       emit: (turnId, event) => emit(id, turnId, event),
       getContext: resolveContext,
+      episodic: sessionOptions.episodic,
       input: sessionOptions.input,
       instructions: options.instructions,
       loadSession,
@@ -351,15 +358,15 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
       const forked = createAgentSession(forkId, {
         context: forkContext,
+        episodic: snapshot.episodic,
         id: forkId,
-        input: snapshot.items,
       })
 
       sessions.set(forkId, forked)
 
       await saveSessionState(forkId, {
         context: forkContext,
-        items: snapshot.items,
+        episodic: snapshot.episodic,
         version: 0,
       })
 

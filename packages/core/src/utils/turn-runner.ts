@@ -3,8 +3,9 @@ import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentContext, Instructions } from '../types/context'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, SessionState, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
 import type { ItemParam } from '../types/responses'
+import type { SliceContribution } from '../episodic'
 import type { SessionStore } from './session-store'
 
 import { merge } from '@moeru/std/merge'
@@ -18,7 +19,6 @@ export interface AgentCoreOptions<T> {
   plugins: AgentPlugin<T>[]
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  saveSession: (state: SessionState<T>) => Promise<void> | void
   sessionId: string
 }
 
@@ -45,7 +45,6 @@ export type TurnCompletion<T = unknown>
     | { reason?: unknown, type: 'aborted' }
 
 export interface TurnOptions<T> extends AgentCoreOptions<T> {
-  mutateSession: (fn: () => Promise<void>) => Promise<void>
   session: SessionStore<T>
 }
 
@@ -68,6 +67,7 @@ const createPluginHookBase = <T>(
 ) => ({
   agentName: options.agentName,
   context,
+  episodic: options.session.episodic,
   sessionId: options.sessionId,
   signal: options.controller.signal,
   turnId: options.turn.id,
@@ -106,12 +106,8 @@ const resolveInstructions = async <T>(
       continue
 
     const result = await plugin.extendInstructions({
-      agentName: options.agentName,
-      context,
+      ...createPluginHookBase(options, context),
       input: options.turn.input,
-      sessionId: options.sessionId,
-      signal: options.controller.signal,
-      turnId: options.turn.id,
     } satisfies ExtendInstructionsOptions<T>)
 
     if (result != null && result.length > 0)
@@ -192,10 +188,22 @@ const runResponse = async <T>(
   options: RunTurnParams<T>,
   input: QueuedInput<T>[],
   instructions: string,
+  contributions: SliceContribution[],
 ): Promise<ResponseOptions<T>> => {
-  const snapshot = options.session.snapshot()
-  const responseInput = [...snapshot.items, ...input.map(item => item.input)]
   const context = mergeRunContext(options.getContext(), input)
+  options.session.episodic.appendItems(input.map(item => item.input), {
+    source: 'user',
+    turnId: options.turn.id,
+  })
+  const assembled = options.session.assemble({
+    contributions,
+    context,
+    reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
+      ? options.responseOptions.maxOutputTokens
+      : undefined,
+    turnId: options.turn.id,
+  })
+  const responseInput = assembled.items
   const responseOptions = createResponseOptions(options, context, responseInput)
   const tools = await resolveTools(options, responseOptions)
 
@@ -218,13 +226,29 @@ const runResponse = async <T>(
     options.emit(options.turn.id, event)
 
   const resolvedInput = await result.input
+  const totalUsage = await result.totalUsage
+  const usage = totalUsage ?? await result.usage
+  const newItems = resolvedInput.slice(responseInput.length)
 
-  await options.mutateSession(async () => {
-    if (!options.session.commit(snapshot.version, resolvedInput))
-      return
-
-    await options.saveSession(options.session.snapshot())
+  options.session.episodic.appendItems(newItems, {
+    source: 'model',
+    turnId: options.turn.id,
   })
+
+  if (usage != null) {
+    options.session.episodic.append({
+      kind: 'meta',
+      meta: { source: 'runtime', turnId: options.turn.id },
+      payload: {
+        data: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+        },
+        event: 'turn.usage',
+      },
+    })
+  }
 
   return responseOptions
 }
@@ -234,9 +258,14 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
     await options.ready()
 
     const context = mergeRunContext(options.getContext(), [options.turn])
+    const contributions: SliceContribution[] = []
 
-    for (const plugin of options.plugins)
-      await plugin.onTurnStart?.(createTurnStartOptions(options, context))
+    for (const plugin of options.plugins) {
+      const result = await plugin.onTurnStart?.(createTurnStartOptions(options, context))
+
+      if (result?.contributions != null)
+        contributions.push(...result.contributions)
+    }
 
     options.emit(options.turn.id, { type: 'turn.start' })
 
@@ -249,7 +278,7 @@ export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnComplet
     let nextInput: QueuedInput<T>[] = [options.turn]
 
     while (true) {
-      const responseContext = await runResponse(options, nextInput, mergedInstructions)
+      const responseContext = await runResponse(options, nextInput, mergedInstructions, contributions)
 
       if (options.controller.signal.aborted)
         throw options.controller.signal.reason
