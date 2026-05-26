@@ -299,6 +299,19 @@ describe('createEpisodic', () => {
     expect(episodic.read({ limit: 0 })).toEqual([])
     expect(episodic.read({ limit: -1 })).toEqual([])
   })
+
+  it('continues ids from the max imported episode id', () => {
+    const episodic = createEpisodic([
+      { id: 10, meta: { source: 'user' }, payload: { item: message('later') }, type: 'item' },
+      { id: 2, meta: { source: 'user' }, payload: { item: message('earlier') }, type: 'item' },
+    ])
+
+    expect(episodic.append({
+      meta: { source: 'user' },
+      payload: { item: message('next') },
+      type: 'item',
+    }).id).toBe(11)
+  })
 })
 
 describe('assemble', () => {

@@ -149,7 +149,7 @@ export const createEpisodic = (initial?: readonly Episode[] | string): Episodic 
     }
     else {
       episodes = initial.map(e => ({ ...e }))
-      nextId = episodes.length > 0 ? episodes[episodes.length - 1].id + 1 : 1
+      nextId = episodes.reduce((max, episode) => Math.max(max, episode.id), 0) + 1
     }
   }
 
