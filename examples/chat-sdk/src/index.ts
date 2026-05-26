@@ -22,4 +22,4 @@ env.APEIRA_CWD ??= envRoot
 
 const { startBot } = await import('./bot')
 
-startBot()
+await startBot()

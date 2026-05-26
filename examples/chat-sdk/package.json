@@ -4,8 +4,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@apeira/core": "workspace:",

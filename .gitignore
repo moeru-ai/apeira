@@ -32,3 +32,6 @@ docs/private
 
 # dotenv
 .env
+
+# apeira example sessions
+.apeira

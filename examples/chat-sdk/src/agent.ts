@@ -21,7 +21,7 @@ export const agent = createAgent({
   plugins: [
     commonTools({ include: ['search', 'fetch'] }),
     unstorage({
-      driver: fsDriver({ base: './.apeira-sessions' }),
+      driver: fsDriver({ base: '../../.apeira/sessions' }),
     }),
   ],
 })

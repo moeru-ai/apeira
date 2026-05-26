@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import type { AgentEvent } from '@apeira/core'
 
 import { env, exit } from 'node:process'
@@ -12,7 +11,7 @@ import { createMemoryState } from './state'
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
-export const startBot = () => {
+export const startBot = async () => {
   if (TELEGRAM_USER_ID == null) {
     console.error('Please set the TELEGRAM_USER_ID environment variable.')
     exit(1)
@@ -33,6 +32,8 @@ export const startBot = () => {
     state: createMemoryState(),
     userName: 'apeira-bot',
   })
+
+  await bot.initialize()
 
   /**
    * Convert an Apeira Agent event stream into a text stream
@@ -104,7 +105,4 @@ export const startBot = () => {
 
     await thread.post(agentTextStream(stream))
   })
-
-  console.log('🤖 Telegram Bot started (polling mode)...')
-  console.log(`✅ Allowed user ID: ${TELEGRAM_USER_ID}`)
 }
