@@ -182,7 +182,7 @@ const unsubscribe = session.subscribe('apeira', event =>
 
 ## Persistence
 
-When a storage plugin (e.g. `@apeira/plugin-unstorage`) is configured, session state — context, Episodic JSONL, and version — is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
+When a storage plugin (e.g. `@apeira/plugin-unstorage`) is configured, session state — context, Episodic JSONL, and version — is serialized to JSON and persisted.
 
 Persisted state uses the current `episodic` JSONL field; old `items` history arrays are not migrated.
 

@@ -75,7 +75,7 @@ const journalPlugin: AgentPlugin = {
 
 ### Storage
 
-Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL + `version`) is serialized to JSON and persisted. Optimistic concurrency via a version counter prevents conflicting writes.
+Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL + `version`) is serialized to JSON and persisted.
 
 ### Ordering
 
