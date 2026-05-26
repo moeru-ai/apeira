@@ -255,6 +255,9 @@ importers:
       '@apeira/plugin-skills':
         specifier: 'workspace:'
         version: link:../../packages/plugin-skills
+      '@apeira/plugin-unstorage':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-unstorage
       '@chat-adapter/telegram':
         specifier: 'catalog:'
         version: 4.29.0(zod@4.4.3)
@@ -267,6 +270,9 @@ importers:
       chat:
         specifier: 'catalog:'
         version: 4.29.0(zod@4.4.3)
+      unstorage:
+        specifier: 'catalog:'
+        version: 1.17.5
       zod:
         specifier: 'catalog:'
         version: 4.4.3

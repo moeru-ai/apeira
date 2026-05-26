@@ -1,7 +1,10 @@
 import { env } from 'node:process'
 
+import fsDriver from 'unstorage/drivers/fs'
+
 import { createAgent } from '@apeira/core'
 import { commonTools } from '@apeira/plugin-common-tools'
+import { unstorage } from '@apeira/plugin-unstorage'
 
 const model = env.APEIRA_MODEL ?? 'qwen3.5:0.8b'
 const baseURL = env.APEIRA_BASE_URL ?? 'http://localhost:11434/v1'
@@ -17,5 +20,8 @@ export const agent = createAgent({
   },
   plugins: [
     commonTools({ include: ['search', 'fetch'] }),
+    unstorage({
+      driver: fsDriver({ base: './.apeira-sessions' }),
+    }),
   ],
 })
