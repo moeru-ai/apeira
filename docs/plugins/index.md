@@ -28,14 +28,18 @@ interface AgentPlugin {
 }
 
 interface ExtendInputOptions extends PluginHookBase {
+  episodic: Episodic
   input: readonly ItemParam[]
+  turnInput: ItemParam
+}
+
+interface ExtendInstructionsOptions extends PluginHookBase {
   turnInput: ItemParam
 }
 
 interface PluginHookBase {
   agentName: string
   context: AgentContext<unknown>
-  episodic: Episodic
   sessionId: string
   signal: AbortSignal
   turnId: string
@@ -46,13 +50,13 @@ interface PluginHookBase {
 
 - `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](#channels) below.
 - `onSessionInit` — called when a session is first accessed.
-- `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn. Hooks receive the working `episodic` log for that turn.
+- `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn.
 - `onEvent` — observe all agent events.
 
 ### Instruction and tool hooks
 
-- `extendInstructions` — append content to the system prompt. Receives the merged context and working Episodic log.
-- `extendInput` — append temporary model input items for the next model call. Returned items are not persisted unless the plugin appends episodes itself.
+- `extendInstructions` — append content to the system prompt. Receives the merged context and current `turnInput`.
+- `extendInput` — append temporary model input items for the next model call. This is the hook that receives the working `episodic` log. Returned items are not persisted unless the plugin appends episodes itself.
 - `resolveTools` — inject tools into model calls for a session.
 - `onFinish`, `onStepFinish`, `prepareStep` — pass-through hooks to xsAI response lifecycle.
 
@@ -118,8 +122,8 @@ const loggingPlugin: AgentPlugin = {
   name: 'logging',
   onEvent: event => event.type === 'turn.failed' && console.error(event.error),
   onTurnDone: ({ snapshot, turnId }) => console.log('turn finished:', turnId, snapshot.version),
-  onTurnStart: ({ episodic, turnId }) => {
-    console.log('turn started:', turnId, episodic.read({ limit: 1 }))
+  onTurnStart: ({ turnId }) => {
+    console.log('turn started:', turnId)
   },
 }
 ```

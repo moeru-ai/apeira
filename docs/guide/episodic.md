@@ -126,7 +126,7 @@ Normalize keeps function-call outputs paired with function calls. Orphan outputs
 
 ## Plugins
 
-Every plugin hook receives `episodic` in its hook base:
+`extendInput` receives the working `episodic` log:
 
 ```ts
 const plugin = {

@@ -59,7 +59,6 @@ const createPluginHookBase = <T>(
 ) => ({
   agentName: options.agentName,
   context,
-  episodic: options.episodic,
   sessionId: options.sessionId,
   signal: options.controller.signal,
   turnId: options.turn.id,
@@ -70,7 +69,7 @@ const createTurnStartOptions = <T>(
   context: AgentContext<T>,
 ): TurnStartOptions<T> => ({
   ...createPluginHookBase(options, context),
-  input: options.turn.input,
+  turnInput: options.turn.input,
 })
 
 const createInputHookOptions = <T>(
@@ -81,6 +80,15 @@ const createInputHookOptions = <T>(
   ...createPluginHookBase(options, context),
   input,
   turnInput: options.turn.input,
+})
+
+const createExtendInputOptions = <T>(
+  options: RunTurnOptions<T>,
+  context: AgentContext<T>,
+  input: ItemParam[],
+): ExtendInputOptions<T> => ({
+  ...createInputHookOptions(options, context, input),
+  episodic: options.episodic,
 })
 
 const mergeTools = (tools: Tool[]): Tool[] =>
@@ -99,7 +107,7 @@ const resolveInstructions = async <T>(
 
     const result = await plugin.extendInstructions({
       ...createPluginHookBase(options, context),
-      input: options.turn.input,
+      turnInput: options.turn.input,
     } satisfies ExtendInstructionsOptions<T>)
 
     if (result != null && result.length > 0)
@@ -206,7 +214,7 @@ const runResponse = async <T>(
     source: 'user',
     turnId: options.turn.id,
   })
-  const extensions = await resolveInputExtensions(options, createInputHookOptions(options, context, turnInput))
+  const extensions = await resolveInputExtensions(options, createExtendInputOptions(options, context, turnInput))
   const assembled = createSlice(options.episodic, {
     extensions,
     maxTokens: context.contextLength,

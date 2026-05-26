@@ -1,6 +1,5 @@
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
-import { createEpisodic } from '@apeira/core/episodic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mcp } from '../src/index'
@@ -95,7 +94,6 @@ vi.mock('@modelcontextprotocol/sdk/client/websocket.js', () => ({
 const createResolveOptions = () => ({
   agentName: 'agent',
   context: {},
-  episodic: createEpisodic(),
   input: [{ content: 'hello', role: 'user' as const, type: 'message' as const }],
   sessionId: 'session',
   signal: new AbortController().signal,

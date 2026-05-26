@@ -5,7 +5,6 @@ import path from 'node:path'
 
 import { fileURLToPath } from 'node:url'
 
-import { createEpisodic } from '@apeira/core/episodic'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { fsSkillSet } from '../src/fs'
@@ -93,11 +92,10 @@ describe('skills', () => {
     const result = await plugin.extendInstructions?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
-      input: { content: 'hello', role: 'user', type: 'message' },
       sessionId: 'session',
       signal: new AbortController().signal,
       turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
     })
 
     expect(result).toContain('<available_skills>')
@@ -110,11 +108,10 @@ describe('skills', () => {
     await plugin.onTurnStart?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
-      input: { content: 'hello', role: 'user', type: 'message' },
       sessionId: 'session',
       signal: new AbortController().signal,
       turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
     })
 
     expect(skillSet.getSkills()).toEqual([inspectSkill])
@@ -125,7 +122,6 @@ describe('skills', () => {
     const tools = await plugin.resolveTools?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
       input: [{ content: 'hello', role: 'user', type: 'message' }],
       sessionId: 'session',
       signal: new AbortController().signal,
@@ -158,7 +154,6 @@ describe('skills', () => {
     const tools = await plugin.resolveTools?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
       input: [{ content: 'hello', role: 'user', type: 'message' }],
       sessionId: 'session',
       signal: new AbortController().signal,
@@ -185,11 +180,10 @@ describe('skills', () => {
     const result = await plugin.extendInstructions?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
-      input: { content: 'hello', role: 'user', type: 'message' },
       sessionId: 'session',
       signal: new AbortController().signal,
       turnId: 'turn',
+      turnInput: { content: 'hello', role: 'user', type: 'message' },
     })
 
     expect(result).toContain('<name>inspect</name>')
@@ -204,7 +198,6 @@ describe('skills', () => {
     await plugin.resolveTools?.({
       agentName: 'agent',
       context: {},
-      episodic: createEpisodic(),
       input: [{ content: 'hello', role: 'user', type: 'message' }],
       sessionId: 'session',
       signal: new AbortController().signal,
@@ -214,7 +207,7 @@ describe('skills', () => {
     })
 
     // high priority wins dedupe
-    expect(plugin.extendInstructions?.({ agentName: 'agent', context: {}, episodic: createEpisodic(), input: { content: 'hello', role: 'user', type: 'message' }, sessionId: 'session', signal: new AbortController().signal, turnId: 'turn' })).toContain('high')
+    expect(plugin.extendInstructions?.({ agentName: 'agent', context: {}, sessionId: 'session', signal: new AbortController().signal, turnId: 'turn', turnInput: { content: 'hello', role: 'user', type: 'message' } })).toContain('high')
   })
 })
 

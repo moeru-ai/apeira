@@ -46,12 +46,13 @@ export interface ChannelApi {
 }
 
 export interface ExtendInputOptions<T = unknown> extends PluginHookBase<T> {
+  episodic: Episodic
   input: readonly ItemParam[]
   turnInput: ItemParam
 }
 
 export interface ExtendInstructionsOptions<T = unknown> extends PluginHookBase<T> {
-  input: ItemParam
+  turnInput: ItemParam
 }
 
 export type PluginChannelListener<T = unknown> = (event: T) => void
@@ -59,7 +60,6 @@ export type PluginChannelListener<T = unknown> = (event: T) => void
 export interface PluginHookBase<T = unknown> {
   agentName: string
   context: AgentContext<T>
-  episodic: Episodic
   sessionId: string
   signal: AbortSignal
   turnId: string
@@ -97,5 +97,5 @@ export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {
 }
 
 export interface TurnStartOptions<T = unknown> extends PluginHookBase<T> {
-  input: ItemParam
+  turnInput: ItemParam
 }
