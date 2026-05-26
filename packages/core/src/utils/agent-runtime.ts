@@ -106,9 +106,8 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     version += 1
   }
 
-  const mergeWorkingEpisodic = (workingEpisodic: Episodic) => {
-    const lastId = episodic.read({ limit: 1 })[0]?.id ?? 0
-    const nextEpisodes = workingEpisodic.read({ fromId: lastId })
+  const mergeWorkingEpisodic = (workingEpisodic: Episodic, fromId: number) => {
+    const nextEpisodes = workingEpisodic.read({ fromId })
 
     for (const episode of nextEpisodes)
       episodic.append(toNewEpisode(episode))
@@ -117,7 +116,10 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       version += 1
   }
 
-  const forkEpisodic = () => createEpisodic(episodic.toJSONL())
+  const forkEpisodic = () => {
+    const fromId = episodic.read({ limit: 1 })[0]?.id ?? 0
+    return [fromId, createEpisodic(episodic.toJSONL())] as const
+  }
 
   const ensureLoaded = async () => {
     await options.ready()
@@ -223,7 +225,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     controller: AbortController,
     turn: QueuedInput<T>,
   ): Promise<TurnCompletion<T>> => {
-    const workingEpisodic = forkEpisodic()
+    const [formId, workingEpisodic] = forkEpisodic()
     const completion = await runTurn<T>({
       agentName: options.agentName,
       controller,
@@ -249,7 +251,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       if (controller.signal.aborted)
         return
 
-      mergeWorkingEpisodic(workingEpisodic)
+      mergeWorkingEpisodic(workingEpisodic, formId)
 
       await options.saveSession(snapshotSession())
     })
