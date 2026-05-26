@@ -32,7 +32,7 @@ const parseEpisode = (value: unknown): Episode | undefined => {
 const normalizeLimit = (limit: number): number =>
   Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0
 
-export const createEpisodic = (jsonl?: string): Episodic => {
+export const createEpisodic = (initial?: Episode[] | string): Episodic => {
   let episodes: Episode[] = []
   let nextId = 1
 
@@ -143,8 +143,15 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     toJSONL: () => episodes.map(episode => JSON.stringify(episode)).join('\n'),
   }
 
-  if (jsonl != null)
-    loadJSONL(jsonl)
+  if (initial != null) {
+    if (Array.isArray(initial)) {
+      episodes = initial.map(e => ({ ...e }))
+      nextId = episodes.length > 0 ? episodes[episodes.length - 1].id + 1 : 1
+    }
+    else {
+      loadJSONL(initial)
+    }
+  }
 
   return api
 }

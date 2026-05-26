@@ -110,7 +110,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
   const forkEpisodic = () => {
     const fromId = episodic.read({ limit: 1 })[0]?.id ?? 0
-    return [fromId, createEpisodic(episodic.toJSONL())] as const
+    return [fromId, createEpisodic(episodic.read({ fromId: 0 }))] as const
   }
 
   const ensureLoaded = async () => {
