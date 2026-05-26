@@ -1,4 +1,4 @@
-export { createEpisodic } from './episodic/episodic'
+export { createEpisodic } from './episodic'
 export type {
   BoundaryEpisode,
   BoundaryPayload,
@@ -12,4 +12,4 @@ export type {
   MetaPayload,
   NewEpisode,
   TurnUsageData,
-} from './episodic/types'
+} from './types'
