@@ -2,6 +2,8 @@
 
 Episodic is Apeira's advanced session history API. Each session stores an append-only JSONL log of episodes. Normal applications usually interact with `Agent`, `Session`, and `Plugin`; use Episodic when a plugin or host needs to inspect or append structured history.
 
+This design is inspired by [Tape](https://tape.systems).
+
 ## Core ideas
 
 - **Episode** — one immutable event in a session log.
@@ -157,4 +159,4 @@ Returned input affects only that model call. It does not mutate the session log 
 
 - [Sessions](/guide/sessions) — session isolation, forking, and persistence.
 - [Agent Lifecycle](/guide/agent-lifecycle) — queueing, interrupt, abort, and clear.
-- [Plugins](/plugins/) — hook into Episodic from plugins.
+- [Plugin API](/advanced/plugin-api) — hook into Episodic from plugins.

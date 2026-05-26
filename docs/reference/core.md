@@ -198,7 +198,7 @@ interface SessionState<T = unknown> {
 }
 ```
 
-For behavior details, see [Episodic](/guide/episodic).
+For behavior details, see [Episodic](/advanced/episodic).
 
 ### remove()
 
