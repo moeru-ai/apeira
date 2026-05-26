@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "chat-sdk": {
+      "source": "vercel/chat",
+      "sourceType": "github",
+      "skillPath": "skills/chat/SKILL.md",
+      "computedHash": "c7277fe8be96a8a1eea9e2cc373ebfed21b79e666565e587562dcdfbae65cced"
+    },
     "xsai": {
       "source": "moeru-ai/xsai",
       "sourceType": "github",

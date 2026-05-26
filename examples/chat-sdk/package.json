@@ -1,0 +1,20 @@
+{
+  "name": "@apeira/example-chat-sdk",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-common-tools": "workspace:",
+    "@apeira/plugin-skills": "workspace:",
+    "@chat-adapter/telegram": "catalog:",
+    "@pnpm/find-workspace-dir": "catalog:",
+    "@xsai/tool": "catalog:xsai",
+    "chat": "catalog:",
+    "zod": "catalog:"
+  }
+}
