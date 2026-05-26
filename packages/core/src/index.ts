@@ -1,20 +1,3 @@
-export { createEpisodic } from './episodic'
-export type {
-  BoundaryEpisode,
-  BoundaryPayload,
-  BoundaryReason,
-  Episode,
-  EpisodeMeta,
-  Episodic,
-  EpisodicQuery,
-  ItemEpisode,
-  MetaEpisode,
-  MetaPayload,
-  NewEpisode,
-  SliceContribution,
-  SliceOptions,
-  TurnUsageData,
-} from './episodic'
 export type { AgentContext, Instructions, ItemParam, MaybePromise } from './types/base'
 export type {
   AgentEvent,
@@ -34,6 +17,7 @@ export type {
   AgentPluginApi,
   AgentPluginOption,
   ChannelApi,
+  ExtendInputOptions,
   ExtendInstructionsOptions,
   PluginChannelListener,
   PluginHookBase,
@@ -44,7 +28,6 @@ export type {
   StorageLike,
   TurnDoneOptions,
   TurnStartOptions,
-  TurnStartResult,
 } from './types/plugin'
 export { createAgent } from './utils/agent'
 export type { Agent, CreateAgentOptions, SessionOptions } from './utils/agent'

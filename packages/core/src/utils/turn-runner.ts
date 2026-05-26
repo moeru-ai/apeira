@@ -1,15 +1,15 @@
 import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
-import type { Episodic, SliceContribution } from '../episodic'
+import type { Episodic } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ExtendInputOptions, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
 
 import { merge } from '@moeru/std/merge'
 import { responses, stepCountAtLeast } from '@xsai-ext/responses'
 
-import { createSlice } from '../episodic'
+import { createSlice } from '../episodic/slice'
 
 export type EmitTurnEvent = (id: string, event: ApeiraEvent | XSAIEvent) => void
 
@@ -73,7 +73,7 @@ const createTurnStartOptions = <T>(
   input: options.turn.input,
 })
 
-const createResponseOptions = <T>(
+const createInputHookOptions = <T>(
   options: RunTurnOptions<T>,
   context: AgentContext<T>,
   input: ItemParam[],
@@ -128,6 +128,25 @@ const resolveTools = async <T>(
   return tools.length > 0 ? tools : options.responseOptions.tools
 }
 
+const resolveInputExtensions = async <T>(
+  options: RunTurnOptions<T>,
+  pluginOptions: ExtendInputOptions<T>,
+) => {
+  const extensions: ItemParam[] = []
+
+  for (const plugin of options.plugins) {
+    if (plugin.extendInput == null)
+      continue
+
+    const extended = await plugin.extendInput(pluginOptions)
+
+    if (extended != null)
+      extensions.push(...extended)
+  }
+
+  return extensions
+}
+
 const chainStepHooks = <H extends (step: never) => unknown>(
   ...hooks: (H | undefined)[]
 ): H | undefined => {
@@ -180,22 +199,23 @@ const runResponse = async <T>(
   options: RunTurnOptions<T>,
   input: QueuedInput<T>[],
   instructions: string,
-  contributions: SliceContribution[],
 ): Promise<ResponseOptions<T>> => {
   const context = mergeRunContext(options.getContext(), input)
+  const turnInput = input.map(item => item.input)
   options.episodic.appendItems(input.map(item => item.input), {
     source: 'user',
     turnId: options.turn.id,
   })
+  const extensions = await resolveInputExtensions(options, createInputHookOptions(options, context, turnInput))
   const assembled = createSlice(options.episodic, {
-    contributions,
+    extensions,
     reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
       ? options.responseOptions.maxOutputTokens
       : undefined,
     turnId: options.turn.id,
   })
   const responseInput = assembled.items
-  const responseOptions = createResponseOptions(options, context, responseInput)
+  const responseOptions = createInputHookOptions(options, context, responseInput)
   const tools = await resolveTools(options, responseOptions)
 
   const result = responses({
@@ -249,14 +269,9 @@ export const runTurn = async <T>(options: RunTurnOptions<T>): Promise<TurnComple
     await options.ready()
 
     const context = mergeRunContext(options.getContext(), [options.turn])
-    const contributions: SliceContribution[] = []
 
-    for (const plugin of options.plugins) {
-      const result = await plugin.onTurnStart?.(createTurnStartOptions(options, context))
-
-      if (result?.contributions != null)
-        contributions.push(...result.contributions)
-    }
+    for (const plugin of options.plugins)
+      await plugin.onTurnStart?.(createTurnStartOptions(options, context))
 
     options.emit(options.turn.id, { type: 'turn.start' })
 
@@ -269,7 +284,7 @@ export const runTurn = async <T>(options: RunTurnOptions<T>): Promise<TurnComple
     let nextInput: QueuedInput<T>[] = [options.turn]
 
     while (true) {
-      const responseContext = await runResponse(options, nextInput, mergedInstructions, contributions)
+      const responseContext = await runResponse(options, nextInput, mergedInstructions)
 
       if (options.controller.signal.aborted)
         throw options.controller.signal.reason

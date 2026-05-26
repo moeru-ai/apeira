@@ -6,8 +6,9 @@ import Queue from 'yocto-queue'
 
 import { describe, expect, it } from 'vitest'
 
-import { createSlice } from '../src/episodic'
-import { createAgent, createEpisodic } from '../src/index'
+import { createEpisodic } from '../src/episodic'
+import { createSlice } from '../src/episodic/slice'
+import { createAgent } from '../src/index'
 import { createPendingInput } from '../src/utils/pending-input'
 
 const createMemoryStorage = (initial: Record<string, string> = {}) => {
@@ -641,6 +642,10 @@ describe('createAgent', () => {
         model: 'test-model',
       },
       plugins: [false, [{
+        extendInput: ({ input }) => {
+          calls.push(`extendInput:${input.length}`)
+          return [message('temporary plugin input')]
+        },
         name: 'test-plugin',
         onEvent: (event) => {
           if (!(event.type.startsWith('turn.')))
@@ -692,6 +697,7 @@ describe('createAgent', () => {
     expect(responsesFetch.inputs[0]).toEqual([
       message('loaded history'),
       message('use plugin'),
+      message('temporary plugin input'),
     ])
     expect(responsesFetch.bodies[0]?.tools).toEqual([{
       description: null,
@@ -705,6 +711,7 @@ describe('createAgent', () => {
       'onSessionInit',
       'loadSession',
       'onTurnStart',
+      'extendInput:1',
       'resolveTools:0',
       'onStepFinish',
       'onFinish',
@@ -791,6 +798,70 @@ describe('createAgent', () => {
       lastInput: assistantMessage('response 2'),
       requestId: undefined,
     })
+  })
+
+  it('extends each model input without persisting extension items', async () => {
+    const records: Array<{ input?: unknown, requestId?: string }> = []
+    const responsesFetch = createResponsesFetch(2)
+    const storage = createMemoryStorage()
+    const agent = createAgent<{ requestId?: string }>({
+      instructions: 'You are a plugin test assistant.',
+      name: 'extend-input-test',
+      options: {
+        apiKey: 'test',
+        baseURL: 'https://example.test/v1/',
+        fetch: responsesFetch.fetch,
+        model: 'test-model',
+      },
+      plugins: [{
+        extendInput: ({ context, input }) => {
+          records.push({ input: input.at(-1), requestId: context.requestId })
+          return [message(`extension:${context.requestId ?? 'none'}`)]
+        },
+        name: 'input-extender',
+        storage: {
+          getItem: key => storage.getItem(key),
+          removeItem: key => storage.removeItem(key),
+          setItem: (key, value) => storage.setItem(key, value),
+        },
+      }],
+    })
+    const events: AgentEvent[] = []
+    let turnId: string
+    let followUpQueued = false
+
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+
+      if (event.turnId === turnId && event.type === 'step.start' && !followUpQueued) {
+        followUpQueued = true
+        agent.send(message('Follow up.'), {
+          context: { requestId: 'follow' },
+        })
+      }
+    })
+
+    turnId = agent.send(message('Initial turn.'), {
+      context: { requestId: 'initial' },
+    })
+
+    try {
+      await waitForTurnDone(events, turnId)
+    }
+    finally {
+      unsubscribe()
+    }
+
+    expect(records).toEqual([
+      { input: message('Initial turn.'), requestId: 'initial' },
+      { input: message('Follow up.'), requestId: 'follow' },
+    ])
+    expect(responsesFetch.inputs[0]).toContainEqual(message('extension:initial'))
+    expect(responsesFetch.inputs[1]).toContainEqual(message('extension:follow'))
+
+    const state = parseSessionState(storage.values.get('["extend-input-test","default"]'))
+    expect(itemsFromEpisodic(state.episodic)).not.toContainEqual(message('extension:initial'))
+    expect(itemsFromEpisodic(state.episodic)).not.toContainEqual(message('extension:follow'))
   })
 
   it('merges agent, session, and run context for instructions', async () => {

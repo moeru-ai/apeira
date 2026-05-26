@@ -59,8 +59,8 @@ normally — any queued turns run after the interrupted turn is aborted.
 ### Agent Lifecycle
 
 Each session keeps an append-only Episodic log. When a turn starts, Apeira forks
-that log into a working copy, appends the new input, assembles a prompt Slice,
-and passes the Slice to `@xsai-ext/responses`. When the turn completes
+that log into a working copy, appends the new input, assembles model input,
+and passes it to `@xsai-ext/responses`. When the turn completes
 successfully, only the new working episodes are merged back. Failed or aborted
 turns are discarded, except `interrupt()` records a boundary for the next turn.
 

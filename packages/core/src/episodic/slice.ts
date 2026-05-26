@@ -80,7 +80,7 @@ const findOverflowStartIndex = (
 
 export const createSlice = (episodic: Episodic, options: SliceOptions = {}): SliceResult => {
   const {
-    contributions,
+    extensions = [],
     maxTokens = DEFAULT_MAX_TOKENS,
     normalize = normalizeItems,
     reserveOutputTokens,
@@ -101,16 +101,11 @@ export const createSlice = (episodic: Episodic, options: SliceOptions = {}): Sli
 
     return []
   })
-  const contributed = contributions?.flatMap(contribution => contribution.items) ?? []
-  const normalized = normalize([...items, ...contributed])
+  const normalized = normalize([...items, ...extensions])
 
   return {
     items: normalized,
     meta: {
-      injectedRefs: contributions?.map(contribution => ({
-        pluginId: contribution.id,
-        refId: contribution.id,
-      })) ?? [],
       itemCount: normalized.length,
       truncated: startIndex > 0,
     },

@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { fileURLToPath } from 'node:url'
 
-import { createEpisodic } from '@apeira/core'
+import { createEpisodic } from '@apeira/core/episodic'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { fsSkillSet } from '../src/fs'

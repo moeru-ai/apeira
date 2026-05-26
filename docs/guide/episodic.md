@@ -1,16 +1,15 @@
 # Episodic
 
-Episodic is Apeira's session history kernel. Each session stores an append-only JSONL log of episodes. A model call does not receive the raw log directly; Apeira assembles a Slice from the log for that turn.
+Episodic is Apeira's advanced session history API. Each session stores an append-only JSONL log of episodes. Normal applications usually interact with `Agent`, `Session`, and `Plugin`; use Episodic when a plugin or host needs to inspect or append structured history.
 
 ## Core ideas
 
 - **Episode** — one immutable event in a session log.
 - **Episodic** — the append-only event stream for one session.
-- **Slice** — the prompt view assembled from Episodic for a model call.
 - **Boundary** — a structured marker such as `checkpoint`, `interrupt`, `overflow`, `intent`, or `segment`.
 - **Meta** — audit data that is not sent to the model by default.
 
-The log preserves raw facts. Trimming, normalization, and plugin contributions happen while building a Slice, not by editing old episodes.
+The log preserves raw facts. Trimming, normalization, and temporary plugin input happen while Apeira assembles a model call, not by editing old episodes.
 
 ## Episode types
 
@@ -60,10 +59,10 @@ episodic.append({
 
 ## Querying
 
-The `Episodic` API is exported from `@apeira/core`:
+The `Episodic` API is exported from `@apeira/core/episodic`:
 
 ```ts
-import { createEpisodic } from '@apeira/core'
+import { createEpisodic } from '@apeira/core/episodic'
 
 const episodic = createEpisodic()
 const recentItems = episodic.read({ limit: 12, type: 'item' })
@@ -114,9 +113,9 @@ Every turn runs against a working Episodic fork:
 
 `interrupt()` is the exception: it aborts the active turn and writes an `interrupt` boundary to the committed session log so the next turn can see that the previous turn was intentionally interrupted.
 
-## Slice assembly
+## Model input assembly
 
-Slice is the prompt builder. It selects visible episodes, adds plugin contributions, and normalizes the final `ItemParam[]`. Slice assembly applies a coarse budget heuristic based on the previous turn's xsAI usage metadata: if the last known input tokens exceed the budget, it attempts to restart from the nearest `checkpoint` or `interrupt` boundary. If there is no such boundary, it keeps the current turn's episodes when a `turnId` is available; otherwise it returns no historical episodes.
+Apeira selects visible episodes, adds temporary plugin input from `extendInput`, and normalizes the final `ItemParam[]` internally. Assembly applies a coarse budget heuristic based on the previous turn's xsAI usage metadata: if the last known input tokens exceed the budget, it attempts to restart from the nearest `checkpoint` or `interrupt` boundary. If there is no such boundary, it keeps the current turn's episodes when a `turnId` is available; otherwise it returns no historical episodes.
 
 Visible boundaries:
 
@@ -131,38 +130,29 @@ Every plugin hook receives `episodic` in its hook base:
 
 ```ts
 const plugin = {
+  extendInput: ({ episodic }) =>
+    episodic.read({ limit: 6, type: 'item' })
+      .map(episode => episode.payload.item),
   name: 'recent-items',
-  onTurnStart: ({ episodic }) => {
-    return {
-      contributions: [{
-        id: 'recent',
-        items: episodic.read({ limit: 6, type: 'item' })
-          .map(episode => episode.payload.item),
-      }],
-    }
-  },
 }
 ```
 
-`onTurnStart` can also return Slice contributions:
+`extendInput` can also return temporary model input:
 
 ```ts
 const plugin = {
+  extendInput: () => [
+    {
+      content: 'User prefers concise answers.',
+      role: 'user',
+      type: 'message',
+    },
+  ],
   name: 'journal',
-  onTurnStart: () => ({
-    contributions: [{
-      id: 'journal',
-      items: [{
-        content: 'User prefers concise answers.',
-        role: 'user',
-        type: 'message',
-      }],
-    }],
-  }),
 }
 ```
 
-Contributions affect only the assembled Slice. They do not mutate the session log unless the plugin explicitly appends episodes.
+Returned input affects only that model call. It does not mutate the session log unless the plugin explicitly appends episodes.
 
 ## Next steps
 

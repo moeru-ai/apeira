@@ -67,19 +67,13 @@ export type NormalizeFn = (items: ItemParam[]) => ItemParam[]
 
 export type Slice = (episodic: Episodic, input: SliceOptions) => SliceResult
 
-export interface SliceContribution {
-  id: string
-  items: ItemParam[]
-}
-
 export interface SliceMeta {
-  injectedRefs: Array<{ pluginId: string, refId: string }>
   itemCount: number
   truncated: boolean
 }
 
 export interface SliceOptions {
-  contributions?: SliceContribution[]
+  extensions?: ItemParam[]
   maxTokens?: number
   normalize?: NormalizeFn
   reserveOutputTokens?: number

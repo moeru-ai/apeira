@@ -179,17 +179,14 @@ const forked = await session.fork({
 
 If the source session has an active turn, only already committed episodes are copied. Passing an existing target `id` throws.
 
-## Episodic exports
+## Advanced Episodic API
 
-Core also exports the Episodic types and helpers:
+Episodic is available from the advanced subpath:
 
 ```ts
-import type { Episode, Episodic, EpisodicQuery, SessionState } from '@apeira/core'
+import type { Episode, Episodic, EpisodicQuery } from '@apeira/core/episodic'
 
-import {
-  createEpisodic
-
-} from '@apeira/core'
+import { createEpisodic } from '@apeira/core/episodic'
 ```
 
 The persisted session state shape is:

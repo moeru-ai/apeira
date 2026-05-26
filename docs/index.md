@@ -18,7 +18,7 @@ features:
   - title: Small runtime
     details: Apeira keeps the core focused on Episodic session state, turn queueing, aborts, and event delivery.
   - title: Episodic state
-    details: Session history is an append-only JSONL log; each model call receives an assembled Slice.
+    details: Session history is an append-only JSONL log; each model call receives assembled context from that log.
   - title: xsAI-based
     details: Model calls, tools, steps, and streaming events are powered by @xsai-ext/responses.
 ---

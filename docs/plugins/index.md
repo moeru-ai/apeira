@@ -9,13 +9,14 @@ A plugin is an object that conforms to `AgentPlugin`:
 ```ts
 interface AgentPlugin {
   enforce?: 'post' | 'pre'
+  extendInput?: (options: ExtendInputOptions) => MaybePromise<ItemParam[] | void>
   extendInstructions?: (options: ExtendInstructionsOptions) => MaybePromise<string | void>
   onEvent?: (event: AgentEvent) => void
   onFinish?: ResponsesOptions['onFinish']
   onSessionInit?: (options: SessionInitOptions) => MaybePromise<void>
   onStepFinish?: ResponsesOptions['onStepFinish']
   onTurnDone?: (options: TurnDoneOptions) => MaybePromise<void>
-  onTurnStart?: (options: TurnStartOptions) => MaybePromise<TurnStartResult | void>
+  onTurnStart?: (options: TurnStartOptions) => MaybePromise<void>
   prepareStep?: ResponsesOptions['prepareStep']
   resolveTools?: (options: ResolveToolsOptions) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
@@ -26,6 +27,11 @@ interface AgentPlugin {
   }
 }
 
+interface ExtendInputOptions extends PluginHookBase {
+  input: readonly ItemParam[]
+  turnInput: ItemParam
+}
+
 interface PluginHookBase {
   agentName: string
   context: AgentContext<unknown>
@@ -33,10 +39,6 @@ interface PluginHookBase {
   sessionId: string
   signal: AbortSignal
   turnId: string
-}
-
-interface TurnStartResult {
-  contributions?: SliceContribution[]
 }
 ```
 
@@ -50,24 +52,20 @@ interface TurnStartResult {
 ### Instruction and tool hooks
 
 - `extendInstructions` — append content to the system prompt. Receives the merged context and working Episodic log.
+- `extendInput` — append temporary model input items for the next model call. Returned items are not persisted unless the plugin appends episodes itself.
 - `resolveTools` — inject tools into model calls for a session.
 - `onFinish`, `onStepFinish`, `prepareStep` — pass-through hooks to xsAI response lifecycle.
 
-`onTurnStart` may return Slice contributions. Contributions are sent to the model for this turn but are not persisted unless the plugin appends episodes itself.
-
 ```ts
 const journalPlugin: AgentPlugin = {
+  extendInput: () => [
+    {
+      content: 'User prefers concise answers.',
+      role: 'user',
+      type: 'message',
+    },
+  ],
   name: 'journal',
-  onTurnStart: () => ({
-    contributions: [{
-      id: 'journal',
-      items: [{
-        content: 'User prefers concise answers.',
-        role: 'user',
-        type: 'message',
-      }],
-    }],
-  }),
 }
 ```
 

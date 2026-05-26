@@ -25,7 +25,7 @@ const agent = createAgent({
 })
 ```
 
-Initial `input` is appended to the session's Episodic log. When a turn starts, Apeira forks that log into a working copy, appends the new input, assembles a Slice, and forwards that Slice to `@xsai-ext/responses`. On success, only the new working episodes are merged back into the committed log. On failure or abort, the working log is discarded.
+Initial `input` is appended to the session's Episodic log. When a turn starts, Apeira forks that log into a working copy, appends the new input, assembles model input, and forwards it to `@xsai-ext/responses`. On success, only the new working episodes are merged back into the committed log. On failure or abort, the working log is discarded.
 
 ## Queueing
 
@@ -116,6 +116,6 @@ For more on session-level context, see [Sessions](/guide/sessions).
 ## Next steps
 
 - [Sessions](/guide/sessions) — isolate conversations with explicit sessions.
-- [Episodic](/guide/episodic) — understand session history and Slice assembly.
+- [Episodic](/guide/episodic) — understand advanced session history and persistence.
 - [Events](/guide/events) — explore the event system.
 - [Plugins](/plugins/) — extend the runtime lifecycle.

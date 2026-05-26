@@ -18,7 +18,11 @@
     "xsai"
   ],
   "sideEffects": false,
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./episodic": "./src/episodic.ts",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],
@@ -27,6 +31,10 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./episodic": {
+        "types": "./dist/episodic.d.ts",
+        "default": "./dist/episodic.js"
       },
       "./package.json": "./package.json"
     },

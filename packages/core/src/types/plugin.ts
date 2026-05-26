@@ -1,7 +1,7 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
-import type { Episodic, SliceContribution } from '../episodic'
+import type { Episodic } from '../episodic'
 import type { AgentContext, ItemParam, MaybePromise } from './base'
 import type { AgentEvent } from './event'
 
@@ -11,6 +11,7 @@ export interface AgentChannelMap {
 
 export interface AgentPlugin<T = unknown> {
   enforce?: 'post' | 'pre'
+  extendInput?: (options: ExtendInputOptions<T>) => MaybePromise<ItemParam[] | void>
   extendInstructions?: (options: ExtendInstructionsOptions<T>) => MaybePromise<string | void>
   name: string
   onEvent?: (event: AgentEvent) => MaybePromise<void>
@@ -18,7 +19,7 @@ export interface AgentPlugin<T = unknown> {
   onSessionInit?: (options: SessionInitOptions<T>) => MaybePromise<void>
   onStepFinish?: ResponsesOptions['onStepFinish']
   onTurnDone?: (options: TurnDoneOptions<T>) => MaybePromise<void>
-  onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<TurnStartResult | void>
+  onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
   prepareStep?: ResponsesOptions['prepareStep']
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
@@ -42,6 +43,11 @@ export interface ChannelApi {
   subscribe: {
     <K extends string>(channel: K, listener: K extends keyof AgentChannelMap ? PluginChannelListener<AgentChannelMap[K]> : PluginChannelListener): () => boolean
   }
+}
+
+export interface ExtendInputOptions<T = unknown> extends PluginHookBase<T> {
+  input: readonly ItemParam[]
+  turnInput: ItemParam
 }
 
 export interface ExtendInstructionsOptions<T = unknown> extends PluginHookBase<T> {
@@ -92,8 +98,4 @@ export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {
 
 export interface TurnStartOptions<T = unknown> extends PluginHookBase<T> {
   input: ItemParam
-}
-
-export interface TurnStartResult {
-  contributions?: SliceContribution[]
 }

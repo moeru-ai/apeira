@@ -210,7 +210,7 @@ const agent = createAgent({
 
 ## Next steps
 
-- [Episodic](/guide/episodic) — session history, boundaries, Slice assembly, and persistence.
+- [Episodic](/guide/episodic) — advanced session history, boundaries, and persistence.
 - [Agent Lifecycle](/guide/agent-lifecycle) — queueing, interrupt, abort, and clear.
 - [Events](/guide/events) — understand the event system.
 - [Plugins](/plugins/) — storage plugins and session persistence.
