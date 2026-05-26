@@ -6,8 +6,8 @@ import { env, exit } from 'node:process'
 import { createTelegramAdapter } from '@chat-adapter/telegram'
 import { Chat } from 'chat'
 
-import { agent } from './agent.js'
-import { createMemoryState } from './state.js'
+import { agent } from './agent'
+import { createMemoryState } from './state'
 
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN

@@ -20,6 +20,6 @@ catch {}
 
 env.APEIRA_CWD ??= envRoot
 
-const { startBot } = await import('./bot.js')
+const { startBot } = await import('./bot')
 
 startBot()
