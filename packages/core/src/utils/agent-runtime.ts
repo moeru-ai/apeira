@@ -99,7 +99,9 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   })
 
   const resetSession = () => {
-    episodic = createEpisodic()
+    episodic = createEpisodic(options.episodic)
+    if (options.episodic == null)
+      episodic.appendItems(options.input ?? [], { source: 'user' })
     sessionContext = cloneContext(initialSessionContext)
     version += 1
   }
