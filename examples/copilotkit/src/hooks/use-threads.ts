@@ -41,7 +41,7 @@ const readThreadState = (threadId: string) => {
 
 const readThreadItems = (threadId: string): ItemParam[] => {
   const items: ItemParam[] = []
-  const lines = (readThreadState(threadId).episodic ?? '').split('\\n')
+  const lines = (readThreadState(threadId).episodic ?? '').split('\n')
 
   for (const line of lines) {
     if (!line.trim())

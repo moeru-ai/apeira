@@ -224,7 +224,7 @@ const readPersistedMessages = (threadId: string): Message[] => {
     const state = JSON.parse(raw) as PersistedThreadState
 
     const items: ItemParam[] = []
-    const lines = (state.episodic ?? '').split('\\n')
+    const lines = (state.episodic ?? '').split('\n')
     for (const line of lines) {
       if (!line.trim())
         continue
