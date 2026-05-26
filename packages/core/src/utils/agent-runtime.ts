@@ -253,9 +253,10 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
         return
 
       mergeWorkingEpisodic(workingEpisodic, formId)
-      committed = true
-
       await options.saveSession(snapshotSession())
+
+      if (!controller.signal.aborted)
+        committed = true
     })
 
     if (committed)
