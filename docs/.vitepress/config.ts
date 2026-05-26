@@ -33,13 +33,6 @@ export default defineConfig({
       },
       {
         items: [
-          { link: '/advanced/episodic', text: 'Episodic' },
-          { link: '/advanced/plugin-api', text: 'Plugin API' },
-        ],
-        text: 'Advanced',
-      },
-      {
-        items: [
           { link: '/plugins/', text: 'Overview' },
           { link: '/plugins/common-tools', text: 'Common Tools' },
           { link: '/plugins/mcp', text: 'MCP' },
@@ -48,6 +41,13 @@ export default defineConfig({
           { link: '/plugins/unstorage', text: 'Unstorage' },
         ],
         text: 'Plugins',
+      },
+      {
+        items: [
+          { link: '/advanced/episodic', text: 'Episodic' },
+          { link: '/advanced/plugin-api', text: 'Plugin API' },
+        ],
+        text: 'Advanced',
       },
       {
         items: [
