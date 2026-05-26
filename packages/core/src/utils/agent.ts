@@ -41,7 +41,7 @@ const parseSessionState = <T>(value: null | string | undefined): SessionState<T>
   try {
     const state = JSON.parse(value) as Partial<SessionState<T>>
 
-    if (typeof state.episodic !== 'string' || typeof state.version !== 'number')
+    if (state == null || typeof state.episodic !== 'string' || typeof state.version !== 'number')
       return undefined
 
     return state as SessionState<T>

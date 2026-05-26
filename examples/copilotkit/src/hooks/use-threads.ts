@@ -1,5 +1,6 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { ItemParam } from '@apeira/core'
+import type { Episode, ItemEpisode } from '@apeira/core/episodic'
 
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -37,21 +38,26 @@ const readThreadState = (threadId: string) => {
   }
 }
 
-const isItemEpisode = (episode: { payload?: { item?: ItemParam }, type: string }): episode is { payload: { item: ItemParam }, type: 'item' } =>
+const isItemEpisode = (episode: Episode): episode is ItemEpisode =>
   episode.type === 'item' && episode.payload?.item != null
 
 const readThreadItems = (threadId: string): ItemParam[] => {
-  try {
-    return (readThreadState(threadId).episodic ?? '')
-      .split('\n')
-      .filter(Boolean)
-      .map(line => JSON.parse(line) as { payload?: { item?: ItemParam }, type: string })
-      .filter(isItemEpisode)
-      .map(episode => episode.payload.item)
+  const items: ItemParam[] = []
+  const lines = (readThreadState(threadId).episodic ?? '').split('\\n')
+
+  for (const line of lines) {
+    if (!line.trim())
+      continue
+
+    try {
+      const episode = JSON.parse(line) as Episode
+      if (isItemEpisode(episode))
+        items.push(episode.payload.item)
+    }
+    catch {}
   }
-  catch {
-    return []
-  }
+
+  return items
 }
 
 const getText = (content: Extract<ItemParam, { type: 'message' }>['content']) =>
