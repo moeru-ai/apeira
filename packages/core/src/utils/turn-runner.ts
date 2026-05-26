@@ -1,25 +1,15 @@
 import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
-import type { SliceContribution } from '../episodic'
+import type { Episodic, SliceContribution } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { ApeiraEvent } from '../types/event'
 import type { AgentPlugin, ExtendInstructionsOptions, ResolveToolsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
-import type { SessionStore } from './session-store'
 
 import { merge } from '@moeru/std/merge'
 import { responses, stepCountAtLeast } from '@xsai-ext/responses'
 
-export interface AgentCoreOptions<T> {
-  agentName: string
-  emit: EmitTurnEvent
-  getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
-  instructions: Instructions<T>
-  plugins: AgentPlugin<T>[]
-  ready: () => Promise<void>
-  responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  sessionId: string
-}
+import { createSlice } from '../episodic'
 
 export type EmitTurnEvent = (id: string, event: ApeiraEvent | XSAIEvent) => void
 
@@ -31,21 +21,24 @@ export interface QueuedInput<T> {
 }
 
 export interface RunTurnOptions<T> {
+  agentName: string
   controller: AbortController
   drainInput: () => QueuedInput<T>[]
+  emit: EmitTurnEvent
+  episodic: Episodic
+  getContext: (context?: Partial<AgentContext<T>>) => AgentContext<T>
+  instructions: Instructions<T>
+  plugins: AgentPlugin<T>[]
+  ready: () => Promise<void>
+  responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
+  sessionId: string
   turn: QueuedInput<T> & { id: string }
 }
-
-export type RunTurnParams<T> = RunTurnOptions<T> & TurnOptions<T>
 
 export type TurnCompletion<T = unknown>
   = | { context: ResponseOptions<T>, type: 'done' }
     | { error: unknown, type: 'failed' }
     | { reason?: unknown, type: 'aborted' }
-
-export interface TurnOptions<T> extends AgentCoreOptions<T> {
-  session: SessionStore<T>
-}
 
 type PreparedStep = Awaited<ReturnType<PrepareStepHook>>
 
@@ -61,19 +54,19 @@ const mergeRunContext = <T>(
   )
 
 const createPluginHookBase = <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   context: AgentContext<T>,
 ) => ({
   agentName: options.agentName,
   context,
-  episodic: options.session.episodic,
+  episodic: options.episodic,
   sessionId: options.sessionId,
   signal: options.controller.signal,
   turnId: options.turn.id,
 })
 
 const createTurnStartOptions = <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   context: AgentContext<T>,
 ): TurnStartOptions<T> => ({
   ...createPluginHookBase(options, context),
@@ -81,7 +74,7 @@ const createTurnStartOptions = <T>(
 })
 
 const createResponseOptions = <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   context: AgentContext<T>,
   input: ItemParam[],
 ): ResponseOptions<T> => ({
@@ -94,7 +87,7 @@ const mergeTools = (tools: Tool[]): Tool[] =>
   [...new Map(tools.map(tool => [tool.function.name, tool])).values()]
 
 const resolveInstructions = async <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   context: AgentContext<T>,
   base: string,
 ): Promise<string> => {
@@ -117,7 +110,7 @@ const resolveInstructions = async <T>(
 }
 
 const resolveTools = async <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   pluginOptions: ResponseOptions<T>,
 ) => {
   let tools = [...(options.responseOptions.tools ?? [])]
@@ -171,30 +164,30 @@ const chainPrepareStepHooks = (
   }
 }
 
-const createOnFinish = <T>(options: RunTurnParams<T>): ResponsesOptions['onFinish'] =>
+const createOnFinish = <T>(options: RunTurnOptions<T>): ResponsesOptions['onFinish'] =>
   chainStepHooks(options.responseOptions.onFinish, ...options.plugins.map(plugin => plugin.onFinish))
 
-const createOnStepFinish = <T>(options: RunTurnParams<T>): ResponsesOptions['onStepFinish'] =>
+const createOnStepFinish = <T>(options: RunTurnOptions<T>): ResponsesOptions['onStepFinish'] =>
   chainStepHooks(options.responseOptions.onStepFinish, ...options.plugins.map(plugin => plugin.onStepFinish))
 
-const createPrepareStep = <T>(options: RunTurnParams<T>): ResponsesOptions['prepareStep'] =>
+const createPrepareStep = <T>(options: RunTurnOptions<T>): ResponsesOptions['prepareStep'] =>
   chainPrepareStepHooks(
     options.responseOptions.prepareStep,
     ...options.plugins.map(plugin => plugin.prepareStep),
   )
 
 const runResponse = async <T>(
-  options: RunTurnParams<T>,
+  options: RunTurnOptions<T>,
   input: QueuedInput<T>[],
   instructions: string,
   contributions: SliceContribution[],
 ): Promise<ResponseOptions<T>> => {
   const context = mergeRunContext(options.getContext(), input)
-  options.session.episodic.appendItems(input.map(item => item.input), {
+  options.episodic.appendItems(input.map(item => item.input), {
     source: 'user',
     turnId: options.turn.id,
   })
-  const assembled = options.session.assemble({
+  const assembled = createSlice(options.episodic, {
     context,
     contributions,
     reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
@@ -229,13 +222,13 @@ const runResponse = async <T>(
   const usage = totalUsage ?? await result.usage
   const newItems = resolvedInput.slice(responseInput.length)
 
-  options.session.episodic.appendItems(newItems, {
+  options.episodic.appendItems(newItems, {
     source: 'model',
     turnId: options.turn.id,
   })
 
   if (usage != null) {
-    options.session.episodic.append({
+    options.episodic.append({
       meta: { source: 'runtime', turnId: options.turn.id },
       payload: {
         data: {
@@ -252,7 +245,7 @@ const runResponse = async <T>(
   return responseOptions
 }
 
-export const runTurn = async <T>(options: RunTurnParams<T>): Promise<TurnCompletion<T>> => {
+export const runTurn = async <T>(options: RunTurnOptions<T>): Promise<TurnCompletion<T>> => {
   try {
     await options.ready()
 

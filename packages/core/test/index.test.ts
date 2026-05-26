@@ -1,15 +1,14 @@
 import type { Tool } from '@xsai/shared-chat'
 
-import type { AgentEvent } from '../src/index'
-import type { ItemParam } from '../src/types/base'
+import type { AgentEvent, ItemParam } from '../src/index'
 
 import Queue from 'yocto-queue'
 
 import { describe, expect, it } from 'vitest'
 
+import { createSlice } from '../src/episodic'
 import { createAgent, createEpisodic } from '../src/index'
 import { createPendingInput } from '../src/utils/pending-input'
-import { createSessionStore } from '../src/utils/session-store'
 
 const createMemoryStorage = (initial: Record<string, string> = {}) => {
   const values = new Map(Object.entries(initial))
@@ -63,7 +62,7 @@ const usageFromEpisodic = (jsonl: string) =>
 const parseSessionState = (value: string | undefined): { context: unknown, episodic: string, version: number } =>
   JSON.parse(String(value)) as { context: unknown, episodic: string, version: number }
 
-const assistantMessage = (text: string): import('../src/types/base').ItemParam => ({
+const assistantMessage = (text: string): ItemParam => ({
   content: [{ text, type: 'output_text' }],
   phase: 'final_answer',
   role: 'assistant',
@@ -330,9 +329,8 @@ describe('assemble', () => {
       type: 'boundary',
     })
     episodic.appendItems([message('after')], { source: 'user' })
-    const store = createSessionStore([], {}, episodic.toJSONL())
 
-    expect(store.assemble({ start: { reason: 'checkpoint', type: 'last-boundary' } }).items).toEqual([
+    expect(createSlice(episodic, { start: { reason: 'checkpoint', type: 'last-boundary' } }).items).toEqual([
       expect.objectContaining({ content: '<checkpoint>\ncheckpoint content\n</checkpoint>' }),
       message('after'),
     ])
@@ -343,8 +341,9 @@ describe('assemble', () => {
     const call = { arguments: '{}', call_id: 'call-1', name: 'tool', type: 'function_call' } as ItemParam
     const orphan = { call_id: 'missing', output: 'orphan', type: 'function_call_output' } as ItemParam
     const output = { call_id: 'call-1', output: longOutput, type: 'function_call_output' } as ItemParam
-    const store = createSessionStore([orphan, call, output])
-    const items = store.assemble().items
+    const episodic = createEpisodic()
+    episodic.appendItems([orphan, call, output], { source: 'user' })
+    const items = createSlice(episodic, {}).items
 
     expect(items[0]).toEqual(call)
     expect(items).toHaveLength(2)
@@ -367,57 +366,17 @@ describe('assemble', () => {
       type: 'meta',
     })
     episodic.appendItems([message('keep current')], { source: 'user', turnId: 'current-turn' })
-    const store = createSessionStore([], {}, episodic.toJSONL())
-    const assembled = store.assemble({ maxTokens: 1, turnId: 'current-turn' })
+    const assembled = createSlice(episodic, { maxTokens: 1, turnId: 'current-turn' })
 
     expect(assembled.items).toEqual([message('keep current')])
     expect(assembled.meta.truncated).toBe(true)
   })
 
   it('supports custom normalize functions', () => {
-    const store = createSessionStore([message('original')])
+    const episodic = createEpisodic()
+    episodic.appendItems([message('original')], { source: 'user' })
 
-    expect(store.assemble({ normalize: () => [message('custom')] }).items).toEqual([message('custom')])
-  })
-})
-
-describe('createSessionStore', () => {
-  it('assembles initial items and snapshots episodic JSONL', () => {
-    const store = createSessionStore([message('initial')])
-    const snapshot = store.snapshot()
-
-    expect(store.assemble().items).toEqual([message('initial')])
-    expect(itemsFromEpisodic(snapshot.episodic)).toEqual([message('initial')])
-    expect(snapshot.context).toEqual({})
-    expect(typeof snapshot.episodic).toBe('string')
-    expect(snapshot.version).toBe(0)
-  })
-
-  it('appends items through episodic and merges forks atomically', () => {
-    const store = createSessionStore([message('initial')])
-    const snapshot = store.snapshot()
-    const fork = store.fork()
-
-    fork.episodic.appendItems([message('appended')], { source: 'user' })
-    const forkEpisodeId = fork.episodic.read({ limit: 1, type: 'item' })[0]?.id
-    store.merge(fork)
-
-    expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial'), message('appended')])
-    expect(store.episodic.read({ limit: 1, type: 'item' })[0]?.id).toBe(forkEpisodeId)
-    expect(store.snapshot().version).toBe(snapshot.version + 1)
-  })
-
-  it('stores session context alongside items', () => {
-    const store = createSessionStore<{ locale?: string }>([message('initial')], { locale: 'en-US' })
-
-    store.setContext({ locale: 'ja-JP' })
-
-    expect(store.getContext()).toEqual({ locale: 'ja-JP' })
-    const snapshot = store.snapshot()
-    expect(snapshot.context).toEqual({ locale: 'ja-JP' })
-    expect(typeof snapshot.episodic).toBe('string')
-    expect(snapshot.version).toBe(0)
-    expect(itemsFromEpisodic(store.snapshot().episodic)).toEqual([message('initial')])
+    expect(createSlice(episodic, { normalize: () => [message('custom')] }).items).toEqual([message('custom')])
   })
 })
 
