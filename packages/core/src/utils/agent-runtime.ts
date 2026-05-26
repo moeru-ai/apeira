@@ -247,14 +247,19 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     if (controller.signal.aborted)
       return { reason: controller.signal.reason, type: 'aborted' }
 
+    let committed = false
     await mutateSession(async () => {
       if (controller.signal.aborted)
         return
 
       mergeWorkingEpisodic(workingEpisodic, formId)
+      committed = true
 
       await options.saveSession(snapshotSession())
     })
+
+    if (committed)
+      return completion
 
     return controller.signal.aborted
       ? { reason: controller.signal.reason, type: 'aborted' }
