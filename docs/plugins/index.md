@@ -75,7 +75,7 @@ const journalPlugin: AgentPlugin = {
 
 ### Storage
 
-Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL + `version`) is serialized to JSON and persisted.
+Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL) is serialized to JSON and persisted.
 
 ### Ordering
 
@@ -121,7 +121,7 @@ import type { AgentPlugin } from '@apeira/core'
 const loggingPlugin: AgentPlugin = {
   name: 'logging',
   onEvent: event => event.type === 'turn.failed' && console.error(event.error),
-  onTurnDone: ({ snapshot, turnId }) => console.log('turn finished:', turnId, snapshot.version),
+  onTurnDone: ({ snapshot, turnId }) => console.log('turn finished:', turnId, snapshot.episodic.length),
   onTurnStart: ({ turnId }) => {
     console.log('turn started:', turnId)
   },

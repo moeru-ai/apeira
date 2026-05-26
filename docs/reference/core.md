@@ -195,7 +195,6 @@ The persisted session state shape is:
 interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
   episodic: string
-  version: number
 }
 ```
 

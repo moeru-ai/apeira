@@ -62,7 +62,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
   let episodic = createEpisodic(options.episodic)
   let sessionContext = cloneContext(initialSessionContext)
-  let version = 0
 
   if (options.episodic == null)
     episodic.appendItems(options.input ?? [], { source: 'user' })
@@ -81,13 +80,11 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   const hydrateSession = (state: SessionState<T>) => {
     episodic = createEpisodic(state.episodic)
     sessionContext = cloneContext(state.context)
-    version = state.version
   }
 
   const snapshotSession = (): SessionState<T> => ({
     context: cloneContext(sessionContext),
     episodic: episodic.toJSONL(),
-    version,
   })
 
   const resetSession = () => {
@@ -95,7 +92,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     if (options.episodic == null)
       episodic.appendItems(options.input ?? [], { source: 'user' })
     sessionContext = cloneContext(initialSessionContext)
-    version += 1
   }
 
   const mergeWorkingEpisodic = (workingEpisodic: Episodic, fromId: number) => {
@@ -103,9 +99,6 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
     for (const episode of nextEpisodes)
       episodic.append(toNewEpisode(episode))
-
-    if (nextEpisodes.length > 0)
-      version += 1
   }
 
   const forkEpisodic = () => {

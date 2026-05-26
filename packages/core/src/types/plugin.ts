@@ -83,7 +83,6 @@ export interface SessionInitOptions<T = unknown> {
 export interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
   episodic: string
-  version: number
 }
 
 export interface StorageLike {

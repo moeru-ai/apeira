@@ -87,7 +87,6 @@ Session persistence stores JSON shaped like this:
 interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
   episodic: string
-  version: number
 }
 ```
 

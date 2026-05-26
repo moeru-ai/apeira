@@ -60,8 +60,8 @@ const usageFromEpisodic = (jsonl: string) =>
     ?.payload
     ?.data
 
-const parseSessionState = (value: string | undefined): { context: unknown, episodic: string, version: number } =>
-  JSON.parse(String(value)) as { context: unknown, episodic: string, version: number }
+const parseSessionState = (value: string | undefined): { context: unknown, episodic: string } =>
+  JSON.parse(String(value)) as { context: unknown, episodic: string }
 
 const assistantMessage = (text: string): ItemParam => ({
   content: [{ text, type: 'output_text' }],
@@ -381,7 +381,6 @@ describe('createAgent', () => {
       '["clear-storage-test","default"]': JSON.stringify({
         context: { locale: 'en-US' },
         episodic: episodicFromItems([message('persisted history')]),
-        version: 10,
       }),
     })
     const agent = createAgent({
@@ -405,7 +404,6 @@ describe('createAgent', () => {
     expect(JSON.parse(String(storage.values.get('["clear-storage-test","default"]')))).toEqual({
       context: {},
       episodic: '',
-      version: 11,
     })
   })
 
@@ -633,7 +631,6 @@ describe('createAgent', () => {
       '["plugin-test","default"]': JSON.stringify({
         context: {},
         episodic: episodicFromItems([message('loaded history')]),
-        version: 0,
       }),
     })
     const responsesFetch = createResponsesFetch()
@@ -1076,7 +1073,6 @@ describe('createAgent', () => {
     const contextRaceState = parseSessionState(storage.values.get('["context-race-test","race-session"]'))
     expect(contextRaceState.context).toEqual({ locale: 'ja-JP' })
     expect(typeof contextRaceState.episodic).toBe('string')
-    expect(contextRaceState.version).toBe(1)
     expect(itemsFromEpisodic(contextRaceState.episodic)).toEqual([
       message('Keep both context and response.'),
       assistantMessage('response 1'),
@@ -1239,7 +1235,6 @@ describe('createAgent', () => {
       '["fork-storage-test","source-session"]': JSON.stringify({
         context: { locale: 'en-US' },
         episodic: episodicFromItems([message('Persisted source turn.'), assistantMessage('persisted response')]),
-        version: 7,
       }),
     })
     const agent = createAgent<{ locale?: string }>({
@@ -1263,7 +1258,6 @@ describe('createAgent', () => {
     const forkState = parseSessionState(storage.values.get('["fork-storage-test","fork-session"]'))
     expect(forkState.context).toEqual({ locale: 'en-US' })
     expect(typeof forkState.episodic).toBe('string')
-    expect(forkState.version).toBe(0)
     expect(itemsFromEpisodic(forkState.episodic)).toEqual([message('Persisted source turn.'), assistantMessage('persisted response')])
   })
 

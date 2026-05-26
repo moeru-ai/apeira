@@ -41,7 +41,7 @@ const parseSessionState = <T>(value: null | string | undefined): SessionState<T>
   try {
     const state = JSON.parse(value) as Partial<SessionState<T>>
 
-    if (state == null || typeof state.episodic !== 'string' || typeof state.version !== 'number' || typeof state.context !== 'object' || state.context == null)
+    if (state == null || typeof state.episodic !== 'string' || typeof state.context !== 'object' || state.context == null)
       return undefined
 
     return state as SessionState<T>
@@ -358,7 +358,6 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         await saveSessionState(forkId, {
           context: forkContext,
           episodic: snapshot.episodic,
-          version: 0,
         })
       }
       catch (error) {
