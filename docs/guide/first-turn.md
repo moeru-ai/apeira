@@ -73,8 +73,4 @@ controller.abort('cancelled')
 
 Cancelling the `ReadableStream` reader only stops reading events. It does not abort the running turn.
 
-## Next steps
 
-- [Sessions](/guide/sessions) — isolate conversations with explicit sessions.
-- [Agent Lifecycle](/guide/agent-lifecycle) — learn about queueing, interrupt, and context.
-- [Events](/guide/events) — understand the event system in depth.

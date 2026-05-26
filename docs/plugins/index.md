@@ -53,8 +53,4 @@ const loggingPlugin: AgentPlugin = {
 
 Register it by passing it in the `plugins` array to `createAgent()`.
 
-## Next steps
 
-- [Skills](/plugins/skills) — read about the skills plugin.
-- [AG-UI](/plugins/ag-ui) — bridge events to AG-UI frontends.
-- [Unstorage](/plugins/unstorage) — persist sessions with unstorage.

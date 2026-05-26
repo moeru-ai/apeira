@@ -130,7 +130,4 @@ const pluginB: AgentPlugin = {
 }
 ```
 
-## Next steps
 
-- [Plugins](/plugins/) — available plugins and quick-start.
-- [Episodic](/advanced/episodic) — advanced session history API.

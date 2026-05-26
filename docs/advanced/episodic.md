@@ -155,8 +155,4 @@ const plugin = {
 
 Returned input affects only that model call. It does not mutate the session log unless the plugin explicitly appends episodes.
 
-## Next steps
 
-- [Sessions](/guide/sessions) — session isolation, forking, and persistence.
-- [Agent Lifecycle](/guide/agent-lifecycle) — queueing, interrupt, abort, and clear.
-- [Plugin API](/advanced/plugin-api) — hook into Episodic from plugins.

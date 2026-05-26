@@ -113,9 +113,4 @@ The effective context for a turn is `merge(agentContext, sessionContext, runCont
 
 For more on session-level context, see [Sessions](/guide/sessions).
 
-## Next steps
 
-- [Sessions](/guide/sessions) — isolate conversations with explicit sessions.
-- [Episodic](/advanced/episodic) — understand advanced session history and persistence.
-- [Events](/guide/events) — explore the event system.
-- [Plugins](/plugins/) — extend the runtime lifecycle.

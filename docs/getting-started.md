@@ -33,7 +33,4 @@ Work through these pages in order:
 
 If you want the API surface first, read [Core API](/reference/core) before the tutorials.
 
-## Next steps
 
-- [Installation](/installation) — start the recommended path.
-- [Core API](/reference/core) — see every export at a glance.

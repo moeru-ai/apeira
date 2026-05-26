@@ -74,8 +74,4 @@ unsubscribe()
 
 The returned function removes the listener and returns whether it was present. Listener errors are silently ignored — one subscriber cannot break event delivery to others.
 
-## Next steps
 
-- [Sessions](/guide/sessions) — isolate conversations and observe per-session events.
-- [Plugins](/plugins/) — hook into the event stream from plugins.
-- [Core API](/reference/core) — full API reference.
