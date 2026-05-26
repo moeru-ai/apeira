@@ -100,13 +100,12 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
   const mergeWorkingEpisodic = (workingEpisodic: Episodic, fromId: number) => {
     const nextEpisodes = workingEpisodic.read({ fromId })
-    const tempEpisodic = createEpisodic(episodic.toJSONL())
 
     for (const episode of nextEpisodes)
-      tempEpisodic.append(toNewEpisode(episode))
+      episodic.append(toNewEpisode(episode))
 
-    const nextVersion = nextEpisodes.length > 0 ? version + 1 : version
-    return [tempEpisodic, nextVersion] as const
+    if (nextEpisodes.length > 0)
+      version += 1
   }
 
   const forkEpisodic = () => {
@@ -245,19 +244,11 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       if (controller.signal.aborted)
         return
 
-      const [tempEpisodic, nextVersion] = mergeWorkingEpisodic(workingEpisodic, formId)
+      mergeWorkingEpisodic(workingEpisodic, formId)
+      await options.saveSession(snapshotSession())
 
-      await options.saveSession({
-        context: cloneContext(sessionContext),
-        episodic: tempEpisodic.toJSONL(),
-        version: nextVersion,
-      })
-
-      if (!controller.signal.aborted) {
-        episodic = tempEpisodic
-        version = nextVersion
+      if (!controller.signal.aborted)
         committed = true
-      }
     })
 
     if (committed)
