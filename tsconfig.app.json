@@ -4,6 +4,7 @@
     "types": ["node"]
   },
   "include": [
+    "examples/**/src",
     "packages/**/src",
     "packages/**/test"
   ]
