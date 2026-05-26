@@ -209,9 +209,8 @@ const runResponse = async <T>(
   const extensions = await resolveInputExtensions(options, createInputHookOptions(options, context, turnInput))
   const assembled = createSlice(options.episodic, {
     extensions,
-    reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
-      ? options.responseOptions.maxOutputTokens
-      : undefined,
+    maxTokens: context.contextLength,
+    reserveOutputTokens: options.responseOptions.maxOutputTokens ?? undefined,
     turnId: options.turn.id,
   })
   const responseInput = assembled.items
