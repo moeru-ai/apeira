@@ -257,7 +257,6 @@ describe('createEpisodic', () => {
     const restored = createEpisodic(episodic.toJSONL())
 
     expect(restored.read({ fromId: 0 }).map(episode => episode.id)).toEqual([1, 2])
-    expect(restored.read({ afterBoundary: 'checkpoint' })).toEqual([])
     expect(restored.read({ turnId: 'turn-1', type: 'item' })).toHaveLength(1)
   })
 
@@ -284,23 +283,6 @@ describe('createEpisodic', () => {
     expect(read[0]?.id).toBe(2)
   })
 
-  it('does not apply the default limit to afterBoundary queries', () => {
-    const episodic = createEpisodic()
-    episodic.append({
-      meta: { source: 'agent' },
-      payload: { content: 'checkpoint', reason: 'checkpoint', title: 'checkpoint' },
-      type: 'boundary',
-    })
-
-    for (let i = 0; i < 101; i += 1)
-      episodic.appendItems([message(String(i))], { source: 'user' })
-
-    const read = episodic.read({ afterBoundary: 'checkpoint' })
-
-    expect(read).toHaveLength(101)
-    expect(read[0]?.id).toBe(2)
-  })
-
   it('applies explicit limit after query filters', () => {
     const episodic = createEpisodic()
     episodic.append({
@@ -312,7 +294,6 @@ describe('createEpisodic', () => {
     for (let i = 0; i < 5; i += 1)
       episodic.appendItems([message(`item-${i}`)], { source: 'user' })
 
-    expect(episodic.read({ afterBoundary: 'checkpoint', limit: 2 }).map(episode => episode.id)).toEqual([5, 6])
     expect(episodic.read({ limit: 3, type: 'item' }).map(episode => episode.id)).toEqual([4, 5, 6])
     expect(episodic.read({ limit: 0 })).toEqual([])
     expect(episodic.read({ limit: -1 })).toEqual([])

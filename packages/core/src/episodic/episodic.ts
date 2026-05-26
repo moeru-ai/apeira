@@ -1,5 +1,5 @@
 import type { ItemParam } from '../types/base'
-import type { Episode, EpisodeMeta, Episodic } from './types'
+import type { Episode, EpisodeMeta, Episodic, NewEpisode } from './types'
 
 const DEFAULT_READ_LIMIT = 100
 const MAX_PARSE_ERROR_SAMPLES = 5
@@ -44,69 +44,71 @@ export const createEpisodic = (jsonl?: string): Episodic => {
     return imported
   }
 
-  const api: Episodic = {
-    append: (event) => {
-      const episode = {
-        ...event,
-        id: nextId,
-        meta: defaultMeta(event.meta),
-      } as Episode
+  const appendNew = (event: NewEpisode) => {
+    const episode = {
+      ...event,
+      id: nextId,
+      meta: defaultMeta(event.meta),
+    } as Episode
 
-      nextId += 1
-      episodes.push(episode)
-      return episode
-    },
+    nextId += 1
+    episodes.push(episode)
+    return episode
+  }
+
+  // eslint-disable-next-line sonarjs/cognitive-complexity
+  const loadJSONL = (nextJSONL: string) => {
+    episodes = []
+    nextId = 1
+    const errors: string[] = []
+    let errorCount = 0
+    let lineStart = 0
+
+    while (true) {
+      const nl = nextJSONL.indexOf('\n', lineStart)
+      const lineEnd = nl === -1 ? nextJSONL.length : nl
+      const line = nextJSONL.slice(lineStart, lineEnd).trim()
+      lineStart = lineEnd + 1
+
+      if (line.length > 0) {
+        try {
+          const parsed = parseEpisode(JSON.parse(line))
+          if (parsed == null)
+            throw new Error('Invalid episode.')
+
+          appendParsed(parsed)
+        }
+        catch (error) {
+          errorCount += 1
+          if (errors.length < MAX_PARSE_ERROR_SAMPLES)
+            errors.push(error instanceof Error ? error.message : String(error))
+        }
+      }
+
+      if (nl === -1)
+        break
+    }
+
+    if (errorCount > 0) {
+      appendNew({
+        meta: { source: 'runtime' },
+        payload: {
+          data: { count: errorCount, errors },
+          event: 'error.parse',
+        },
+        type: 'meta',
+      })
+    }
+  }
+
+  const api: Episodic = {
+    append: appendNew,
     appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) =>
       items.map(item => api.append({
         meta,
         payload: { item },
         type: 'item',
       })),
-    // eslint-disable-next-line sonarjs/cognitive-complexity
-    fromJSONL: (nextJSONL) => {
-      episodes = []
-      nextId = 1
-      const errors: string[] = []
-      let errorCount = 0
-      let lineStart = 0
-
-      while (true) {
-        const nl = nextJSONL.indexOf('\n', lineStart)
-        const lineEnd = nl === -1 ? nextJSONL.length : nl
-        const line = nextJSONL.slice(lineStart, lineEnd).trim()
-        lineStart = lineEnd + 1
-
-        if (line.length > 0) {
-          try {
-            const parsed = parseEpisode(JSON.parse(line))
-            if (parsed == null)
-              throw new Error('Invalid episode.')
-
-            appendParsed(parsed)
-          }
-          catch (error) {
-            errorCount += 1
-            if (errors.length < MAX_PARSE_ERROR_SAMPLES)
-              errors.push(error instanceof Error ? error.message : String(error))
-          }
-        }
-
-        if (nl === -1)
-          break
-      }
-
-      if (errorCount > 0) {
-        api.append({
-          meta: { source: 'runtime' },
-          payload: {
-            data: { count: errorCount, errors },
-            event: 'error.parse',
-          },
-          type: 'meta',
-        })
-      }
-    },
-    importEpisodes: nextEpisodes => nextEpisodes.map(appendParsed),
     read: (query = {}) => {
       const kinds = Array.isArray(query.type)
         ? new Set(query.type)
@@ -114,14 +116,6 @@ export const createEpisodic = (jsonl?: string): Episodic => {
           ? undefined
           : new Set([query.type])
       let result = episodes
-
-      if (query.afterBoundary != null) {
-        const index = episodes.findLastIndex(episode =>
-          episode.type === 'boundary'
-          && (query.afterBoundary === 'last' || episode.payload.reason === query.afterBoundary))
-
-        result = index >= 0 ? episodes.slice(index + 1) : episodes
-      }
 
       if (query.fromId != null)
         result = result.filter(episode => episode.id > query.fromId!)
@@ -137,8 +131,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
         result = limit === 0 ? [] : result.slice(-limit)
       }
       else if (
-        query.afterBoundary == null
-        && query.fromId == null
+        query.fromId == null
         && query.type == null
         && query.turnId == null
       ) {
@@ -151,7 +144,7 @@ export const createEpisodic = (jsonl?: string): Episodic => {
   }
 
   if (jsonl != null)
-    api.fromJSONL(jsonl)
+    loadJSONL(jsonl)
 
   return api
 }

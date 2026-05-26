@@ -1,6 +1,5 @@
 export { createEpisodic } from './episodic'
 export type {
-  AssembleInput,
   BoundaryEpisode,
   BoundaryPayload,
   BoundaryReason,
@@ -13,6 +12,7 @@ export type {
   MetaPayload,
   NewEpisode,
   SliceContribution,
+  SliceOptions,
   TurnUsageData,
 } from './episodic'
 export type { AgentContext, Instructions, ItemParam, MaybePromise } from './types/base'

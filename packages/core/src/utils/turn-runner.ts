@@ -188,7 +188,6 @@ const runResponse = async <T>(
     turnId: options.turn.id,
   })
   const assembled = createSlice(options.episodic, {
-    context,
     contributions,
     reserveOutputTokens: typeof options.responseOptions.maxOutputTokens === 'number'
       ? options.responseOptions.maxOutputTokens

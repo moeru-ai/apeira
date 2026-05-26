@@ -1,5 +1,5 @@
 import type { ItemParam } from '../types/base'
-import type { AssembleInput, BoundaryEpisode, Episode, Episodic, MetaEpisode, SliceConfig, SliceResult, TurnUsageData } from './types'
+import type { BoundaryEpisode, Episode, Episodic, MetaEpisode, SliceOptions, SliceResult, TurnUsageData } from './types'
 
 import { normalizeItems } from './normalize'
 
@@ -34,11 +34,11 @@ const getUsage = (episode: MetaEpisode): TurnUsageData | undefined => {
   return data as TurnUsageData
 }
 
-const getStartEpisodes = (episodes: Episode[], config: SliceConfig) => {
-  if (config.start.type === 'beginning')
+const getStartEpisodes = (episodes: Episode[], start: NonNullable<SliceOptions['start']>) => {
+  if (start.type === 'beginning')
     return episodes
 
-  const { reason } = config.start
+  const { reason } = start
   const index = episodes.findLastIndex(episode =>
     episode.type === 'boundary'
     && (reason == null || episode.payload.reason === reason))
@@ -78,17 +78,17 @@ const findOverflowStartIndex = (
   return turnIndex >= 0 ? turnIndex : episodes.length
 }
 
-export const createSlice = (episodic: Episodic, input: AssembleInput): SliceResult => {
-  const config: SliceConfig = {
-    contributions: input.contributions,
-    maxTokens: input.maxTokens ?? DEFAULT_MAX_TOKENS,
-    normalize: input.normalize,
-    reserveOutputTokens: input.reserveOutputTokens,
-    start: input.start ?? { type: 'beginning' },
-    turnId: input.turnId,
-  }
-  const episodes = getStartEpisodes(episodic.read({ fromId: 0 }), config)
-  const startIndex = findOverflowStartIndex(episodes, config.maxTokens, config.reserveOutputTokens, config.turnId)
+export const createSlice = (episodic: Episodic, options: SliceOptions = {}): SliceResult => {
+  const {
+    contributions,
+    maxTokens = DEFAULT_MAX_TOKENS,
+    normalize = normalizeItems,
+    reserveOutputTokens,
+    start = { type: 'beginning' },
+    turnId,
+  } = options
+  const episodes = getStartEpisodes(episodic.read({ fromId: 0 }), start)
+  const startIndex = findOverflowStartIndex(episodes, maxTokens, reserveOutputTokens, turnId)
   const selected = episodes.slice(startIndex)
   const items = selected.flatMap((episode): ItemParam[] => {
     if (episode.type === 'item')
@@ -101,14 +101,13 @@ export const createSlice = (episodic: Episodic, input: AssembleInput): SliceResu
 
     return []
   })
-  const contributed = config.contributions?.flatMap(contribution => contribution.items) ?? []
-  const normalize = config.normalize ?? normalizeItems
+  const contributed = contributions?.flatMap(contribution => contribution.items) ?? []
   const normalized = normalize([...items, ...contributed])
 
   return {
     items: normalized,
     meta: {
-      injectedRefs: config.contributions?.map(contribution => ({
+      injectedRefs: contributions?.map(contribution => ({
         pluginId: contribution.id,
         refId: contribution.id,
       })) ?? [],

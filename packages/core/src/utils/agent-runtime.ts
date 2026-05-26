@@ -1,6 +1,6 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { Episodic } from '../episodic'
+import type { Episode, Episodic, NewEpisode } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { AgentPlugin, SessionState, TurnDoneOptions } from '../types/plugin'
 import type { EmitTurnEvent, QueuedInput, TurnCompletion } from './turn-runner'
@@ -52,6 +52,17 @@ const TURN_ABORTED_CONTENT = '<turn_aborted>\nThe previous turn was interrupted 
 const cloneContext = <T>(context: Partial<AgentContext<T>>): Partial<AgentContext<T>> =>
   ({ ...context })
 
+const toNewEpisode = (episode: Episode): NewEpisode => {
+  switch (episode.type) {
+    case 'boundary':
+      return { meta: episode.meta, payload: episode.payload, type: 'boundary' }
+    case 'item':
+      return { meta: episode.meta, payload: episode.payload, type: 'item' }
+    case 'meta':
+      return { meta: episode.meta, payload: episode.payload, type: 'meta' }
+  }
+}
+
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const pendingInput = createPendingInput<T>()
   const pendingTurns = new Queue<QueuedInput<T>>()
@@ -97,17 +108,14 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     const lastId = episodic.read({ limit: 1 })[0]?.id ?? 0
     const nextEpisodes = workingEpisodic.read({ fromId: lastId })
 
-    episodic.importEpisodes(nextEpisodes)
+    for (const episode of nextEpisodes)
+      episodic.append(toNewEpisode(episode))
 
     if (nextEpisodes.length > 0)
       version += 1
   }
 
-  const forkEpisodic = () => {
-    const fork = createEpisodic()
-    fork.importEpisodes(episodic.read({ fromId: 0 }))
-    return fork
-  }
+  const forkEpisodic = () => createEpisodic(episodic.toJSONL())
 
   const ensureLoaded = async () => {
     await options.ready()

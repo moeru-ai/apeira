@@ -2,16 +2,6 @@ import type { Usage } from '@xsai-ext/responses'
 
 import type { ItemParam } from '../types/base'
 
-export interface AssembleInput {
-  context?: unknown
-  contributions?: SliceContribution[]
-  maxTokens?: number
-  normalize?: NormalizeFn
-  reserveOutputTokens?: number
-  start?: SliceStart
-  turnId?: string
-}
-
 export interface BoundaryEpisode {
   id: number
   meta: EpisodeMeta
@@ -38,14 +28,11 @@ export interface EpisodeMeta {
 export interface Episodic {
   append: (event: NewEpisode) => Episode
   appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) => Episode[]
-  fromJSONL: (jsonl: string) => void
-  importEpisodes: (episodes: Episode[]) => Episode[]
   read: (query?: EpisodicQuery) => Episode[]
   toJSONL: () => string
 }
 
 export interface EpisodicQuery {
-  afterBoundary?: 'last' | BoundaryReason
   fromId?: number
   limit?: number
   turnId?: string
@@ -78,16 +65,7 @@ export type NewEpisode = Omit<Episode, 'id' | 'meta'> & {
 
 export type NormalizeFn = (items: ItemParam[]) => ItemParam[]
 
-export type Slice = (episodic: Episodic, input: AssembleInput) => SliceResult
-
-export interface SliceConfig {
-  contributions?: SliceContribution[]
-  maxTokens: number
-  normalize?: NormalizeFn
-  reserveOutputTokens?: number
-  start: SliceStart
-  turnId?: string
-}
+export type Slice = (episodic: Episodic, input: SliceOptions) => SliceResult
 
 export interface SliceContribution {
   id: string
@@ -98,6 +76,15 @@ export interface SliceMeta {
   injectedRefs: Array<{ pluginId: string, refId: string }>
   itemCount: number
   truncated: boolean
+}
+
+export interface SliceOptions {
+  contributions?: SliceContribution[]
+  maxTokens?: number
+  normalize?: NormalizeFn
+  reserveOutputTokens?: number
+  start?: SliceStart
+  turnId?: string
 }
 
 export interface SliceResult {

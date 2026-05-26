@@ -75,12 +75,10 @@ const recentItems = episodic.read({ limit: 12, type: 'item' })
 episodic.read() // latest 100
 episodic.read({ fromId: 0 }) // full log
 episodic.read({ limit: 6, type: 'item' })
-episodic.read({ afterBoundary: 'checkpoint' })
 episodic.read({ turnId })
 ```
 
 `limit` is applied after filters. `limit: 0` returns an empty array.
-`afterBoundary` returns episodes after the matching boundary, not including the boundary itself.
 
 ## Serialization
 
@@ -94,14 +92,14 @@ interface SessionState<T = unknown> {
 }
 ```
 
-`episodic` is JSONL. Use `toJSONL()` and `fromJSONL()` when a host wants to persist, inspect, or fork a log manually:
+`episodic` is JSONL. Use `toJSONL()` to persist or inspect a log, and pass JSONL to `createEpisodic()` to restore it:
 
 ```ts
 const jsonl = episodic.toJSONL()
 const restored = createEpisodic(jsonl)
 ```
 
-`fromJSONL()` skips bad lines and appends one `meta` episode with `event: 'error.parse'` if parse errors occurred.
+`createEpisodic(jsonl)` skips bad lines and appends one `meta` episode with `event: 'error.parse'` if parse errors occurred.
 
 Persisted state is a breaking format: current Apeira sessions use `episodic`, not the old `items` array.
 
