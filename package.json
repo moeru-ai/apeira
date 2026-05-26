@@ -8,6 +8,7 @@
     "build": "pnpm -r build",
     "build:docs": "vitepress build docs",
     "bump": "bumpp",
+    "dev:chat-sdk": "pnpm -F @apeira/example-chat-sdk dev",
     "dev:copilotkit": "pnpm -F @apeira/example-copilotkit dev",
     "dev:docs": "vitepress dev docs",
     "dev:pi-tui": "pnpm -F @apeira/example-pi-tui dev",

@@ -9,11 +9,8 @@ import { Chat } from 'chat'
 import { agent } from './agent.js'
 import { createMemoryState } from './state.js'
 
-/**
- * Allowed Telegram user ID (as a string).
- * Only messages from this user will be processed.
- */
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
+const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
 export const startBot = () => {
   if (TELEGRAM_USER_ID == null) {
@@ -21,9 +18,17 @@ export const startBot = () => {
     exit(1)
   }
 
+  if (TELEGRAM_BOT_TOKEN == null) {
+    console.error('Please set the TELEGRAM_BOT_TOKEN environment variable.')
+    exit(1)
+  }
+
   const bot = new Chat({
     adapters: {
-      telegram: createTelegramAdapter({ mode: 'polling' }),
+      telegram: createTelegramAdapter({
+        botToken: TELEGRAM_BOT_TOKEN,
+        mode: 'polling',
+      }),
     },
     state: createMemoryState(),
     userName: 'apeira-bot',
