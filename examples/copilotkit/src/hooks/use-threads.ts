@@ -1,11 +1,12 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { ItemParam } from '@apeira/core'
-import type { Episode, ItemEpisode } from '@apeira/core/episodic'
+import type { Episode } from '@apeira/core/episodic'
 
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import { AGENT_NAME } from '../utils/const'
+import { isItemEpisode } from '../utils/is-item-episode'
 
 const THREADS_KEY = 'apeira:copilotkit:threads'
 const ACTIVE_THREAD_KEY = 'apeira:copilotkit:active-thread-id'
@@ -37,9 +38,6 @@ const readThreadState = (threadId: string) => {
     return {}
   }
 }
-
-const isItemEpisode = (episode: Episode): episode is ItemEpisode =>
-  episode.type === 'item' && episode.payload?.item != null
 
 const readThreadItems = (threadId: string): ItemParam[] => {
   const items: ItemParam[] = []
