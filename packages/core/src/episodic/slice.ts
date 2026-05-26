@@ -34,7 +34,7 @@ const getUsage = (episode: MetaEpisode): TurnUsageData | undefined => {
   return data as TurnUsageData
 }
 
-const getStartEpisodes = (episodes: Episode[], start: NonNullable<SliceOptions['start']>) => {
+const getStartEpisodes = (episodes: readonly Episode[], start: NonNullable<SliceOptions['start']>) => {
   if (start.type === 'beginning')
     return episodes
 
@@ -47,7 +47,7 @@ const getStartEpisodes = (episodes: Episode[], start: NonNullable<SliceOptions['
 }
 
 const findOverflowStartIndex = (
-  episodes: Episode[],
+  episodes: readonly Episode[],
   maxTokens: number,
   reserveOutputTokens = 0,
   turnId?: string,

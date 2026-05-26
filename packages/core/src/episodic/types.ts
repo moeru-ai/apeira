@@ -27,8 +27,8 @@ export interface EpisodeMeta {
 
 export interface Episodic {
   append: (event: NewEpisode) => Episode
-  appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) => Episode[]
-  read: (query?: EpisodicQuery) => Episode[]
+  appendItems: (items: ItemParam[], meta?: Partial<EpisodeMeta>) => readonly Episode[]
+  read: (query?: EpisodicQuery) => readonly Episode[]
   toJSONL: () => string
 }
 
