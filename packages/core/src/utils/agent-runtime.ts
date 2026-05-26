@@ -52,16 +52,8 @@ const TURN_ABORTED_CONTENT = '<turn_aborted>\nThe previous turn was interrupted 
 const cloneContext = <T>(context: Partial<AgentContext<T>>): Partial<AgentContext<T>> =>
   ({ ...context })
 
-const toNewEpisode = (episode: Episode): NewEpisode => {
-  switch (episode.type) {
-    case 'boundary':
-      return { meta: episode.meta, payload: episode.payload, type: 'boundary' }
-    case 'item':
-      return { meta: episode.meta, payload: episode.payload, type: 'item' }
-    case 'meta':
-      return { meta: episode.meta, payload: episode.payload, type: 'meta' }
-  }
-}
+const toNewEpisode = ({ id, ...rest }: Episode): NewEpisode =>
+  rest
 
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const pendingInput = createPendingInput<T>()
@@ -330,7 +322,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
     pumping = true
 
-    pumpReady = (async () => {
+    const start = async () => {
       do {
         const turn = pendingTurns.dequeue()
         if (turn == null)
@@ -338,8 +330,12 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
         await runQueuedTurn(turn)
       } while (pendingTurns.size > 0)
-    })().finally(() => {
+    }
+
+    pumpReady = start().finally(() => {
       pumping = false
+      if (pendingTurns.size > 0)
+        void pumpTurns()
     })
 
     return pumpReady

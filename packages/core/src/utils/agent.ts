@@ -354,11 +354,17 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
 
       sessions.set(forkId, forked)
 
-      await saveSessionState(forkId, {
-        context: forkContext,
-        episodic: snapshot.episodic,
-        version: 0,
-      })
+      try {
+        await saveSessionState(forkId, {
+          context: forkContext,
+          episodic: snapshot.episodic,
+          version: 0,
+        })
+      }
+      catch (error) {
+        sessions.delete(forkId)
+        throw error
+      }
 
       return forked
     })
