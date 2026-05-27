@@ -8,7 +8,7 @@ const briefSchema = z.object({
   importance: z.enum(['low', 'medium', 'high']).optional().describe('Importance level.'),
 })
 
-export const createBriefTool = (send?: (input: ItemParam) => string) => tool({
+export const createBriefTool = async (send?: (input: ItemParam) => string) => tool({
   description: 'Send an unsolicited brief/update to the user. Use when you complete background work or encounter a blocker while the user is away.',
   execute: (input: unknown) => {
     const args = z.parse(briefSchema, input)
