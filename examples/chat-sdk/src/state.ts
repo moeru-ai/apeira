@@ -3,6 +3,7 @@ import type { Lock, QueueEntry, StateAdapter } from 'chat'
 export class MemoryStateAdapter implements StateAdapter {
   private data = new Map<string, { expiresAt?: number, value: unknown }>()
   private lists = new Map<string, unknown[]>()
+  private listTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
   private locks = new Map<string, Lock>()
   private subscriptions = new Set<string>()
 
