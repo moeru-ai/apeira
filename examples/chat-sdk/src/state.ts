@@ -33,7 +33,6 @@ export class MemoryStateAdapter implements StateAdapter {
       if (existingTimeout)
         clearTimeout(existingTimeout)
 
-      // eslint-disable-next-line @masknet/prefer-timer-id
       const timeout = setTimeout(() => {
         this.lists.delete(key)
         this.listTimeouts.delete(key)

@@ -185,26 +185,20 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
       merge(merge(context, currentSessionContext), runContext)
 
-    const createSessionOptions = (): SessionInitOptions<T> => ({
+    let sessionReady: Promise<void> | undefined
+
+    const sessionCallbacks = {
+      ensureSessionReady: async (): Promise<void> => {},
+    }
+
+    const createSessionOptions = (send: (input: { context?: Partial<AgentContext<T>>, input: ItemParam, signal?: AbortSignal }) => string): SessionInitOptions<T> => ({
       agentName: options.name,
       context: resolveContext(),
+      send: input => send({ input }),
       sessionId: id,
     })
 
-    let sessionReady: Promise<void> | undefined
-
-    const ensureSessionReady = async () => {
-      sessionReady ??= ready.then(async () => {
-        for (const plugin of plugins)
-          await plugin.onSessionInit?.(createSessionOptions())
-      })
-
-      return sessionReady
-    }
-
     const loadSession = async (): Promise<SessionState<T> | undefined> => {
-      await ensureSessionReady()
-
       for (const plugin of plugins) {
         if (plugin.storage == null)
           continue
@@ -242,12 +236,21 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
           await plugin.onTurnDone?.(turnContext)
       },
       plugins,
-      ready: async () => ensureSessionReady(),
+      ready: async () => sessionCallbacks.ensureSessionReady(),
       responseOptions: options.options,
       saveSession,
       sessionContext: initialSessionContext,
       sessionId: id,
     })
+
+    sessionCallbacks.ensureSessionReady = async () => {
+      sessionReady ??= ready.then(async () => {
+        for (const plugin of plugins)
+          await plugin.onSessionInit?.(createSessionOptions(runtime.send))
+      })
+
+      return sessionReady
+    }
 
     const subscribeSession = (channel: string, listener: PluginChannelListener) => {
       const register = () => {

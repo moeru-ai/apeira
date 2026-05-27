@@ -77,6 +77,7 @@ export interface ResponseOptions<T = unknown> extends PluginHookBase<T> {
 export interface SessionInitOptions<T = unknown> {
   agentName: string
   context: AgentContext<T>
+  send?: (input: ItemParam) => string
   sessionId: string
 }
 

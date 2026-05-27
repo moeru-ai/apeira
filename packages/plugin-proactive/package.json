@@ -1,0 +1,54 @@
+{
+  "name": "@apeira/plugin-proactive",
+  "type": "module",
+  "version": "0.0.4",
+  "description": "Proactive agent behavior with DMN, scheduler, and autonomous ticks.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/plugin-proactive"
+  },
+  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "keywords": [
+    "agent",
+    "ai",
+    "xsai",
+    "proactive"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@apeira/core": "workspace:"
+  },
+  "dependencies": {
+    "@xsai/tool": "catalog:xsai",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@apeira/core": "workspace:"
+  }
+}
