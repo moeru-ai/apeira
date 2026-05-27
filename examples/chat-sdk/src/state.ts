@@ -28,9 +28,18 @@ export class MemoryStateAdapter implements StateAdapter {
 
     this.lists.set(key, list)
 
-    if (options?.ttlMs != null)
+    if (options?.ttlMs != null) {
+      const existingTimeout = this.listTimeouts.get(key)
+      if (existingTimeout)
+        clearTimeout(existingTimeout)
+
       // eslint-disable-next-line @masknet/prefer-timer-id
-      setTimeout(() => this.lists.delete(key), options.ttlMs)
+      const timeout = setTimeout(() => {
+        this.lists.delete(key)
+        this.listTimeouts.delete(key)
+      }, options.ttlMs)
+      this.listTimeouts.set(key, timeout)
+    }
   }
 
   async connect(): Promise<void> {}
