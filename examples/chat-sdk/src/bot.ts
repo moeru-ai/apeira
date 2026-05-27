@@ -87,7 +87,7 @@ export const startBot = async () => {
    * Handle messages in already-subscribed threads.
    */
   bot.onSubscribedMessage(async (thread, message) => {
-    if (message.author.userId !== TELEGRAM_USER_ID)
+    if (String(message.author.userId) !== TELEGRAM_USER_ID)
       return
 
     const text = message.text?.trim()
