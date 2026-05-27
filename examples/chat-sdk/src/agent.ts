@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { env } from 'node:process'
 
 import fsDriver from 'unstorage/drivers/fs'
