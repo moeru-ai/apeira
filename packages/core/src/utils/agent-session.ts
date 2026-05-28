@@ -256,6 +256,8 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
       for (const cleanup of sessionCleanups)
         cleanup()
 
+      sessionCleanups.clear()
+
       options.onRemove(options.id)
       removed = true
     }
