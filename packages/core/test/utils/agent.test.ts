@@ -23,7 +23,7 @@ import {
 describe('createAgent', () => {
   it('loads persisted session state before clear saves reset state', async () => {
     const storage = createMemoryStorage({
-      '["clear-storage-test","default"]': JSON.stringify({
+      '["clear-storage-test","clear-storage-test"]': JSON.stringify({
         context: { locale: 'en-US' },
         episodic: episodicFromItems([message('persisted history')]),
       }),
@@ -46,7 +46,7 @@ describe('createAgent', () => {
     agent.clear()
     await wait()
 
-    expect(JSON.parse(String(storage.values.get('["clear-storage-test","default"]')))).toEqual({
+    expect(JSON.parse(String(storage.values.get('["clear-storage-test","clear-storage-test"]')))).toEqual({
       context: {},
       episodic: '',
     })
@@ -273,7 +273,7 @@ describe('createAgent', () => {
   it('runs plugins through session, turn, response, and storage hooks', async () => {
     const calls: string[] = []
     const storage = createMemoryStorage({
-      '["plugin-test","default"]': JSON.stringify({
+      '["plugin-test","plugin-test"]': JSON.stringify({
         context: {},
         episodic: episodicFromItems([message('loaded history')]),
       }),
@@ -514,7 +514,7 @@ describe('createAgent', () => {
     expect(responsesFetch.inputs[0]).toContainEqual(message('extension:initial'))
     expect(responsesFetch.inputs[1]).toContainEqual(message('extension:follow'))
 
-    const state = parseSessionState(storage.values.get('["extend-input-test","default"]'))
+    const state = parseSessionState(storage.values.get('["extend-input-test","extend-input-test"]'))
     expect(itemsFromEpisodic(state.episodic)).not.toContainEqual(message('extension:initial'))
     expect(itemsFromEpisodic(state.episodic)).not.toContainEqual(message('extension:follow'))
   })
