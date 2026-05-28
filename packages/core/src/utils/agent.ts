@@ -7,7 +7,6 @@ import type { AgentSession } from './agent-session'
 
 import { merge } from '@moeru/std/merge'
 
-import { DEFAULT_SESSION_ID } from './session-constants'
 import { createSessionManager } from './session-manager'
 import { createSessionPersistence } from './session-persistence'
 
@@ -110,11 +109,10 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     pluginApi.subscribe(channel, listener)
 
   const persistence = createSessionPersistence(options.name, plugins)
-  const defaultSessionId = DEFAULT_SESSION_ID
   const sessionManager = createSessionManager<T>({
     agentContext: () => context,
     agentName: options.name,
-    defaultSessionId,
+    defaultSessionId: options.name,
     emitChannel,
     emitTurn: emit,
     instructions: options.instructions,
@@ -126,7 +124,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
   })
 
   const defaultSession = sessionManager.session({
-    id: defaultSessionId,
+    id: options.name,
     input: options.input,
   })
 

@@ -972,7 +972,7 @@ describe('createAgent', () => {
   it('rejects removing the default session', async () => {
     const { agent } = createTestAgent()
 
-    await expect(agent.session({ id: 'default' }).remove()).rejects.toThrow('Cannot remove default session: default')
+    await expect(agent.session({ id: 'scheduler-test' }).remove()).rejects.toThrow('Cannot remove default session: scheduler-test')
   })
 
   it('rejects removed session handles', async () => {
