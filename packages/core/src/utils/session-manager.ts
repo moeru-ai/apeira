@@ -11,10 +11,6 @@ import { merge } from '@moeru/std/merge'
 
 import { createAgentSession } from './agent-session'
 
-export interface SessionManager<T> {
-  session: (options?: SessionOptions<T>) => AgentSession<T>
-}
-
 export interface SessionManagerOptions<T> {
   agentContext: () => AgentContext<T>
   agentName: string
@@ -29,23 +25,8 @@ export interface SessionManagerOptions<T> {
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
 }
 
-export const createSessionManager = <T>(options: SessionManagerOptions<T>): SessionManager<T> => {
+export const createSessionManager = <T>(options: SessionManagerOptions<T>) => {
   const sessions = new Map<string, AgentSession<T>>()
-
-  const sessionConfig = {
-    agentContext: options.agentContext,
-    agentName: options.agentName,
-    defaultSessionId: options.defaultSessionId,
-    emitChannel: options.emitChannel,
-    emitTurn: options.emitTurn,
-    instructions: options.instructions,
-    onRemove: (sessionId: string) => sessions.delete(sessionId),
-    persistence: options.persistence,
-    pluginApi: options.pluginApi,
-    plugins: options.plugins,
-    ready: options.ready,
-    responseOptions: options.responseOptions,
-  }
 
   const forkSession = async (
     source: SessionForkSource<T>,
@@ -63,13 +44,11 @@ export const createSessionManager = <T>(options: SessionManagerOptions<T>): Sess
       throw new Error(`Session already exists: ${forkId}`)
 
     const forked = createAgentSession({
-      ...sessionConfig,
+      ...options,
       forkSession,
       id: forkId,
-      initial: {
-        context: forkContext,
-        episodic: snapshot.episodic,
-      },
+      initial: { context: forkContext, episodic: snapshot.episodic },
+      onRemove: (sessionId: string) => sessions.delete(sessionId),
     })
 
     sessions.set(forkId, forked)
@@ -88,24 +67,10 @@ export const createSessionManager = <T>(options: SessionManagerOptions<T>): Sess
     return forked
   }
 
-  const createSession = (
-    id: string,
-    sessionOptions: SessionOptions<T> = {},
-  ): AgentSession<T> =>
-    createAgentSession({
-      ...sessionConfig,
-      forkSession,
-      id,
-      initial: {
-        context: sessionOptions.context,
-        episodic: sessionOptions.episodic,
-        input: sessionOptions.input,
-      },
-    })
-
-  const session: SessionManager<T>['session'] = (sessionOptions = {}) => {
+  const session = (sessionOptions: SessionOptions<T> = {}) => {
     const id = sessionOptions.id ?? crypto.randomUUID()
     const existing = sessions.get(id)
+
     if (existing != null) {
       if (sessionOptions.input != null)
         throw new Error(`Session already exists: ${id}`)
@@ -116,7 +81,17 @@ export const createSessionManager = <T>(options: SessionManagerOptions<T>): Sess
       return existing
     }
 
-    const agentSession = createSession(id, sessionOptions)
+    const agentSession = createAgentSession({
+      ...options,
+      forkSession,
+      id,
+      initial: {
+        context: sessionOptions.context,
+        episodic: sessionOptions.episodic,
+        input: sessionOptions.input,
+      },
+      onRemove: (sessionId: string) => sessions.delete(sessionId),
+    })
 
     sessions.set(id, agentSession)
 

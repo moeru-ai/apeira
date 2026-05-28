@@ -84,9 +84,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     event: Omit<AgentEvent, 'sessionId' | 'turnId'>,
   ) => {
     const fullEvent = { ...event, sessionId, turnId } as AgentEvent
-
     pluginApi.emit('apeira', fullEvent)
-
     void ready.then(async () => {
       for (const plugin of plugins) {
         try {

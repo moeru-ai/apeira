@@ -2,7 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
-import type { AgentPlugin, AgentPluginApi, ChannelApi, PluginChannelListener, SessionInitOptions, SessionState } from '../types/plugin'
+import type { AgentPlugin, AgentPluginApi, ChannelApi, PluginChannelListener, SessionState } from '../types/plugin'
 import type { SessionPersistence } from './session-persistence'
 
 import { merge } from '@moeru/std/merge'
@@ -59,12 +59,8 @@ export interface SessionForkSource<T> {
   snapshot: () => Promise<SessionState<T>>
 }
 
-const createRemovedSessionError = (id: string) =>
-  new Error(`Session removed: ${id}`)
-
 export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): AgentSession<T> => {
   const initialSessionContext = options.initial.context ?? {}
-
   let currentSessionContext = initialSessionContext
   let removed = false
   let removing = false
@@ -73,7 +69,7 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
 
   const assertSessionOpen = () => {
     if (removed || removing)
-      throw createRemovedSessionError(options.id)
+      throw new Error(`Session removed: ${options.id}`)
   }
 
   const guard = <Args extends unknown[], Result>(fn: (...args: Args) => Result) =>
@@ -91,18 +87,12 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
   const resolveContext = (runContext?: Partial<AgentContext<T>>): AgentContext<T> =>
     merge(merge(options.agentContext(), currentSessionContext), runContext)
 
-  const createSessionOptions = (): SessionInitOptions<T> => ({
-    agentName: options.agentName,
-    context: resolveContext(),
-    sessionId: options.id,
-  })
-
   let sessionReady: Promise<void> | undefined
 
   const ensureSessionReady = async () => {
     sessionReady ??= options.ready.then(async () => {
       for (const plugin of options.plugins)
-        await plugin.onSessionInit?.(createSessionOptions())
+        await plugin.onSessionInit?.({ agentName: options.agentName, context: resolveContext(), sessionId: options.id })
     })
 
     return sessionReady
@@ -114,15 +104,11 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
     const state = await options.persistence.load(options.id)
 
     if (state == null)
-      return undefined
+      return
 
-    const mergedState = {
-      ...state,
-      context: merge(initialSessionContext, state.context),
-    } satisfies SessionState<T>
+    currentSessionContext = merge(initialSessionContext, state.context)
 
-    currentSessionContext = mergedState.context
-    return mergedState
+    return { ...state, context: currentSessionContext }
   }
 
   const saveSession = async (state: SessionState<T>) => {
@@ -143,7 +129,7 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
         await plugin.onTurnDone?.(turnContext)
     },
     plugins: options.plugins,
-    ready: async () => ensureSessionReady(),
+    ready: ensureSessionReady,
     responseOptions: options.responseOptions,
     saveSession,
     sessionContext: initialSessionContext,
@@ -151,29 +137,20 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
   })
 
   const subscribeSession = (channel: string, listener: PluginChannelListener) => {
-    const register = () => {
-      if (channel === 'apeira') {
-        let wrapped = wrappedListeners.get(listener)
+    let wrapped: PluginChannelListener | undefined = listener
+    if (channel === 'apeira') {
+      wrapped = wrappedListeners.get(listener)
+      if (wrapped == null) {
+        wrapped = (event) => {
+          if ((event as AgentEvent).sessionId !== options.id)
+            return
 
-        if (!wrapped) {
-          wrapped = (event) => {
-            const agentEvent = event as AgentEvent
-
-            if (agentEvent.sessionId !== options.id)
-              return
-
-            const agentListener = listener as (event: AgentEvent) => void
-            agentListener(agentEvent)
-          }
-          wrappedListeners.set(listener, wrapped)
+          (listener as (event: AgentEvent) => void)(event as AgentEvent)
         }
-
-        return options.pluginApi.subscribe('apeira', wrapped)
+        wrappedListeners.set(listener, wrapped)
       }
-      return options.pluginApi.subscribe(channel, listener)
     }
-
-    const unsubscribe = register()
+    const unsubscribe = options.pluginApi.subscribe(channel, wrapped)
     sessionCleanups.add(unsubscribe)
 
     return () => {
@@ -192,23 +169,14 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
       },
       start: (controller) => {
         unsubscribe = subscribeSession('apeira', (event) => {
-          const agentEvent = event as AgentEvent
-
-          if (agentEvent.turnId !== turnId)
+          if ((event as AgentEvent).turnId !== turnId)
             return
-
-          controller.enqueue(agentEvent)
-
-          if (
-            agentEvent.type === 'turn.aborted'
-            || agentEvent.type === 'turn.done'
-            || agentEvent.type === 'turn.failed'
-          ) {
+          controller.enqueue(event as AgentEvent)
+          if (['turn.aborted', 'turn.done', 'turn.failed'].includes((event as AgentEvent).type)) {
             unsubscribe?.()
             controller.close()
           }
         })
-
         state.enqueueTurn({
           context: runOptions.context,
           id: turnId,
@@ -243,7 +211,6 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
 
   const remove: AgentSession<T>['remove'] = async () => {
     assertSessionOpen()
-
     if (options.id === options.defaultSessionId)
       throw new Error(`Cannot remove default session: ${options.id}`)
 
