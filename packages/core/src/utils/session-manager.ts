@@ -72,7 +72,7 @@ export const createSessionManager = <T>(options: SessionManagerOptions<T>) => {
     const existing = sessions.get(id)
 
     if (existing != null) {
-      if (sessionOptions.input != null)
+      if (sessionOptions.input != null || sessionOptions.episodic != null)
         throw new Error(`Session already exists: ${id}`)
 
       if (sessionOptions.context != null)

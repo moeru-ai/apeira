@@ -35,13 +35,11 @@ export const createSessionPersistence = <T>(
     fn: (storage: NonNullable<AgentPlugin<T>['storage']>, key: string) => Promise<void> | void,
   ) => {
     const key = getSessionStorageKey(agentName, sessionId)
-
-    for (const plugin of plugins) {
-      if (plugin.storage == null)
-        continue
-
-      await fn(plugin.storage, key)
-    }
+    await Promise.all(
+      plugins
+        .filter(plugin => plugin.storage != null)
+        .map(plugin => fn(plugin.storage!, key)),
+    )
   }
 
   return {

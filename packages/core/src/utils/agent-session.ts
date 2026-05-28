@@ -90,10 +90,17 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
   let sessionReady: Promise<void> | undefined
 
   const ensureSessionReady = async () => {
-    sessionReady ??= options.ready.then(async () => {
-      for (const plugin of options.plugins)
-        await plugin.onSessionInit?.({ agentName: options.agentName, context: resolveContext(), sessionId: options.id })
-    })
+    sessionReady ??= (async () => {
+      try {
+        await options.ready
+        for (const plugin of options.plugins)
+          await plugin.onSessionInit?.({ agentName: options.agentName, context: resolveContext(), sessionId: options.id })
+      }
+      catch (error) {
+        sessionReady = undefined
+        throw error
+      }
+    })()
 
     return sessionReady
   }
