@@ -14,7 +14,7 @@ import { linkedAbort } from './linked-abort'
 import { createPendingInput } from './pending-input'
 import { runTurn } from './turn-runner'
 
-export interface AgentRuntime<T = unknown> {
+export interface AgentSessionState<T = unknown> {
   abort: (reason?: unknown) => void
   clear: () => void
   enqueueTurn: (turn: QueuedInput<T>) => void
@@ -25,7 +25,7 @@ export interface AgentRuntime<T = unknown> {
   snapshot: () => Promise<SessionState<T>>
 }
 
-export interface AgentRuntimeOptions<T> {
+export interface AgentSessionStateOptions<T> {
   agentName: string
   emit: EmitTurnEvent
   episodic?: string
@@ -55,7 +55,7 @@ const cloneContext = <T>(context: Partial<AgentContext<T>>): Partial<AgentContex
 const toNewEpisode = ({ id, ...rest }: Episode): NewEpisode =>
   rest
 
-export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
+export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>): AgentSessionState<T> => {
   const pendingInput = createPendingInput<T>()
   const pendingTurns = new Queue<QueuedInput<T>>()
   const initialSessionContext = cloneContext<T>(options.sessionContext ?? {})
@@ -74,7 +74,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
   let pumpReady = Promise.resolve()
   let pumping = false
 
-  const abort: AgentRuntime<T>['abort'] = reason =>
+  const abort: AgentSessionState<T>['abort'] = reason =>
     activeTurn?.controller.abort(reason)
 
   const hydrateSession = (state: SessionState<T>) => {
@@ -167,7 +167,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     abortQueuedTurns(reason)
   }
 
-  const clear: AgentRuntime<T>['clear'] = () => {
+  const clear: AgentSessionState<T>['clear'] = () => {
     stopSession('cleared')
 
     void mutateSession(async () => {
@@ -178,7 +178,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     }).catch(() => undefined)
   }
 
-  const setContext: AgentRuntime<T>['setContext'] = (context) => {
+  const setContext: AgentSessionState<T>['setContext'] = (context) => {
     void mutateSession(async () => {
       await ensureLoaded()
       sessionContext = merge(sessionContext, context)
@@ -186,7 +186,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     }).catch(() => undefined)
   }
 
-  const snapshot: AgentRuntime<T>['snapshot'] = async () => {
+  const snapshot: AgentSessionState<T>['snapshot'] = async () => {
     await pendingMutation
     await ensureLoaded()
     return snapshotSession()
@@ -210,7 +210,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     controller: AbortController,
     turn: QueuedInput<T>,
   ): Promise<TurnCompletion<T>> => {
-    const [formId, workingEpisodic] = forkEpisodic()
+    const [fromId, workingEpisodic] = forkEpisodic()
     const completion = await runTurn<T>({
       agentName: options.agentName,
       controller,
@@ -237,7 +237,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       if (controller.signal.aborted)
         return
 
-      mergeWorkingEpisodic(workingEpisodic, formId)
+      mergeWorkingEpisodic(workingEpisodic, fromId)
       await options.saveSession(snapshotSession())
 
       if (!controller.signal.aborted)
@@ -383,7 +383,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     }
   }
 
-  const remove: AgentRuntime<T>['remove'] = async (reason: unknown = 'removed') => {
+  const remove: AgentSessionState<T>['remove'] = async (reason: unknown = 'removed') => {
     stopSession(reason)
     await pumpReady
     await pendingMutation

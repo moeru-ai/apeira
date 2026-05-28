@@ -56,37 +56,29 @@ export const createEpisodic = (initial?: readonly Episode[] | string): Episodic 
     return episode
   }
 
-  // eslint-disable-next-line sonarjs/cognitive-complexity
   const loadJSONL = (nextJSONL: string) => {
     episodes = []
     nextId = 1
     const errors: string[] = []
     let errorCount = 0
-    let lineStart = 0
 
-    while (true) {
-      const nl = nextJSONL.indexOf('\n', lineStart)
-      const lineEnd = nl === -1 ? nextJSONL.length : nl
-      const line = nextJSONL.slice(lineStart, lineEnd).trim()
-      lineStart = lineEnd + 1
+    for (const raw of nextJSONL.split('\n')) {
+      const line = raw.trim()
+      if (line.length === 0)
+        continue
 
-      if (line.length > 0) {
-        try {
-          const parsed = parseEpisode(JSON.parse(line))
-          if (parsed == null)
-            throw new Error('Invalid episode.')
+      try {
+        const parsed = parseEpisode(JSON.parse(line))
+        if (parsed == null)
+          throw new Error('Invalid episode.')
 
-          appendParsed(parsed)
-        }
-        catch (error) {
-          errorCount += 1
-          if (errors.length < MAX_PARSE_ERROR_SAMPLES)
-            errors.push(error instanceof Error ? error.message : String(error))
-        }
+        appendParsed(parsed)
       }
-
-      if (nl === -1)
-        break
+      catch (error) {
+        errorCount += 1
+        if (errors.length < MAX_PARSE_ERROR_SAMPLES)
+          errors.push(error instanceof Error ? error.message : String(error))
+      }
     }
 
     if (errorCount > 0) {
