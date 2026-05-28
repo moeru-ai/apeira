@@ -45,17 +45,26 @@ export const createSessionPersistence = <T>(
   return {
     load: async (sessionId) => {
       const key = getSessionStorageKey(agentName, sessionId)
+      let lastError: unknown
 
       for (const plugin of plugins) {
         if (plugin.storage == null)
           continue
 
-        const value = await plugin.storage.getItem(key)
-        const state = parseSessionState<T>(value)
+        try {
+          const value = await plugin.storage.getItem(key)
+          const state = parseSessionState<T>(value)
 
-        if (state != null)
-          return state
+          if (state != null)
+            return state
+        }
+        catch (error) {
+          lastError = error
+        }
       }
+
+      if (lastError != null)
+        throw lastError
     },
     remove: async sessionId =>
       withSessionStorage(sessionId, async (storage, key) => storage.removeItem(key)),

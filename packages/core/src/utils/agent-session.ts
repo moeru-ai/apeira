@@ -131,8 +131,12 @@ export const createAgentSession = <T>(options: CreateAgentSessionOptions<T>): Ag
     instructions: options.instructions,
     loadSession,
     onTurnDone: async (turnContext) => {
-      for (const plugin of options.plugins)
-        await plugin.onTurnDone?.(turnContext)
+      for (const plugin of options.plugins) {
+        try {
+          await plugin.onTurnDone?.(turnContext)
+        }
+        catch {}
+      }
     },
     plugins: options.plugins,
     ready: ensureSessionReady,
