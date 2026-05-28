@@ -56,6 +56,7 @@ export const createEpisodic = (initial?: readonly Episode[] | string): Episodic 
     return episode
   }
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   const loadJSONL = (nextJSONL: string) => {
     episodes = []
     nextId = 1

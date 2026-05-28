@@ -38,7 +38,7 @@ export const createSessionPersistence = <T>(
     await Promise.all(
       plugins
         .filter(plugin => plugin.storage != null)
-        .map(plugin => fn(plugin.storage!, key)),
+        .map(async plugin => fn(plugin.storage!, key)),
     )
   }
 
