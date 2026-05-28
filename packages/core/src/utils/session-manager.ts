@@ -12,9 +12,6 @@ import { merge } from '@moeru/std/merge'
 import { createAgentSession } from './agent-session'
 
 export interface SessionManager<T> {
-  delete: (sessionId: string) => void
-  get: (sessionId: string) => AgentSession<T> | undefined
-  has: (sessionId: string) => boolean
   session: (options?: SessionOptions<T>) => AgentSession<T>
 }
 
@@ -126,10 +123,5 @@ export const createSessionManager = <T>(options: SessionManagerOptions<T>): Sess
     return agentSession
   }
 
-  return {
-    delete: sessionId => sessions.delete(sessionId),
-    get: sessionId => sessions.get(sessionId),
-    has: sessionId => sessions.has(sessionId),
-    session,
-  }
+  return { session }
 }
