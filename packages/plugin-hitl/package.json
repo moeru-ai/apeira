@@ -1,24 +1,28 @@
 {
-  "name": "apeira",
+  "name": "@apeira/plugin-hitl",
   "type": "module",
   "version": "0.0.4",
-  "description": "stream-first Agent Runtime.",
+  "description": "Human-in-the-loop tool control for Apeira agents",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moeru-ai/apeira.git",
-    "directory": "packages/apeira"
+    "directory": "packages/plugin-hitl"
   },
   "bugs": "https://github.com/moeru-ai/apeira/issues",
   "keywords": [
     "agent",
     "ai",
-    "xsai"
+    "hitl",
+    "tools"
   ],
   "sideEffects": false,
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist"
   ],
@@ -34,11 +38,17 @@
     "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "build": "pkgroll"
+    "build": "pkgroll",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@apeira/core": "workspace:"
   },
   "dependencies": {
+    "@xsai/shared-chat": "catalog:xsai"
+  },
+  "devDependencies": {
     "@apeira/core": "workspace:",
-    "@apeira/plugin-common-tools": "workspace:",
-    "@apeira/plugin-hitl": "workspace:"
+    "@xsai/tool": "catalog:xsai"
   }
 }

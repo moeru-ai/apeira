@@ -262,6 +262,29 @@ export const agui = (options: AGUIPluginOptions = {}): AgentPlugin => {
           return
         }
 
+        case 'tool-interruption': {
+          const hitlEvent = event
+          const toolName = hitlEvent.interruption.toolCall.toolName
+          const toolCallId = hitlEvent.interruption.toolCall.toolCallId
+
+          emit({
+            content: [
+              'HITL_REVIEW_REQUIRED',
+              `id=${hitlEvent.interruption.id}`,
+              `tool=${toolName}`,
+              `args=${hitlEvent.interruption.toolCall.args}`,
+              `reason=${hitlEvent.interruption.reason ?? 'Human review required.'}`,
+            ].join('\n'),
+            messageId: createMessageId(event.turnId, 'tool-interruption', hitlEvent.interruption.id),
+            rawEvent: event,
+            role: 'tool',
+            timestamp: Date.now(),
+            toolCallId,
+            type: EventType.TOOL_CALL_RESULT,
+          })
+          return
+        }
+
         case 'tool-result.done': {
           emit({
             content: JSON.stringify(event.toolResult.output),

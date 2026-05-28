@@ -1,6 +1,7 @@
 import type { AgentEvent } from '@apeira/core'
 import type { MarkdownTheme, SlashCommand } from '@earendil-works/pi-tui'
 
+import type { HITLDemoAction } from '../../shared/hitl-demo'
 import type { TranscriptEntry, TranscriptRole } from './types/transcript'
 
 import process from 'node:process'
@@ -10,8 +11,16 @@ import c from 'tinyrainbow'
 import { formatSkillInvocation } from '@apeira/plugin-skills'
 import { Box, CombinedAutocompleteProvider, Container, Editor, Markdown, matchesKey, ProcessTerminal, Spacer, Text, TUI } from '@earendil-works/pi-tui'
 
-import { agent, skillsDir, skillSet } from './utils/agent'
+import { agent, hitlControl, hitlDemoEnabled, hitlDemoReplay, skillsDir, skillSet } from './utils/agent'
 import { model, workspaceRoot } from './utils/config'
+import { appendTranscriptEntry } from './utils/hitl-demo-transcript'
+
+type ApprovalScope = 'call' | 'conversation' | 'run'
+
+interface NormalizedApprovalScope {
+  label: 'call' | 'conversation' | 'turn'
+  value: ApprovalScope
+}
 
 type ReasoningMode = 'compact' | 'full'
 
@@ -165,6 +174,18 @@ const compactReasoningText = (text: string) => {
 
 const shortTurnId = (turnId: string) => turnId.slice(0, 8)
 
+const demoActions: HITLDemoAction[] = ['once', 'turn', 'conversation', 'reject', 'approval-key']
+
+const normalizeApprovalScope = (scope: string): NormalizedApprovalScope | undefined => {
+  if (scope === 'turn' || scope === 'run')
+    return { label: 'turn', value: 'run' }
+
+  if (scope === 'call' || scope === 'conversation')
+    return { label: scope, value: scope }
+
+  return undefined
+}
+
 export const createPiTuiExampleApp = () => {
   const terminal = new ProcessTerminal()
   const tui = new TUI(terminal)
@@ -190,22 +211,12 @@ export const createPiTuiExampleApp = () => {
   let pendingInputs = 0
   let reasoningMode: ReasoningMode = 'compact'
   let runningTurnId: string | undefined
+  let sawHitlInterruption = false
+  let showedMissingHitlRuntimeWarning = false
   let stopped = false
 
   const pushEntry = (role: TranscriptRole, text: string, options: Pick<TranscriptEntry, 'state' | 'title'> = {}) => {
-    const entry: TranscriptEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      role,
-      text,
-      ...options,
-    }
-
-    entries.push(entry)
-
-    if (entries.length > 80)
-      entries.splice(0, entries.length - 80)
-
-    return entry
+    return appendTranscriptEntry(entries, role, text, options)
   }
 
   const pushSystem = (text: string) => {
@@ -281,7 +292,7 @@ export const createPiTuiExampleApp = () => {
       : c.yellow(`running ${runningTurnId.slice(0, 8)}`)
 
     header.setText([
-      `${c.bold('Apeira')} ${c.dim('pi-tui example')}`,
+      `${c.bold('Apeira')} ${c.dim(hitlDemoEnabled ? 'pi-tui HITL demo' : 'pi-tui example')}`,
     ].join('\n'))
 
     transcript.clear()
@@ -298,10 +309,11 @@ export const createPiTuiExampleApp = () => {
     status.setText(
       [
         `${c.bold('Status')} ${currentStatus}`,
+        hitlDemoEnabled ? c.yellow('HITL demo') : '',
         c.dim(`queued=${pendingInputs}`),
         c.dim(`cwd=${workspaceRoot}`),
-        c.dim(`model=${model}`),
-      ].join('  '),
+        c.dim(`model=${hitlDemoEnabled ? 'hitl-demo-replay' : model}`),
+      ].filter(Boolean).join('  '),
     )
 
     tui.requestRender()
@@ -352,7 +364,29 @@ export const createPiTuiExampleApp = () => {
         break
       }
 
+      case 'tool-interruption': {
+        sawHitlInterruption = true
+        const toolName = event.interruption.toolCall.toolName
+        const args = parseToolArguments(event.interruption.toolCall.args)
+        const entry = pushEntry('tool', [
+          formatToolCallSummary(toolName, args),
+          c.yellow(event.interruption.reason ?? 'Human review required.'),
+          c.gray(`/approve ${event.interruption.id} call|turn|conversation`),
+          c.gray(`/reject ${event.interruption.id}`),
+        ].join('\n'), {
+          state: 'pending',
+          title: toolName,
+        })
+        toolEntries.set(event.interruption.id, entry)
+        break
+      }
+
       case 'tool-result.done': {
+        if (hitlDemoEnabled && !sawHitlInterruption && !showedMissingHitlRuntimeWarning) {
+          showedMissingHitlRuntimeWarning = true
+          pushSystem('HITL demo warning: no HITL review event was emitted before the tool result. Check plugin-hitl and xsAI tool hook wiring.')
+        }
+
         const existing = toolEntries.get(event.toolResult.id)
         const args = toolArguments.get(event.toolResult.id)
         if (existing != null) {
@@ -413,6 +447,27 @@ export const createPiTuiExampleApp = () => {
 
   const unsubscribe = agent.subscribe('apeira', onEvent)
 
+  const sendDemoScenario = (action: HITLDemoAction) => {
+    if (!hitlDemoEnabled) {
+      pushSystem('Demo scenarios are only available when APEIRA_HITL_DEMO=1.')
+      render()
+      return
+    }
+
+    pushEntry('user', `Demo scenario: ${action}`)
+    const wasBusy = runningTurnId != null
+    runningTurnId = agent.send({
+      content: `hitl-demo ${action}`,
+      role: 'user',
+      type: 'message',
+    })
+
+    if (wasBusy)
+      pendingInputs += 1
+
+    render()
+  }
+
   const shutdown = (code: number) => {
     if (stopped)
       return
@@ -428,9 +483,36 @@ export const createPiTuiExampleApp = () => {
     const [command, ...rest] = commandLine.slice(1).split(/\s+/)
     const argument = rest.join(' ').trim()
 
+    if (command === 'quit') {
+      shutdown(0)
+      return
+    }
+
     switch (command) {
+      case 'approve': {
+        const [id, scope = 'conversation'] = argument.split(/\s+/)
+        if (id == null || id.length === 0) {
+          pushSystem('Usage: /approve <id> [call|turn|conversation] (run is accepted as a turn alias)')
+          render()
+          return
+        }
+
+        const normalizedScope = normalizeApprovalScope(scope) ?? { label: 'conversation', value: 'conversation' }
+        const approved = hitlControl.approve(id, normalizedScope.value)
+        if (approved) {
+          pushSystem(`Approved ${id} (${normalizedScope.label}); continuing current tool call...`)
+        }
+        else {
+          pushSystem(`No pending HITL request: ${id}`)
+        }
+        render()
+        return
+      }
+
       case 'clear':
         agent.clear()
+        hitlControl.clear()
+        hitlDemoReplay.reset()
         entries.length = 0
         assistantEntries.clear()
         reasoningEntries.clear()
@@ -438,12 +520,22 @@ export const createPiTuiExampleApp = () => {
         toolArguments.clear()
         pendingInputs = 0
         runningTurnId = undefined
+        sawHitlInterruption = false
+        showedMissingHitlRuntimeWarning = false
         pushSystem('Cleared transcript and in-memory thread state.')
         render()
         return
+      case 'demo': {
+        if (!demoActions.includes(argument as HITLDemoAction)) {
+          pushSystem('Usage: /demo once|turn|conversation|reject|approval-key')
+          render()
+          return
+        }
 
+        sendDemoScenario(argument as HITLDemoAction)
+        return
+      }
       case 'exit':
-      case 'quit':
         shutdown(0)
         return
 
@@ -456,9 +548,38 @@ export const createPiTuiExampleApp = () => {
           '/skill <name> [instructions]: invoke a skill explicitly',
           '/exit: quit the demo',
           '/interrupt <message>: abort the current turn and replace it with a new user request',
+          '/demo once|turn|conversation|reject|approval-key: run a fixed HITL replay scenario',
+          '/approve <id> [call|turn|conversation]: record a HITL approval; run is accepted as an alias for turn',
+          '/reject <id> [message]: reject a pending HITL request',
+          '/hitl pending: list pending HITL requests',
+          '/hitl mode allow|ask|deny|off: switch HITL mode',
         ].join('\n'))
         render()
         return
+
+      case 'hitl': {
+        const [subcommand, value] = argument.split(/\s+/)
+
+        if (subcommand === 'pending') {
+          const pending = hitlControl.pending()
+          pushSystem(pending.length === 0
+            ? 'No pending HITL requests.'
+            : pending.map(request => `${request.id}: ${request.toolName} ${request.reason ?? ''}`).join('\n'))
+          render()
+          return
+        }
+
+        if (subcommand === 'mode' && (value === 'allow' || value === 'ask' || value === 'deny' || value === 'off')) {
+          hitlControl.setMode(value)
+          pushSystem(`HITL mode set to ${value}.`)
+          render()
+          return
+        }
+
+        pushSystem('Usage: /hitl pending OR /hitl mode allow|ask|deny|off')
+        render()
+        return
+      }
 
       case 'interrupt':
         if (argument.length === 0) {
@@ -489,6 +610,25 @@ export const createPiTuiExampleApp = () => {
         pushSystem(`Reasoning display set to ${reasoningMode}.`)
         render()
         return
+
+      case 'reject': {
+        const [id] = argument.split(/\s+/)
+        if (id == null || id.length === 0) {
+          pushSystem('Usage: /reject <id> [message]')
+          render()
+          return
+        }
+
+        const rejected = hitlControl.reject(id, argument.slice(id.length).trim() || undefined)
+        if (rejected) {
+          pushSystem(`Rejected ${id}; continuing current tool call...`)
+        }
+        else {
+          pushSystem(`No pending HITL request: ${id}`)
+        }
+        render()
+        return
+      }
 
       case 'skill': {
         if (argument.length === 0) {
@@ -607,6 +747,10 @@ export const createPiTuiExampleApp = () => {
       name: 'skill',
     },
     { argumentHint: '<message>', description: 'Abort the active turn and replace it', name: 'interrupt' },
+    { argumentHint: 'once|turn|conversation|reject|approval-key', description: 'Run a fixed HITL demo scenario', name: 'demo' },
+    { argumentHint: '<id> [call|turn|conversation]', description: 'Approve a pending HITL request', name: 'approve' },
+    { argumentHint: '<id> [message]', description: 'Reject a pending HITL request', name: 'reject' },
+    { argumentHint: 'pending|mode <value>', description: 'Inspect or change HITL state', name: 'hitl' },
     { description: 'Quit the demo', name: 'exit' },
     { description: 'Quit the demo', name: 'quit' },
   ]
@@ -635,7 +779,9 @@ export const createPiTuiExampleApp = () => {
   })
 
   void refreshSkills().then(() => render())
-  pushSystem('Enter to send. Esc cancels the active turn. Commands: /help /skills /skill <name> /reasoning compact|full /clear /exit /interrupt <message>.')
+  pushSystem(hitlDemoEnabled
+    ? 'HITL demo mode is enabled. Use /demo once|turn|conversation|reject|approval-key, then /approve <id> call|turn|conversation or /reject <id>.'
+    : 'Enter to send. Esc cancels the active turn. Commands: /help /skills /skill <name> /reasoning compact|full /clear /exit /interrupt <message>.')
   render()
 
   return {

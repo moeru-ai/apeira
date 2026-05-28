@@ -2,7 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { Episode, Episodic, NewEpisode } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
-import type { AgentPlugin, SessionState, TurnDoneOptions } from '../types/plugin'
+import type { AgentPlugin, PluginPrivateStateApi, SessionState, TurnDoneOptions } from '../types/plugin'
 import type { EmitTurnEvent, QueuedInput, TurnCompletion } from './turn-runner'
 
 import Queue from 'yocto-queue'
@@ -33,8 +33,9 @@ export interface AgentRuntimeOptions<T> {
   input?: ItemParam[]
   instructions: Instructions<T>
   loadSession: () => Promise<SessionState<T> | void> | SessionState<T> | void
-  onTurnDone: (options: TurnDoneOptions<T>) => Promise<void> | void
+  onTurnDone: (plugin: AgentPlugin<T>, options: TurnDoneOptions<T>) => Promise<void> | void
   plugins: AgentPlugin<T>[]
+  pluginStates?: Record<string, unknown>
   ready: () => Promise<void>
   responseOptions: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
   saveSession: (state: SessionState<T>) => Promise<void> | void
@@ -55,12 +56,44 @@ const cloneContext = <T>(context: Partial<AgentContext<T>>): Partial<AgentContex
 const toNewEpisode = ({ id, ...rest }: Episode): NewEpisode =>
   rest
 
+const clonePluginStates = (states: Record<string, unknown> = {}) => ({ ...states })
+
+const hasPluginStates = (states: Record<string, unknown>) =>
+  Object.keys(states).length > 0
+
+const createPluginStateApi = <S = unknown>(
+  states: () => Record<string, unknown>,
+  setStates: (states: Record<string, unknown>) => void,
+  name: string,
+): PluginPrivateStateApi<S> => ({
+  clear: () => {
+    const next = states()
+    delete next[name]
+    setStates(next)
+  },
+  get: () => states()[name] as S | undefined,
+  set: (value) => {
+    const next = states()
+    next[name] = value
+    setStates(next)
+  },
+  update: (fn) => {
+    const next = states()
+    const value = fn(next[name] as S | undefined)
+    next[name] = value
+    setStates(next)
+    return value
+  },
+})
+
 export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRuntime<T> => {
   const pendingInput = createPendingInput<T>()
   const pendingTurns = new Queue<QueuedInput<T>>()
   const initialSessionContext = cloneContext<T>(options.sessionContext ?? {})
+  const initialPluginStates = clonePluginStates(options.pluginStates)
 
   let episodic = createEpisodic(options.episodic)
+  let pluginStates = clonePluginStates(initialPluginStates)
   let sessionContext = cloneContext(initialSessionContext)
 
   if (options.episodic == null)
@@ -79,20 +112,36 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
   const hydrateSession = (state: SessionState<T>) => {
     episodic = createEpisodic(state.episodic)
+    pluginStates = clonePluginStates(state.plugins)
     sessionContext = cloneContext(state.context)
   }
 
-  const snapshotSession = (): SessionState<T> => ({
-    context: cloneContext(sessionContext),
-    episodic: episodic.toJSONL(),
-  })
+  const snapshotSession = (): SessionState<T> => {
+    const snapshot: SessionState<T> = {
+      context: cloneContext(sessionContext),
+      episodic: episodic.toJSONL(),
+    }
+
+    if (hasPluginStates(pluginStates))
+      snapshot.plugins = clonePluginStates(pluginStates)
+
+    return snapshot
+  }
 
   const resetSession = () => {
     episodic = createEpisodic(options.episodic)
     if (options.episodic == null)
       episodic.appendItems(options.input ?? [], { source: 'user' })
+    pluginStates = clonePluginStates(initialPluginStates)
     sessionContext = cloneContext(initialSessionContext)
   }
+
+  const pluginState = <S = unknown>(name: string): PluginPrivateStateApi<S> =>
+    createPluginStateApi<S>(
+      () => pluginStates,
+      next => pluginStates = next,
+      name,
+    )
 
   const mergeWorkingEpisodic = (workingEpisodic: Episodic, fromId: number) => {
     const nextEpisodes = workingEpisodic.read({ fromId })
@@ -211,6 +260,13 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
     turn: QueuedInput<T>,
   ): Promise<TurnCompletion<T>> => {
     const [formId, workingEpisodic] = forkEpisodic()
+    let workingPluginStates = clonePluginStates(pluginStates)
+    const workingPluginState = <S = unknown>(name: string): PluginPrivateStateApi<S> =>
+      createPluginStateApi<S>(
+        () => workingPluginStates,
+        next => workingPluginStates = next,
+        name,
+      )
     const completion = await runTurn<T>({
       agentName: options.agentName,
       controller,
@@ -220,6 +276,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
       getContext: options.getContext,
       instructions: options.instructions,
       plugins: options.plugins,
+      pluginState: workingPluginState,
       ready: options.ready,
       responseOptions: options.responseOptions,
       sessionId: options.sessionId,
@@ -238,6 +295,7 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
         return
 
       mergeWorkingEpisodic(workingEpisodic, formId)
+      pluginStates = workingPluginStates
       await options.saveSession(snapshotSession())
 
       if (!controller.signal.aborted)
@@ -296,10 +354,13 @@ export const createAgentRuntime = <T>(options: AgentRuntimeOptions<T>): AgentRun
 
     if (completion.type === 'done') {
       try {
-        await options.onTurnDone({
-          ...completion.context,
-          snapshot: snapshotSession(),
-        })
+        for (const plugin of options.plugins) {
+          await options.onTurnDone(plugin, {
+            ...completion.context,
+            privateState: pluginState(plugin.name),
+            snapshot: snapshotSession(),
+          })
+        }
       }
       catch (error) {
         completion = { error, type: 'failed' }

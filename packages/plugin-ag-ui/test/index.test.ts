@@ -1,4 +1,4 @@
-import type { AgentPluginApi } from '@apeira/core'
+import type { AgentEvent, AgentPluginApi } from '@apeira/core'
 
 import { EventType } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
@@ -124,5 +124,102 @@ describe('agui', () => {
       code: 'turn_failed',
       message: 'boom',
     })
+  })
+
+  it('maps HITL interruption to a review tool result', async () => {
+    const plugin = agui()
+    const { api, emitted } = createPluginApi()
+
+    await plugin.setup?.(api)
+
+    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-3', type: 'turn.start' })
+    await plugin.onEvent?.({ outputIndex: 0, sessionId: 'session-1', turnId: 'turn-3', type: 'text.start' })
+    await plugin.onEvent?.({
+      outputIndex: 1,
+      sessionId: 'session-1',
+      toolCall: { id: 'call_2', name: 'weather' },
+      turnId: 'turn-3',
+      type: 'tool-call.start',
+    })
+    await plugin.onEvent?.({
+      interruption: {
+        id: 'hitl_call_2',
+        reason: 'Human review required.',
+        toolCall: {
+          args: '{"city":"Taipei"}',
+          toolCallId: 'call_2',
+          toolCallType: 'function',
+          toolName: 'weather',
+        },
+      },
+      sessionId: 'session-1',
+      turnId: 'turn-3',
+      type: 'tool-interruption',
+    } satisfies AgentEvent)
+
+    const events = emitted.map(entry => entry.event as { [key: string]: unknown, type: string })
+
+    expect(events.map(event => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TEXT_MESSAGE_START,
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_RESULT,
+    ])
+    expect(events[3]).toMatchObject({
+      content: [
+        'HITL_REVIEW_REQUIRED',
+        'id=hitl_call_2',
+        'tool=weather',
+        'args={"city":"Taipei"}',
+        'reason=Human review required.',
+      ].join('\n'),
+      toolCallId: 'call_2',
+    })
+  })
+
+  it('does not emit tool-call end when HITL interruption follows tool-call done', async () => {
+    const plugin = agui()
+    const { api, emitted } = createPluginApi()
+
+    await plugin.setup?.(api)
+
+    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-4', type: 'turn.start' })
+    await plugin.onEvent?.({
+      outputIndex: 1,
+      sessionId: 'session-1',
+      toolCall: { id: 'call_3', name: 'weather' },
+      turnId: 'turn-4',
+      type: 'tool-call.start',
+    })
+    await plugin.onEvent?.({
+      sessionId: 'session-1',
+      toolCall: { arguments: '{"city":"Taipei"}', id: 'call_3', name: 'weather' },
+      turnId: 'turn-4',
+      type: 'tool-call.done',
+    })
+    await plugin.onEvent?.({
+      interruption: {
+        id: 'hitl_call_3',
+        reason: 'Human review required.',
+        toolCall: {
+          args: '{"city":"Taipei"}',
+          toolCallId: 'call_3',
+          toolCallType: 'function',
+          toolName: 'weather',
+        },
+      },
+      sessionId: 'session-1',
+      turnId: 'turn-4',
+      type: 'tool-interruption',
+    } satisfies AgentEvent)
+
+    const events = emitted.map(entry => entry.event as { type: string })
+
+    expect(events.map(event => event.type)).toEqual([
+      EventType.RUN_STARTED,
+      EventType.TOOL_CALL_START,
+      EventType.TOOL_CALL_END,
+      EventType.TOOL_CALL_RESULT,
+    ])
   })
 })

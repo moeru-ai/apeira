@@ -1,6 +1,7 @@
 {
   "references": [
     { "path": "./examples/copilotkit/tsconfig.json" },
+    { "path": "./examples/pi-tui/tsconfig.json" },
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
   ],

@@ -285,6 +285,9 @@ importers:
       '@apeira/plugin-ag-ui':
         specifier: 'workspace:'
         version: link:../../packages/plugin-ag-ui
+      '@apeira/plugin-hitl':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-hitl
       '@copilotkit/react-core':
         specifier: 'catalog:'
         version: 1.57.1(@types/mdast@4.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(graphql@16.14.0)(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(zod@4.4.3)
@@ -355,6 +358,9 @@ importers:
       '@apeira/plugin-common-tools':
         specifier: 'workspace:'
         version: link:../../packages/plugin-common-tools
+      '@apeira/plugin-hitl':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-hitl
       '@apeira/plugin-skills':
         specifier: 'workspace:'
         version: link:../../packages/plugin-skills
@@ -382,6 +388,9 @@ importers:
       '@apeira/plugin-common-tools':
         specifier: 'workspace:'
         version: link:../plugin-common-tools
+      '@apeira/plugin-hitl':
+        specifier: 'workspace:'
+        version: link:../plugin-hitl
 
   packages/core:
     dependencies:
@@ -438,6 +447,19 @@ importers:
       '@types/turndown':
         specifier: 'catalog:'
         version: 5.0.6
+
+  packages/plugin-hitl:
+    dependencies:
+      '@xsai/shared-chat':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.5
+    devDependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../core
+      '@xsai/tool':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.5(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
   packages/plugin-mcp:
     dependencies:
@@ -3300,6 +3322,7 @@ packages:
 
   dompurify@3.4.4:
     resolution: {integrity: sha512-r8K7KGKEcztXfA/nfabSYB2hg9tDphORJTdf8xprN/luSLGmNhOBN8dm1/SYjqLLet6YUFEXOcrdTuwryp/Bew==}
+    deprecated: Fixed a security issue introduced in 3.4.4
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}

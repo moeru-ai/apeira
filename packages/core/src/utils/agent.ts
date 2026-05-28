@@ -29,6 +29,10 @@ export interface SessionOptions<T> {
   input?: ItemParam[]
 }
 
+interface InternalSessionOptions<T> extends SessionOptions<T> {
+  pluginStates?: Record<string, unknown>
+}
+
 const DEFAULT_SESSION_ID = 'default'
 
 const getSessionStorageKey = (agentName: string, sessionId: string) =>
@@ -41,8 +45,15 @@ const parseSessionState = <T>(value: null | string | undefined): SessionState<T>
   try {
     const state = JSON.parse(value) as Partial<SessionState<T>>
 
-    if (state == null || typeof state.episodic !== 'string' || typeof state.context !== 'object' || state.context == null)
+    if (
+      state == null
+      || typeof state.episodic !== 'string'
+      || typeof state.context !== 'object'
+      || state.context == null
+      || (state.plugins != null && typeof state.plugins !== 'object')
+    ) {
       return undefined
+    }
 
     return state as SessionState<T>
   }
@@ -153,7 +164,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     await withSessionStorage(sessionId, async (storage, key) => storage.removeItem(key))
   }
 
-  const createAgentSession = (id: string, sessionOptions: SessionOptions<T> = {}): AgentSession<T> => {
+  const createAgentSession = (id: string, sessionOptions: InternalSessionOptions<T> = {}): AgentSession<T> => {
     const initialSessionContext = sessionOptions.context ?? {}
 
     let currentSessionContext = initialSessionContext
@@ -237,11 +248,11 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
       input: sessionOptions.input,
       instructions: options.instructions,
       loadSession,
-      onTurnDone: async (turnContext) => {
-        for (const plugin of plugins)
-          await plugin.onTurnDone?.(turnContext)
+      onTurnDone: async (plugin, turnContext) => {
+        await plugin.onTurnDone?.(turnContext)
       },
       plugins,
+      pluginStates: sessionOptions.pluginStates,
       ready: async () => ensureSessionReady(),
       responseOptions: options.options,
       saveSession,
@@ -350,6 +361,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         context: forkContext,
         episodic: snapshot.episodic,
         id: forkId,
+        pluginStates: snapshot.plugins,
       })
 
       sessions.set(forkId, forked)
@@ -358,6 +370,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
         await saveSessionState(forkId, {
           context: forkContext,
           episodic: snapshot.episodic,
+          plugins: snapshot.plugins,
         })
       }
       catch (error) {

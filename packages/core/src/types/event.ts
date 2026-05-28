@@ -1,15 +1,23 @@
 import type { Event as XSAIEvent } from '@xsai-ext/responses'
 
+import type { ToolInterruption } from './plugin'
+
 export type AgentEvent = WithId<ApeiraEvent | XSAIEvent>
 
 export type ApeiraEvent
-  = | TurnAbortedEvent
+  = | ToolInterruptionEvent
+    | TurnAbortedEvent
     | TurnDoneEvent
     | TurnFailedEvent
     | TurnInputDrainedEvent
     | TurnInputQueuedEvent
     | TurnQueuedEvent
     | TurnStartEvent
+
+export interface ToolInterruptionEvent {
+  interruption: ToolInterruption
+  type: 'tool-interruption'
+}
 
 export interface TurnAbortedEvent {
   reason?: unknown

@@ -1,9 +1,9 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
-import type { Tool } from '@xsai/shared-chat'
+import type { CompletionToolCall, CompletionToolResult, Tool, ToolExecuteOptions } from '@xsai/shared-chat'
 
 import type { Episodic } from '../episodic'
 import type { AgentContext, ItemParam, MaybePromise } from './base'
-import type { AgentEvent } from './event'
+import type { AgentEvent, ApeiraEvent } from './event'
 
 export interface AgentChannelMap {
   apeira: AgentEvent
@@ -20,9 +20,9 @@ export interface AgentPlugin<T = unknown> {
   onStepFinish?: ResponsesOptions['onStepFinish']
   onTurnDone?: (options: TurnDoneOptions<T>) => MaybePromise<void>
   onTurnStart?: (options: TurnStartOptions<T>) => MaybePromise<void>
-  postToolCall?: ResponsesOptions['postToolCall']
+  postToolCall?: (toolResult: CompletionToolResult, options: PluginToolExecuteOptions) => MaybePromise<CompletionToolResult | void>
   prepareStep?: ResponsesOptions['prepareStep']
-  preToolCall?: ResponsesOptions['preToolCall']
+  preToolCall?: (toolCall: CompletionToolCall, options: PluginToolExecuteOptions) => MaybePromise<CompletionToolCall | CompletionToolResult | void>
   resolveTools?: (options: ResolveToolsOptions<T>) => MaybePromise<Tool[] | void>
   setup?: (api: AgentPluginApi) => MaybePromise<void>
   storage?: StorageLike
@@ -62,9 +62,25 @@ export type PluginChannelListener<T = unknown> = (event: T) => void
 export interface PluginHookBase<T = unknown> {
   agentName: string
   context: AgentContext<T>
+  privateState?: PluginPrivateStateApi
   sessionId: string
   signal: AbortSignal
   turnId: string
+}
+
+export interface PluginPrivateStateApi<T = unknown> {
+  clear: () => void
+  get: () => T | undefined
+  set: (value: T) => void
+  update: (fn: (value: T | undefined) => T) => T
+}
+
+export interface PluginToolExecuteOptions extends ToolExecuteOptions {
+  emit?: (event: ApeiraEvent) => void
+  privateState?: PluginPrivateStateApi
+  sessionId?: string
+  tools?: readonly Tool[]
+  turnId?: string
 }
 
 export interface ResolveToolsOptions<T = unknown> extends ResponseOptions<T> {
@@ -85,12 +101,20 @@ export interface SessionInitOptions<T = unknown> {
 export interface SessionState<T = unknown> {
   context: Partial<AgentContext<T>>
   episodic: string
+  plugins?: Record<string, unknown>
 }
 
 export interface StorageLike {
   getItem: (key: string) => MaybePromise<null | string | undefined>
   removeItem: (key: string) => MaybePromise<void>
   setItem: (key: string, value: string) => MaybePromise<void>
+}
+
+export interface ToolInterruption {
+  data?: unknown
+  id: string
+  reason?: string
+  toolCall: CompletionToolCall
 }
 
 export interface TurnDoneOptions<T = unknown> extends ResponseOptions<T> {

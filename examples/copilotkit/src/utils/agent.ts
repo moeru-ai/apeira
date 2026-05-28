@@ -107,7 +107,7 @@ const toUserInput = (messages: RunAgentInput['messages']): ItemParam | undefined
   const content: NonNullable<Extract<PersistedMessageItem, { role: 'user' }>['content']> = []
 
   for (const part of lastUserMessage.content as UserContentPart[]) {
-    // TODO: more part type
+    // Future: add more part types as CopilotKit expands attachment support.
     // eslint-disable-next-line ts/switch-exhaustiveness-check
     switch (part.type) {
       case 'audio':
@@ -238,7 +238,7 @@ const readPersistedMessages = (threadId: string): Message[] => {
     }
 
     return items.flatMap((item): Message[] => {
-      // TODO
+      // Future: preserve additional persisted response item types when needed.
       // eslint-disable-next-line ts/switch-exhaustiveness-check
       switch (item.type) {
         case 'function_call_output':
@@ -311,6 +311,10 @@ export class AbstractApeiraAgent extends AbstractAgent {
     this.agentOptions = agentOptions
     this.agent = createAgent(agentOptions)
     this.onThreadUpdated = onThreadUpdated
+  }
+
+  clearThread() {
+    this.agent.session({ id: this.threadId }).clear()
   }
 
   override clone(): this {
@@ -391,6 +395,25 @@ export class AbstractApeiraAgent extends AbstractAgent {
           session.abort('cancelled')
       }
     })
+  }
+
+  runDemoMessage(content: string, onEvent: (event: BaseEvent) => void, onDone?: () => void) {
+    const input = this.prepareRunAgentInput()
+
+    const subscription = this.run({
+      ...input,
+      messages: [{
+        content,
+        id: crypto.randomUUID(),
+        role: 'user',
+      }],
+    }).subscribe({
+      complete: onDone,
+      error: () => onDone?.(),
+      next: onEvent,
+    })
+
+    return () => subscription.unsubscribe()
   }
 
   protected override connect(_input: RunAgentInput) {

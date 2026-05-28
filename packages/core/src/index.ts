@@ -2,6 +2,7 @@ export type { AgentContext, Instructions, ItemParam, MaybePromise } from './type
 export type {
   AgentEvent,
   ApeiraEvent,
+  ToolInterruptionEvent,
   TurnAbortedEvent,
   TurnDoneEvent,
   TurnFailedEvent,
@@ -21,11 +22,14 @@ export type {
   ExtendInstructionsOptions,
   PluginChannelListener,
   PluginHookBase,
+  PluginPrivateStateApi,
+  PluginToolExecuteOptions,
   ResolveToolsOptions,
   ResponseOptions,
   SessionInitOptions,
   SessionState,
   StorageLike,
+  ToolInterruption,
   TurnDoneOptions,
   TurnStartOptions,
 } from './types/plugin'

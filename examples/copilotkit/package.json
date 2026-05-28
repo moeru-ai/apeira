@@ -7,11 +7,14 @@
     "build": "tsc -b && vite build",
     "dev": "vite",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "vitest run test/hitl-demo.test.ts"
   },
   "dependencies": {
     "@apeira/core": "workspace:",
     "@apeira/plugin-ag-ui": "workspace:",
+    "@apeira/plugin-hitl": "workspace:",
     "@copilotkit/react-core": "catalog:",
     "@copilotkit/react-ui": "catalog:",
     "@radix-ui/react-dialog": "catalog:",
