@@ -1,15 +1,15 @@
 import type { ResponsesOptions, Event as XSAIEvent } from '@xsai-ext/responses'
-import type { Tool } from '@xsai/shared-chat'
 
 import type { Episodic } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { ApeiraEvent } from '../types/event'
-import type { AgentPlugin, ExtendInputOptions, ExtendInstructionsOptions, ResponseOptions, TurnStartOptions } from '../types/plugin'
+import type { AgentPlugin, ResponseOptions, TurnStartOptions } from '../types/plugin'
 
 import { merge } from '@moeru/std/merge'
 import { responses, stepCountAtLeast } from '@xsai-ext/responses'
 
 import { createSlice } from '../episodic/slice'
+import { resolveInstructions, resolveResponseHooks } from './plugin-hooks'
 
 export type EmitTurnEvent = (id: string, event: ApeiraEvent | XSAIEvent) => void
 
@@ -39,10 +39,6 @@ export type TurnCompletion<T = unknown>
   = | { context: ResponseOptions<T>, type: 'done' }
     | { error: unknown, type: 'failed' }
     | { reason?: unknown, type: 'aborted' }
-
-type PreparedStep = Awaited<ReturnType<PrepareStepHook>>
-
-type PrepareStepHook = NonNullable<ResponsesOptions['prepareStep']>
 
 const mergeRunContext = <T>(
   context: AgentContext<T>,
@@ -82,138 +78,6 @@ const createInputHookOptions = <T>(
   turnInput: options.turn.input,
 })
 
-const createExtendInputOptions = <T>(
-  options: RunTurnOptions<T>,
-  context: AgentContext<T>,
-  input: ItemParam[],
-): ExtendInputOptions<T> => ({
-  ...createInputHookOptions(options, context, input),
-  episodic: options.episodic,
-})
-
-const mergeTools = (tools: Tool[]): Tool[] =>
-  [...new Map(tools.map(tool => [tool.function.name, tool])).values()]
-
-const resolveInstructions = async <T>(
-  options: RunTurnOptions<T>,
-  context: AgentContext<T>,
-  base: string,
-): Promise<string> => {
-  const parts: string[] = [base]
-
-  for (const plugin of options.plugins) {
-    if (plugin.extendInstructions == null)
-      continue
-
-    const result = await plugin.extendInstructions({
-      ...createPluginHookBase(options, context),
-      turnInput: options.turn.input,
-    } satisfies ExtendInstructionsOptions<T>)
-
-    if (result != null && result.length > 0)
-      parts.push(result)
-  }
-
-  return parts.join('\n\n')
-}
-
-const resolveToolExtensions = async <T>(
-  options: RunTurnOptions<T>,
-  pluginOptions: ResponseOptions<T>,
-) => {
-  let tools = [...(options.responseOptions.tools ?? [])]
-
-  for (const plugin of options.plugins) {
-    if (plugin.extendTools == null)
-      continue
-
-    const extendedTools = await plugin.extendTools(pluginOptions)
-
-    if (extendedTools != null)
-      tools = mergeTools([...tools, ...extendedTools])
-  }
-
-  return tools.length > 0 ? tools : options.responseOptions.tools
-}
-
-const resolveInputExtensions = async <T>(
-  options: RunTurnOptions<T>,
-  pluginOptions: ExtendInputOptions<T>,
-) => {
-  const extensions: ItemParam[] = []
-
-  for (const plugin of options.plugins) {
-    if (plugin.extendInput == null)
-      continue
-
-    const extended = await plugin.extendInput(pluginOptions)
-
-    if (extended != null)
-      extensions.push(...extended)
-  }
-
-  return extensions
-}
-
-const chainHooks = <H extends (...args: never[]) => unknown>(
-  mode: 'all' | 'first',
-  ...hooks: (H | undefined)[]
-): H | undefined => {
-  const list = hooks.filter(Boolean) as H[]
-  if (list.length === 0)
-    return undefined
-
-  return (async (...args: Parameters<H>) => {
-    for (const hook of list) {
-      const result = await hook(...args)
-      if (result != null && mode === 'first')
-        return result
-    }
-    return undefined
-  }) as H
-}
-
-const chainPrepareStepHooks = (
-  ...hooks: (PrepareStepHook | undefined)[]
-): ResponsesOptions['prepareStep'] => {
-  const list = hooks.filter(Boolean) as PrepareStepHook[]
-  if (list.length === 0)
-    return undefined
-
-  return async (stepOptions) => {
-    let current = { ...stepOptions }
-    let prepared: PreparedStep | undefined
-
-    for (const hook of list) {
-      const result = await hook(current)
-      if (result != null) {
-        prepared = { ...prepared, ...result }
-        current = { ...current, ...result }
-      }
-    }
-
-    return prepared ?? {}
-  }
-}
-
-const createOnFinish = <T>(options: RunTurnOptions<T>): ResponsesOptions['onFinish'] =>
-  chainHooks('all', options.responseOptions.onFinish, ...options.plugins.map(plugin => plugin.onFinish))
-
-const createOnStepFinish = <T>(options: RunTurnOptions<T>): ResponsesOptions['onStepFinish'] =>
-  chainHooks('all', options.responseOptions.onStepFinish, ...options.plugins.map(plugin => plugin.onStepFinish))
-
-const createPostToolCall = <T>(options: RunTurnOptions<T>): ResponsesOptions['postToolCall'] =>
-  chainHooks('first', options.responseOptions.postToolCall, ...options.plugins.map(plugin => plugin.postToolCall))
-
-const createPreToolCall = <T>(options: RunTurnOptions<T>): ResponsesOptions['preToolCall'] =>
-  chainHooks('first', options.responseOptions.preToolCall, ...options.plugins.map(plugin => plugin.preToolCall))
-
-const createPrepareStep = <T>(options: RunTurnOptions<T>): ResponsesOptions['prepareStep'] =>
-  chainPrepareStepHooks(
-    options.responseOptions.prepareStep,
-    ...options.plugins.map(plugin => plugin.prepareStep),
-  )
-
 const runResponse = async <T>(
   options: RunTurnOptions<T>,
   input: QueuedInput<T>[],
@@ -225,29 +89,41 @@ const runResponse = async <T>(
     source: 'user',
     turnId: options.turn.id,
   })
-  const extensions = await resolveInputExtensions(options, createExtendInputOptions(options, context, turnInput))
+
+  const hooks = await resolveResponseHooks({
+    agentName: options.agentName,
+    context,
+    episodic: options.episodic,
+    input: turnInput,
+    plugins: options.plugins,
+    responseOptions: options.responseOptions,
+    sessionId: options.sessionId,
+    signal: options.controller.signal,
+    turnId: options.turn.id,
+    turnInput: options.turn.input,
+  })
+
   const assembled = createSlice(options.episodic, {
-    extensions,
+    extensions: hooks.extendInput,
     maxTokens: context.contextLength,
     reserveOutputTokens: options.responseOptions.maxOutputTokens ?? undefined,
     turnId: options.turn.id,
   })
   const responseInput = assembled.items
   const responseOptions = createInputHookOptions(options, context, responseInput)
-  const tools = await resolveToolExtensions(options, responseOptions)
 
   const result = responses({
     ...options.responseOptions,
     abortSignal: options.controller.signal,
     input: responseInput,
     instructions,
-    onFinish: createOnFinish(options),
-    onStepFinish: createOnStepFinish(options),
-    postToolCall: createPostToolCall(options),
-    prepareStep: createPrepareStep(options),
-    preToolCall: createPreToolCall(options),
+    onFinish: hooks.onFinish,
+    onStepFinish: hooks.onStepFinish,
+    postToolCall: hooks.postToolCall,
+    prepareStep: hooks.prepareStep,
+    preToolCall: hooks.preToolCall,
     stopWhen: options.responseOptions.stopWhen ?? stepCountAtLeast(20),
-    tools,
+    tools: hooks.tools,
   })
 
   for (const p of [result.input, result.steps, result.usage, result.totalUsage] as const)
@@ -299,7 +175,15 @@ export const runTurn = async <T>(options: RunTurnOptions<T>): Promise<TurnComple
       ? await options.instructions(context)
       : options.instructions
 
-    const mergedInstructions = await resolveInstructions(options, context, baseInstructions)
+    const mergedInstructions = await resolveInstructions({
+      agentName: options.agentName,
+      context,
+      plugins: options.plugins,
+      sessionId: options.sessionId,
+      signal: options.controller.signal,
+      turnId: options.turn.id,
+      turnInput: options.turn.input,
+    }, baseInstructions)
 
     let nextInput: QueuedInput<T>[] = [options.turn]
 
