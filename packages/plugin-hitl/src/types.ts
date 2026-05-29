@@ -1,28 +1,19 @@
 import type { CompletionToolCall } from '@xsai/shared-chat'
 
-export type ApprovalDecision =
-  | { reason?: string, type: 'reject' }
-  | { type: 'approve' }
-  | { type: 'pending' }
-
-export type RejectionMessageFn = (
-  toolCall: CompletionToolCall,
-  reason?: string,
-) => string
-
-export interface ToolPolicy {
-  needsApproval?: boolean | ((args: unknown) => boolean)
-}
+export type ApprovalDecision
+  = | { reason?: string, type: 'reject' }
+    | { type: 'approve' }
+    | { type: 'pending' }
 
 export type AutoReviewPolicy = (
   toolCall: CompletionToolCall,
   context: { toolPolicies?: Record<string, ToolPolicy> },
 ) => ApprovalDecision
 
-export interface HumanInTheLoopOptions {
-  autoReview?: AutoReviewPolicy
-  rejectionMessage?: RejectionMessageFn | string
-  toolPolicies?: Record<string, ToolPolicy>
+export interface HITLAutoReviewedEvent extends HITLBaseEvent {
+  decision: 'approve' | 'reject'
+  reason?: string
+  type: 'hitl.auto_reviewed'
 }
 
 export interface HITLBaseEvent {
@@ -33,11 +24,10 @@ export interface HITLBaseEvent {
   turnId: string
 }
 
-export interface HITLAutoReviewedEvent extends HITLBaseEvent {
-  decision: 'approve' | 'reject'
-  reason?: string
-  type: 'hitl.auto_reviewed'
-}
+export type HITLEvent
+  = | HITLAutoReviewedEvent
+    | HITLRequestEvent
+    | HITLResolvedEvent
 
 export interface HITLRequestEvent extends HITLBaseEvent {
   args: string
@@ -51,7 +41,17 @@ export interface HITLResolvedEvent extends HITLBaseEvent {
   type: 'hitl.resolved'
 }
 
-export type HITLEvent =
-  | HITLAutoReviewedEvent
-  | HITLRequestEvent
-  | HITLResolvedEvent
+export interface HumanInTheLoopOptions {
+  autoReview?: AutoReviewPolicy
+  rejectionMessage?: RejectionMessageFn | string
+  toolPolicies?: Record<string, ToolPolicy>
+}
+
+export type RejectionMessageFn = (
+  toolCall: CompletionToolCall,
+  reason?: string,
+) => string
+
+export interface ToolPolicy {
+  needsApproval?: ((args: unknown) => boolean) | boolean
+}
