@@ -47,6 +47,15 @@ const pendingByKey = new Map<string, PendingResolution>()
 const pendingKeyByToolCallId = new Map<string, string>()
 const turnContextBySignal = new WeakMap<AbortSignal, { sessionId: string, turnId: string }>()
 
+const removePending = (toolCallId: string, key?: string) => {
+  const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
+
+  pendingKeyByToolCallId.delete(toolCallId)
+
+  if (resolvedKey != null)
+    pendingByKey.delete(resolvedKey)
+}
+
 const resolvePending = (
   toolCallId: string,
   resolution: ApprovalDecision,
@@ -56,6 +65,8 @@ const resolvePending = (
 
   if (pending == null)
     return false
+
+  removePending(toolCallId, key)
 
   if (resolution.type === 'approve') {
     pending.deferred.resolve(pending.toolCall)
@@ -103,10 +114,19 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
         ? undefined
         : turnContextBySignal.get(executeOptions.abortSignal)
 
-      if (context == null)
-        return toolCall
-
       const decision = resolveDecision(toolCall, options)
+
+      if (context == null) {
+        if (decision.type === 'approve')
+          return toolCall
+
+        return buildRejectionResult(
+          toolCall,
+          options.rejectionMessage,
+          'Tool execution blocked: missing or untracked execution context.',
+        )
+      }
+
       const eventBase = {
         sessionId: context.sessionId,
         timestamp: Date.now(),
@@ -168,20 +188,23 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       })
 
       const onAbort = () => {
-        pendingByKey.delete(key)
-        pendingKeyByToolCallId.delete(toolCall.toolCallId)
+        removePending(toolCall.toolCallId, key)
         deferred.reject(executeOptions.abortSignal?.reason ?? new Error('aborted'))
       }
 
-      executeOptions.abortSignal?.addEventListener('abort', onAbort, { once: true })
+      if (executeOptions.abortSignal?.aborted) {
+        onAbort()
+      }
+      else {
+        executeOptions.abortSignal?.addEventListener('abort', onAbort, { once: true })
+      }
 
       try {
         return await deferred.promise
       }
       finally {
         executeOptions.abortSignal?.removeEventListener('abort', onAbort)
-        pendingByKey.delete(key)
-        pendingKeyByToolCallId.delete(toolCall.toolCallId)
+        removePending(toolCall.toolCallId, key)
       }
     },
     setup: async (api) => {

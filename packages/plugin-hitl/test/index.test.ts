@@ -50,6 +50,26 @@ describe('autoReviewByPattern', () => {
     expect(review(createToolCall({ toolName: 'bash' }), {})).toEqual({ type: 'pending' })
     expect(review(createToolCall({ toolName: 'edit' }), {})).toEqual({ type: 'pending' })
   })
+
+  it('supports wildcard patterns', () => {
+    const review = autoReviewByPattern({
+      always: ['write_*', '*_delete'],
+      never: ['read_*', '*_list'],
+    })
+
+    expect(review(createToolCall({ toolName: 'read_file' }), {})).toEqual({ type: 'approve' })
+    expect(review(createToolCall({ toolName: 'user_list' }), {})).toEqual({ type: 'approve' })
+    expect(review(createToolCall({ toolName: 'write_file' }), {})).toEqual({ type: 'pending' })
+    expect(review(createToolCall({ toolName: 'hard_delete' }), {})).toEqual({ type: 'pending' })
+  })
+
+  it('supports the catch-all wildcard pattern', () => {
+    const review = autoReviewByPattern({
+      never: ['*'],
+    })
+
+    expect(review(createToolCall({ toolName: 'anything' }), {})).toEqual({ type: 'approve' })
+  })
 })
 
 describe('humanInTheLoop', () => {
@@ -110,6 +130,22 @@ describe('humanInTheLoop', () => {
       'hitl.auto_reviewed',
       'hitl.resolved',
     ])
+  })
+
+  it('fails secure when execution context is missing for a gated tool', async () => {
+    const plugin = humanInTheLoop()
+    const { api, emitted } = createPluginApi()
+
+    await plugin.setup?.(api)
+
+    const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+
+    expect(result).toMatchObject({
+      result: 'Tool execution was not approved. Reason: Tool execution blocked: missing or untracked execution context.',
+      toolCallId: 'call-1',
+      toolName: 'write',
+    })
+    expect(emitted).toEqual([])
   })
 
   it('emits a request and resumes execution when approved', async () => {
@@ -175,6 +211,30 @@ describe('humanInTheLoop', () => {
     })
   })
 
+  it('ignores duplicate approvals after the first resolution', async () => {
+    const plugin = humanInTheLoop()
+    const { api, emitted } = createPluginApi()
+    const signal = new AbortController().signal
+
+    await plugin.setup?.(api)
+    await plugin.onTurnStart?.({
+      agentName: 'agent',
+      context: {},
+      sessionId: 'session-1',
+      signal,
+      turnId: 'turn-1',
+      turnInput: { content: 'hi', role: 'user', type: 'message' },
+    })
+
+    const toolCall = createToolCall()
+    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(signal))
+
+    expect(approveToolCall(toolCall.toolCallId)).toBe(true)
+    expect(approveToolCall(toolCall.toolCallId)).toBe(false)
+    await expect(pending).resolves.toEqual(toolCall)
+    expect(emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(1)
+  })
+
   it('rejects pending work on abort and cleans up resolver state', async () => {
     const controller = new AbortController()
     const plugin = humanInTheLoop()
@@ -196,5 +256,28 @@ describe('humanInTheLoop', () => {
     await expect(pending).rejects.toBe('stop')
     expect(approveToolCall('call-2')).toBe(false)
     expect(rejectToolCall('call-2')).toBe(false)
+  })
+
+  it('rejects immediately when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    const plugin = humanInTheLoop()
+    const { api } = createPluginApi()
+
+    await plugin.setup?.(api)
+    await plugin.onTurnStart?.({
+      agentName: 'agent',
+      context: {},
+      sessionId: 'session-1',
+      signal: controller.signal,
+      turnId: 'turn-1',
+      turnInput: { content: 'hi', role: 'user', type: 'message' },
+    })
+
+    controller.abort('already-aborted')
+
+    await expect(
+      plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal)),
+    ).rejects.toBe('already-aborted')
+    expect(approveToolCall('call-2')).toBe(false)
   })
 })
