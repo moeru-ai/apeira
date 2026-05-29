@@ -35,6 +35,7 @@ export default defineConfig({
         items: [
           { link: '/plugins/', text: 'Overview' },
           { link: '/plugins/common-tools', text: 'Common Tools' },
+          { link: '/plugins/hitl', text: 'HITL' },
           { link: '/plugins/mcp', text: 'MCP' },
           { link: '/plugins/skills', text: 'Skills' },
           { link: '/plugins/ag-ui', text: 'AG-UI' },
