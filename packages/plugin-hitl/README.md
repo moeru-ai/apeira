@@ -12,8 +12,8 @@ pnpm add @apeira/plugin-hitl
 
 ```ts
 import { createAgent } from '@apeira/core'
-import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 import { commonTools } from '@apeira/plugin-common-tools'
+import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
@@ -41,11 +41,11 @@ Subscribe to the `hitl` channel to render approval UI:
 import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 
 agent.subscribe('hitl', (event) => {
-  if (event.type === 'hitl.request') {
-    console.log(`Approve ${event.toolName}: ${event.toolCallId}`)
-    approveToolCall(event.toolCallId)
-    rejectToolCall(event.toolCallId, 'User rejected')
-  }
+  if (event.type !== 'hitl.request')
+    return
+  console.log(`Approve ${event.toolName}: ${event.toolCallId}`)
+  approveToolCall(event.toolCallId)
+  rejectToolCall(event.toolCallId, 'User rejected')
 })
 ```
 

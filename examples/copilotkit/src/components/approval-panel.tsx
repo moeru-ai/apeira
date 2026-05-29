@@ -29,7 +29,7 @@ export const ApprovalPanel = ({
   const hasRequests = requests.length > 0
   const statusText = hasRequests ? `${requests.length} pending` : 'No pending requests'
   const emptyState = (
-    <div className="flex h-full min-h-32 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm text-muted-foreground">
+    <div className="h-full min-h-32 flex items-center justify-center border rounded-md border-dashed px-4 text-center text-sm text-muted-foreground">
       Sensitive tool calls will pause here until approved.
     </div>
   )
@@ -45,11 +45,11 @@ export const ApprovalPanel = ({
               <div className="truncate text-sm font-medium">{request.toolName}</div>
               <div className="truncate text-xs text-muted-foreground">{request.toolCallId}</div>
             </div>
-            <div className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+            <div className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 font-medium">
               Waiting
             </div>
           </div>
-          <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs leading-5 text-muted-foreground">
+          <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs text-muted-foreground leading-5">
             {compactJson(request.args)}
           </pre>
           <div className="mt-3 flex items-center justify-end gap-2">
@@ -78,7 +78,7 @@ export const ApprovalPanel = ({
   const content = hasRequests ? requestList : emptyState
 
   return (
-    <aside className="flex h-full min-h-0 flex-col border-t bg-background md:border-l md:border-t-0">
+    <aside className="h-full min-h-0 flex flex-col border-t bg-background md:border-l md:border-t-0">
       <div className="flex items-center gap-2 px-4 py-3">
         <ShieldAlert className="size-4 text-amber-600" />
         <div className="min-w-0">
