@@ -355,6 +355,9 @@ importers:
       '@apeira/plugin-common-tools':
         specifier: 'workspace:'
         version: link:../../packages/plugin-common-tools
+      '@apeira/plugin-hitl':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-hitl
       '@apeira/plugin-skills':
         specifier: 'workspace:'
         version: link:../../packages/plugin-skills
