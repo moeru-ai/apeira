@@ -161,5 +161,5 @@ export const resolveInstructions = async <T>(
       parts.push(result)
   }
 
-  return parts.join('\n\n')
+  return parts.filter(Boolean).join('\n\n')
 }

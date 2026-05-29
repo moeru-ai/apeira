@@ -36,9 +36,12 @@ export const createTurnOrchestrator = <T>(
   const drainInput = (turnId: string): QueuedInput<T>[] => {
     const queue = pendingInput.get(turnId)
     pendingInput.delete(turnId)
-    return queue == null
+    const items = queue == null
       ? []
       : Array.from(queue.drain()).filter(item => item.signal?.aborted !== true)
+    if (items.length === 0 && acceptingInputTurnId === turnId)
+      acceptingInputTurnId = undefined
+    return items
   }
 
   const complete = (id: string, completion: TurnCompletion) => {
@@ -80,8 +83,8 @@ export const createTurnOrchestrator = <T>(
       try {
         await options.onTurnDone?.(completion)
       }
-      catch {
-        completion = { error: new Error('onTurnDone failed'), type: 'failed' }
+      catch (error) {
+        completion = { error: error instanceof Error ? error : new Error(String(error)), type: 'failed' }
       }
     }
 
