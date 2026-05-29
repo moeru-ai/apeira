@@ -165,8 +165,8 @@ export declare function rejectToolCall(toolCallId: string, reason?: string): boo
  * - `always`: always require human approval
  */
 export function autoReviewByPattern(options: {
-  always?: Array<string | RegExp>
-  never?: Array<string | RegExp>
+  always?: Array<RegExp | string>
+  never?: Array<RegExp | string>
 }): AutoReviewPolicy
 ```
 
