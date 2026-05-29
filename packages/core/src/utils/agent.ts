@@ -2,16 +2,23 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
-import type { AgentPlugin, AgentPluginApi, AgentPluginOption, PluginChannelListener } from '../types/plugin'
-import type { AgentSession } from './agent-session'
+import type { AgentPlugin, AgentPluginApi, AgentPluginOption, ChannelApi, PluginChannelListener } from '../types/plugin'
+import type { AgentRunOptions, AgentSession, SessionForkOptions, SessionForkSource } from './agent-session'
 
 import { merge } from '@moeru/std/merge'
 
-import { createSessionManager } from './session-manager'
+import { createAgentSession } from './agent-session'
 import { createSessionPersistence } from './session-persistence'
 
-export interface Agent<T> extends Omit<AgentSession<T>, 'fork' | 'id' | 'remove'> {
+export interface Agent<T> extends ChannelApi {
+  abort: (reason?: unknown) => void
+  clear: () => void
+  getContext: () => AgentContext<T>
+  interrupt: (reason?: unknown) => void
+  run: (input: ItemParam, options?: AgentRunOptions<T>) => ReadableStream<AgentEvent>
+  send: (input: ItemParam, options?: AgentRunOptions<T>) => string
   session: (options?: SessionOptions<T>) => AgentSession<T>
+  setContext: (context: Partial<AgentContext<T>>) => void
 }
 
 export interface CreateAgentOptions<T = unknown> {
@@ -107,21 +114,100 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     pluginApi.subscribe(channel, listener)
 
   const persistence = createSessionPersistence(options.name, plugins)
-  const sessionManager = createSessionManager<T>({
-    agentContext: () => context,
-    agentName: options.name,
-    defaultSessionId: options.name,
-    emitChannel,
-    emitTurn: emit,
-    instructions: options.instructions,
-    persistence,
-    pluginApi,
-    plugins,
-    ready,
-    responseOptions: options.options,
-  })
 
-  const defaultSession = sessionManager.session({
+  const sessions = new Map<string, AgentSession<T>>()
+
+  const forkSession = async (
+    source: SessionForkSource<T>,
+    forkOptions: SessionForkOptions<T> = {},
+  ): Promise<AgentSession<T>> => {
+    const forkId = forkOptions.id ?? crypto.randomUUID()
+
+    if (sessions.has(forkId))
+      throw new Error(`Session already exists: ${forkId}`)
+
+    const snapshot = await source.snapshot()
+    const forkContext = merge(snapshot.context, forkOptions.context ?? {})
+
+    if (sessions.has(forkId))
+      throw new Error(`Session already exists: ${forkId}`)
+
+    const forked = createAgentSession({
+      agentContext: () => context,
+      agentName: options.name,
+      defaultSessionId: options.name,
+      emitChannel,
+      emitTurn: emit,
+      forkSession,
+      id: forkId,
+      initial: { context: forkContext, episodic: snapshot.episodic },
+      instructions: options.instructions,
+      onRemove: (sessionId: string) => sessions.delete(sessionId),
+      persistence,
+      pluginApi,
+      plugins,
+      ready,
+      responseOptions: options.options,
+    })
+
+    sessions.set(forkId, forked)
+
+    try {
+      await persistence.save(forkId, {
+        context: forkContext,
+        episodic: snapshot.episodic,
+      })
+    }
+    catch (error) {
+      sessions.delete(forkId)
+      throw error
+    }
+
+    return forked
+  }
+
+  const session: Agent<T>['session'] = (sessionOptions = {}) => {
+    const id = sessionOptions.id ?? crypto.randomUUID()
+    const existing = sessions.get(id)
+
+    if (existing != null) {
+      if (sessionOptions.input != null || sessionOptions.episodic != null)
+        throw new Error(`Session already exists: ${id}`)
+
+      if (sessionOptions.context != null)
+        existing.setContext(sessionOptions.context)
+
+      return existing
+    }
+
+    const agentSession = createAgentSession({
+      agentContext: () => context,
+      agentName: options.name,
+      defaultSessionId: options.name,
+      emitChannel,
+      emitTurn: emit,
+      forkSession,
+      id,
+      initial: {
+        context: sessionOptions.context,
+        episodic: sessionOptions.episodic,
+        input: sessionOptions.input,
+      },
+      instructions: options.instructions,
+      onRemove: (sessionId: string) => sessions.delete(sessionId),
+      persistence,
+      pluginApi,
+      plugins,
+      ready,
+      responseOptions: options.options,
+    })
+
+    sessions.set(id, agentSession)
+
+    return agentSession
+  }
+
+  const defaultSession = session({
     id: options.name,
     input: options.input,
   })
@@ -134,7 +220,7 @@ export const createAgent = <T = unknown>(options: CreateAgentOptions<T>): Agent<
     interrupt: reason => defaultSession.interrupt(reason),
     run: (input, runOptions) => defaultSession.run(input, runOptions),
     send: (input, runOptions) => defaultSession.send(input, runOptions),
-    session: sessionManager.session,
+    session,
     setContext,
     subscribe: subscribe as Agent<T>['subscribe'],
   }
