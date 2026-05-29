@@ -1,8 +1,7 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { Episode, Episodic, NewEpisode } from '../episodic'
+import type { Episode, NewEpisode } from '../episodic'
 import type { AgentContext, Instructions, ItemParam } from '../types/base'
-import type { AgentEvent } from '../types/event'
 import type { AgentPlugin, SessionState, TurnDoneOptions } from '../types/plugin'
 import type { EmitTurnEvent, QueuedInput, TurnCompletion } from './turn-runner'
 
@@ -47,7 +46,8 @@ export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>)
 
   const ensureLoaded = async () => {
     await options.ready()
-    if (loaded) return
+    if (loaded)
+      return
 
     loadReady ??= (async () => {
       try {
@@ -103,7 +103,8 @@ export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>)
       return completion.type !== 'done' ? completion : { reason: controller.signal.reason, type: 'aborted' }
 
     await mutateSession(async () => {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted)
+        return
       for (const episode of workingEpisodic.read({ fromId }))
         episodic.append(toNewEpisode(episode))
       await options.saveSession(snapshotSession())
@@ -118,12 +119,13 @@ export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>)
     emit: options.emit,
     executeTurn,
     onTurnDone: async (completion) => {
-      if (completion.type === 'done') {
-        await options.onTurnDone({
-          ...completion.context,
-          snapshot: snapshotSession(),
-        })
-      }
+      if (completion.type !== 'done')
+        return
+
+      await options.onTurnDone({
+        ...completion.context,
+        snapshot: snapshotSession(),
+      })
     },
   })
 
@@ -137,7 +139,8 @@ export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>)
 
   const interrupt = (reason: unknown = 'interrupted') => {
     const turnId = orchestrator.interrupt(reason)
-    if (turnId == null) return
+    if (turnId == null)
+      return
     void mutateSession(async () => {
       await ensureLoaded()
       episodic.append({
@@ -164,7 +167,7 @@ export const createAgentSessionState = <T>(options: AgentSessionStateOptions<T>)
     return snapshotSession()
   }
 
-  const remove = async (reason: unknown = 'removed') => {
+  const remove = async () => {
     await orchestrator.remove()
     await pendingMutation
   }

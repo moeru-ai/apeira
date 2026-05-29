@@ -228,8 +228,8 @@ describe('resolveResponseHooks', () => {
       plugins: [{
         extendInput: (opts) => {
           calls.push({
-            inputLength: opts.input.length,
             episodicLength: opts.episodic.read().length,
+            inputLength: opts.input.length,
           })
           return undefined
         },
@@ -238,6 +238,6 @@ describe('resolveResponseHooks', () => {
       responseOptions: {},
     })
 
-    expect(calls).toEqual([{ inputLength: 1, episodicLength: 1 }])
+    expect(calls).toEqual([{ episodicLength: 1, inputLength: 1 }])
   })
 })
