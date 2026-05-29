@@ -1,4 +1,5 @@
-import type { Tool } from '@xsai/shared-chat'
+import type { ResponsesOptions } from '@xsai-ext/responses'
+import type { CompletionToolCall, CompletionToolResult, Tool } from '@xsai/shared-chat'
 
 import { describe, expect, it } from 'vitest'
 
@@ -15,6 +16,11 @@ const baseHookOptions = () => ({
   signal: createMockSignal(),
   turnId: 'turn-1',
   turnInput: message('hello'),
+})
+
+const mockResponseOptions = (): Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'> => ({
+  baseURL: 'https://test',
+  model: 'test-model',
 })
 
 describe('resolveInstructions', () => {
@@ -84,7 +90,7 @@ describe('resolveResponseHooks', () => {
       episodic: createEpisodic(),
       input: [message('hello')],
       plugins: [],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
     expect(result.extendInput).toEqual([])
@@ -105,7 +111,7 @@ describe('resolveResponseHooks', () => {
         { extendInput: () => [message('ext1')], name: 'p1' },
         { extendInput: () => [message('ext2')], name: 'p2' },
       ],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
     expect(result.extendInput).toEqual([message('ext1'), message('ext2')])
@@ -113,10 +119,12 @@ describe('resolveResponseHooks', () => {
 
   it('deduplicates tools by name across plugins', async () => {
     const toolA: Tool = {
+      execute: async () => 'result-a',
       function: { name: 'tool-a', parameters: {} },
       type: 'function',
     }
     const toolB: Tool = {
+      execute: async () => 'result-b',
       function: { name: 'tool-a', parameters: {} },
       type: 'function',
     }
@@ -129,7 +137,7 @@ describe('resolveResponseHooks', () => {
         { extendTools: () => [toolA], name: 'p1' },
         { extendTools: () => [toolB], name: 'p2' },
       ],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
     expect(result.tools).toHaveLength(1)
@@ -146,11 +154,11 @@ describe('resolveResponseHooks', () => {
         { name: 'p1', onFinish: async () => { calls.push('p1') } },
         { name: 'p2', onFinish: async () => { calls.push('p2') } },
       ],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
     expect(result.onFinish).toBeDefined()
-    await result.onFinish?.({} as never)
+    await result.onFinish?.()
     expect(calls).toEqual(['p1', 'p2'])
   })
 
@@ -161,31 +169,45 @@ describe('resolveResponseHooks', () => {
       episodic: createEpisodic(),
       input: [],
       plugins: [{ name: 'p1', onFinish: async () => { calls.push('plugin') } }],
-      responseOptions: { onFinish: async () => { calls.push('base') } },
+      responseOptions: { ...mockResponseOptions(), onFinish: async () => { calls.push('base') } },
     })
 
-    await result.onFinish?.({} as never)
+    await result.onFinish?.()
     expect(calls).toEqual(['base', 'plugin'])
   })
 
   it('returns first non-null postToolCall in first mode', async () => {
+    const mockResult = (value: string): CompletionToolResult => ({
+      args: {},
+      result: value,
+      toolCallId: 'tc-1',
+      toolName: 'tool',
+    })
+
     const result = await resolveResponseHooks({
       ...baseHookOptions(),
       episodic: createEpisodic(),
       input: [],
       plugins: [
         { name: 'p1', postToolCall: async () => undefined },
-        { name: 'p2', postToolCall: async () => ({ result: 'p2' }) },
-        { name: 'p3', postToolCall: async () => ({ result: 'p3' }) },
+        { name: 'p2', postToolCall: async () => mockResult('p2') },
+        { name: 'p3', postToolCall: async () => mockResult('p3') },
       ],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
-    const hookResult = await result.postToolCall?.({} as never)
-    expect(hookResult).toEqual({ result: 'p2' })
+    const hookResult = await result.postToolCall?.({} as never, {} as never)
+    expect(hookResult).toEqual(mockResult('p2'))
   })
 
   it('falls back to base preToolCall when all plugins return null', async () => {
+    const mockCall = (): CompletionToolCall => ({
+      args: '{}',
+      toolCallId: 'tc-1',
+      toolCallType: 'function',
+      toolName: 'tool',
+    })
+
     const result = await resolveResponseHooks({
       ...baseHookOptions(),
       episodic: createEpisodic(),
@@ -193,11 +215,11 @@ describe('resolveResponseHooks', () => {
       plugins: [
         { name: 'p1', preToolCall: async () => undefined },
       ],
-      responseOptions: { preToolCall: async () => ({ result: 'base' }) },
+      responseOptions: { ...mockResponseOptions(), preToolCall: async () => mockCall() },
     })
 
-    const hookResult = await result.preToolCall?.({} as never)
-    expect(hookResult).toEqual({ result: 'base' })
+    const hookResult = await result.preToolCall?.({} as never, {} as never)
+    expect(hookResult).toEqual(mockCall())
   })
 
   it('merges prepareStep results across plugins and base', async () => {
@@ -207,13 +229,13 @@ describe('resolveResponseHooks', () => {
       input: [],
       plugins: [
         { name: 'p1', prepareStep: async () => ({ model: 'gpt-4' }) },
-        { name: 'p2', prepareStep: async () => ({ temperature: 0.5 }) },
+        { name: 'p2', prepareStep: async () => ({ model: 'gpt-3.5' }) },
       ],
-      responseOptions: { prepareStep: async () => ({ maxTokens: 100 }) },
+      responseOptions: { ...mockResponseOptions(), prepareStep: async () => ({ model: 'base' }) },
     })
 
     const hookResult = await result.prepareStep?.({} as never)
-    expect(hookResult).toEqual({ maxTokens: 100, model: 'gpt-4', temperature: 0.5 })
+    expect(hookResult).toEqual({ model: 'gpt-3.5' })
   })
 
   it('passes episodic and input to extendInput hooks', async () => {
@@ -235,7 +257,7 @@ describe('resolveResponseHooks', () => {
         },
         name: 'p1',
       }],
-      responseOptions: {},
+      responseOptions: mockResponseOptions(),
     })
 
     expect(calls).toEqual([{ episodicLength: 1, inputLength: 1 }])
