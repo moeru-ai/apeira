@@ -12,6 +12,7 @@
   "dependencies": {
     "@apeira/core": "workspace:",
     "@apeira/plugin-ag-ui": "workspace:",
+    "@apeira/plugin-hitl": "workspace:",
     "@copilotkit/react-core": "catalog:",
     "@copilotkit/react-ui": "catalog:",
     "@radix-ui/react-dialog": "catalog:",

@@ -1,5 +1,6 @@
 import type { AgentEvent } from '@apeira/core'
-import type { MarkdownTheme, SlashCommand } from '@earendil-works/pi-tui'
+import type { HITLEvent, HITLRequestEvent } from '@apeira/plugin-hitl'
+import type { Component, MarkdownTheme, SlashCommand } from '@earendil-works/pi-tui'
 
 import type { TranscriptEntry, TranscriptRole } from './types/transcript'
 
@@ -7,8 +8,9 @@ import process from 'node:process'
 
 import c from 'tinyrainbow'
 
+import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 import { formatSkillInvocation } from '@apeira/plugin-skills'
-import { Box, CombinedAutocompleteProvider, Container, Editor, Markdown, matchesKey, ProcessTerminal, Spacer, Text, TUI } from '@earendil-works/pi-tui'
+import { Box, CombinedAutocompleteProvider, Container, Editor, Markdown, matchesKey, ProcessTerminal, SelectList, Spacer, Text, truncateToWidth, TUI, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 
 import { agent, skillsDir, skillSet } from './utils/agent'
 import { model, workspaceRoot } from './utils/config'
@@ -120,11 +122,13 @@ const splitFirstLine = (text: string) => {
 const formatToolDisplay = (entry: TranscriptEntry) => {
   const title = entry.title ?? 'tool'
   const { firstLine, rest } = splitFirstLine(entry.text)
-  const stateSuffix = entry.state === 'pending'
-    ? c.gray(' (running)')
-    : entry.state === 'error'
-      ? c.red(' (error)')
-      : ''
+  const stateSuffix = entry.state === 'error'
+    ? c.red(' (error)')
+    : entry.state === 'approval'
+      ? c.yellow(' (waiting approval)')
+      : entry.state === 'running'
+        ? c.gray(' (running)')
+        : ''
 
   const verb = {
     bash: 'Ran',
@@ -164,6 +168,101 @@ const compactReasoningText = (text: string) => {
 }
 
 const shortTurnId = (turnId: string) => turnId.slice(0, 8)
+const isApprovalRejectionResult = (output: unknown) =>
+  typeof output === 'string' && output.startsWith('Tool execution was not approved.')
+
+class ApprovalDialog implements Component {
+  private readonly actions: SelectList
+  private readonly borderColor: (text: string) => string
+  private readonly onApprove: (request: HITLRequestEvent) => void
+  private readonly onReject: (request: HITLRequestEvent) => void
+  private request: HITLRequestEvent | undefined
+
+  constructor(options: {
+    borderColor: (text: string) => string
+    onApprove: (request: HITLRequestEvent) => void
+    onReject: (request: HITLRequestEvent) => void
+    selectListTheme: ConstructorParameters<typeof SelectList>[2]
+  }) {
+    this.borderColor = options.borderColor
+    this.onApprove = options.onApprove
+    this.onReject = options.onReject
+    this.actions = new SelectList([
+      {
+        description: 'Run this tool call',
+        label: 'Approve',
+        value: 'approve',
+      },
+      {
+        description: 'Skip execution and tell the model it was denied',
+        label: 'Reject',
+        value: 'reject',
+      },
+    ], 2, options.selectListTheme)
+
+    this.actions.onSelect = (item) => {
+      if (this.request == null)
+        return
+
+      if (item.value === 'approve')
+        this.onApprove(this.request)
+      else
+        this.onReject(this.request)
+    }
+  }
+
+  handleInput(data: string) {
+    this.actions.handleInput(data)
+  }
+
+  invalidate() {
+    this.actions.invalidate()
+  }
+
+  render(width: number) {
+    if (this.request == null)
+      return []
+
+    const innerWidth = Math.max(36, width - 4)
+    const contentWidth = Math.max(20, innerWidth - 4)
+    const summary = formatToolCallSummary(this.request.toolName, parseToolArguments(this.request.args))
+    const body = [
+      c.bold('Approval required'),
+      `${c.cyan(this.request.toolName)}  ${c.dim(this.request.toolCallId)}`,
+      '',
+      `${c.bold('Summary')} ${summary}`,
+      '',
+      c.bold('Arguments'),
+      this.request.args,
+      '',
+      c.dim('Use Up/Down to choose. Press Enter to confirm. Esc still cancels the active turn.'),
+    ]
+
+    const contentLines = body.flatMap((line) => {
+      if (line.length === 0)
+        return ['']
+
+      return wrapTextWithAnsi(line, contentWidth)
+    })
+
+    const actionLines = this.actions.render(contentWidth)
+    const padded = [...contentLines, '', ...actionLines].map(line => truncateToWidth(line, contentWidth, '…', true))
+    const top = this.borderColor(`┌${'─'.repeat(innerWidth - 2)}┐`)
+    const bottom = this.borderColor(`└${'─'.repeat(innerWidth - 2)}┘`)
+    const rows = padded.map((line) => {
+      const left = this.borderColor('│ ')
+      const right = this.borderColor(' │')
+      return `${left}${line}${right}`
+    })
+
+    return [top, ...rows, bottom]
+  }
+
+  setRequest(request: HITLRequestEvent | undefined) {
+    this.request = request
+    this.actions.setSelectedIndex(0)
+  }
+}
 
 export const createPiTuiExampleApp = () => {
   const terminal = new ProcessTerminal()
@@ -187,6 +286,34 @@ export const createPiTuiExampleApp = () => {
   const reasoningEntries = new Map<string, TranscriptEntry>()
   const toolEntries = new Map<string, TranscriptEntry>()
   const toolArguments = new Map<string, unknown>()
+  const pendingApprovals = new Map<string, HITLRequestEvent>()
+  const approvalDialog = new ApprovalDialog({
+    borderColor: c.cyan,
+    onApprove: (request) => {
+      if (!approveToolCall(request.toolCallId))
+        return
+      tui.requestRender()
+    },
+    onReject: (request) => {
+      if (!rejectToolCall(request.toolCallId, 'Rejected by user'))
+        return
+      tui.requestRender()
+    },
+    selectListTheme: {
+      description: c.gray,
+      noMatch: c.yellow,
+      scrollInfo: c.gray,
+      selectedPrefix: c.cyan,
+      selectedText: c.bold,
+    },
+  })
+  const approvalOverlay = tui.showOverlay(approvalDialog, {
+    anchor: 'bottom-center',
+    margin: { bottom: 5, left: 2, right: 2 },
+    maxHeight: '60%',
+    width: '72%',
+  })
+  approvalOverlay.setHidden(true)
   let pendingInputs = 0
   let reasoningMode: ReasoningMode = 'compact'
   let runningTurnId: string | undefined
@@ -210,6 +337,24 @@ export const createPiTuiExampleApp = () => {
 
   const pushSystem = (text: string) => {
     pushEntry('system', text)
+  }
+
+  const getCurrentApproval = () => pendingApprovals.values().next().value
+
+  const syncApprovalOverlay = () => {
+    const current = getCurrentApproval()
+    approvalDialog.setRequest(current)
+    approvalDialog.invalidate()
+
+    if (current == null) {
+      approvalOverlay.setHidden(true)
+      approvalOverlay.unfocus()
+      tui.setFocus(editor)
+      return
+    }
+
+    approvalOverlay.setHidden(false)
+    approvalOverlay.focus()
   }
 
   const refreshSkills = async () => {
@@ -299,12 +444,59 @@ export const createPiTuiExampleApp = () => {
       [
         `${c.bold('Status')} ${currentStatus}`,
         c.dim(`queued=${pendingInputs}`),
+        c.dim(`approvals=${pendingApprovals.size}`),
         c.dim(`cwd=${workspaceRoot}`),
         c.dim(`model=${model}`),
       ].join('  '),
     )
 
     tui.requestRender()
+  }
+
+  const clearPendingApprovalsForTurn = (turnId: string) => {
+    for (const [toolCallId, event] of pendingApprovals) {
+      if (event.turnId !== turnId)
+        continue
+
+      pendingApprovals.delete(toolCallId)
+
+      const toolEntry = toolEntries.get(toolCallId)
+      if (toolEntry?.state === 'approval')
+        toolEntry.state = 'error'
+    }
+
+    syncApprovalOverlay()
+  }
+
+  const handleHitlRequest = (event: HITLRequestEvent) => {
+    pendingApprovals.set(event.toolCallId, event)
+
+    const toolEntry = toolEntries.get(event.toolCallId)
+    if (toolEntry != null)
+      toolEntry.state = 'approval'
+
+    pushSystem([
+      `Approval needed: ${event.toolName} (${event.toolCallId})`,
+      'Use the approval dialog to approve or reject.',
+    ].join('\n'))
+  }
+
+  const handleHitlResolved = (event: Extract<HITLEvent, { type: 'hitl.resolved' }>) => {
+    pendingApprovals.delete(event.toolCallId)
+
+    const toolEntry = toolEntries.get(event.toolCallId)
+    if (toolEntry != null && event.decision === 'approve')
+      toolEntry.state = 'running'
+    else if (toolEntry != null && event.decision === 'reject')
+      toolEntry.state = 'error'
+
+    if (event.auto === false) {
+      pushSystem(
+        event.decision === 'approve'
+          ? `Approved ${event.toolName} (${event.toolCallId}).`
+          : `Rejected ${event.toolName} (${event.toolCallId})${event.reason != null && event.reason.length > 0 ? `: ${event.reason}` : '.'}`,
+      )
+    }
   }
 
   // eslint-disable-next-line sonarjs/cognitive-complexity
@@ -344,7 +536,7 @@ export const createPiTuiExampleApp = () => {
       case 'tool-call.done': {
         const args = parseToolArguments(event.toolCall.arguments)
         const entry = pushEntry('tool', formatToolCallSummary(event.toolCall.name, args), {
-          state: 'pending',
+          state: 'running',
           title: event.toolCall.name,
         })
         toolEntries.set(event.toolCall.id, entry)
@@ -356,7 +548,7 @@ export const createPiTuiExampleApp = () => {
         const existing = toolEntries.get(event.toolResult.id)
         const args = toolArguments.get(event.toolResult.id)
         if (existing != null) {
-          existing.state = 'success'
+          existing.state = isApprovalRejectionResult(event.toolResult.output) ? 'error' : 'success'
           existing.title = event.toolResult.name
           existing.text = formatToolResultSummary(event.toolResult.name, args, event.toolResult.output)
         }
@@ -365,7 +557,7 @@ export const createPiTuiExampleApp = () => {
             'tool',
             formatToolResultSummary(event.toolResult.name, undefined, event.toolResult.output),
             {
-              state: 'success',
+              state: isApprovalRejectionResult(event.toolResult.output) ? 'error' : 'success',
               title: event.toolResult.name,
             },
           )
@@ -377,6 +569,7 @@ export const createPiTuiExampleApp = () => {
         if (runningTurnId === event.turnId)
           runningTurnId = undefined
         pendingInputs = 0
+        clearPendingApprovalsForTurn(event.turnId)
         assistantEntries.delete(event.turnId)
         reasoningEntries.delete(event.turnId)
         pushSystem(`Turn ${event.turnId.slice(0, 8)} aborted.`)
@@ -386,6 +579,7 @@ export const createPiTuiExampleApp = () => {
         if (runningTurnId === event.turnId)
           runningTurnId = undefined
         pendingInputs = 0
+        clearPendingApprovalsForTurn(event.turnId)
         assistantEntries.delete(event.turnId)
         reasoningEntries.delete(event.turnId)
         break
@@ -394,6 +588,7 @@ export const createPiTuiExampleApp = () => {
         if (runningTurnId === event.turnId)
           runningTurnId = undefined
         pendingInputs = 0
+        clearPendingApprovalsForTurn(event.turnId)
         assistantEntries.delete(event.turnId)
         reasoningEntries.delete(event.turnId)
         pushSystem(`Turn failed: ${event.error instanceof Error ? event.error.message : String(event.error)}`)
@@ -411,35 +606,164 @@ export const createPiTuiExampleApp = () => {
     render()
   }
 
-  const unsubscribe = agent.subscribe('apeira', onEvent)
+  const onHitlEvent = (event: HITLEvent) => {
+    switch (event.type) {
+      case 'hitl.auto_reviewed':
+        break
+
+      case 'hitl.request':
+        handleHitlRequest(event)
+        break
+
+      case 'hitl.resolved':
+        handleHitlResolved(event)
+        break
+    }
+
+    syncApprovalOverlay()
+    render()
+  }
+
+  const unsubscribeAgent = agent.subscribe('apeira', onEvent)
+  const unsubscribeHitl = agent.subscribe('hitl', onHitlEvent)
 
   const shutdown = (code: number) => {
     if (stopped)
       return
 
     stopped = true
-    unsubscribe()
+    unsubscribeAgent()
+    unsubscribeHitl()
     tui.stop()
     queueMicrotask(() => process.exit(code))
   }
 
-  // eslint-disable-next-line sonarjs/cognitive-complexity
+  const clearHitlState = () => {
+    pendingApprovals.clear()
+    for (const entry of toolEntries.values()) {
+      if (entry.state === 'approval')
+        entry.state = 'error'
+    }
+    syncApprovalOverlay()
+  }
+
+  const handleClearCommand = () => {
+    agent.clear()
+    entries.length = 0
+    assistantEntries.clear()
+    reasoningEntries.clear()
+    toolEntries.clear()
+    toolArguments.clear()
+    clearHitlState()
+    pendingInputs = 0
+    runningTurnId = undefined
+    pushSystem('Cleared transcript and in-memory thread state.')
+    render()
+  }
+
+  const handleHelpCommand = () => {
+    pushSystem([
+      '/help: show commands',
+      '/clear: reset transcript and Apeira thread state',
+      '/reasoning compact|full: switch reasoning display length',
+      '/skills: list loaded skills',
+      '/skill <name> [instructions]: invoke a skill explicitly',
+      '/exit: quit the demo',
+      '/interrupt <message>: abort the current turn and replace it with a new user request',
+    ].join('\n'))
+    render()
+  }
+
+  const handleInterruptCommand = (argument: string) => {
+    if (argument.length === 0) {
+      pushSystem('Usage: /interrupt <message>')
+      render()
+      return
+    }
+
+    pushEntry('user', argument)
+    pendingInputs = 0
+    agent.abort('user interrupted')
+    runningTurnId = agent.send({
+      content: argument,
+      role: 'user',
+      type: 'message',
+    })
+    render()
+  }
+
+  const handleReasoningCommand = (argument: string) => {
+    if (argument !== 'compact' && argument !== 'full') {
+      pushSystem(`Reasoning display is ${reasoningMode}. Usage: /reasoning compact|full`)
+      render()
+      return
+    }
+
+    reasoningMode = argument
+    pushSystem(`Reasoning display set to ${reasoningMode}.`)
+    render()
+  }
+
+  const handleSkillCommand = async (argument: string) => {
+    if (argument.length === 0) {
+      pushSystem('Usage: /skill <name> [instructions]')
+      render()
+      return
+    }
+
+    await refreshSkills()
+
+    const [skillName, ...instructionParts] = argument.split(/\s+/)
+    const skill = skillSet.getSkill(skillName)
+    if (skill == null) {
+      pushSystem(`Unknown skill: ${skillName}`)
+      render()
+      return
+    }
+
+    const invocation = formatSkillInvocation(skill, instructionParts.join(' '))
+
+    pushEntry('user', `/skill ${argument}`)
+
+    const wasBusy = runningTurnId != null
+    agent.send({
+      content: invocation,
+      role: 'user',
+      type: 'message',
+    })
+
+    if (wasBusy)
+      pendingInputs += 1
+
+    render()
+  }
+
+  const handleSkillsCommand = async () => {
+    const loadedSkills = await refreshSkills()
+    const diagnostics = skillSet.getDiagnostics()
+
+    pushSystem([
+      loadedSkills.length === 0
+        ? `No skills found in ${skillsDir}.`
+        : loadedSkills.map(skill => `/${skill.name}: ${skill.description}`).join('\n'),
+      diagnostics.length === 0
+        ? ''
+        : [
+            '',
+            'Warnings:',
+            ...diagnostics.map(diagnostic => `${diagnostic.path ?? skillsDir}: ${diagnostic.message}`),
+          ].join('\n'),
+    ].filter(Boolean).join('\n'))
+    render()
+  }
+
   const runCommand = async (commandLine: string) => {
     const [command, ...rest] = commandLine.slice(1).split(/\s+/)
     const argument = rest.join(' ').trim()
 
     switch (command) {
       case 'clear':
-        agent.clear()
-        entries.length = 0
-        assistantEntries.clear()
-        reasoningEntries.clear()
-        toolEntries.clear()
-        toolArguments.clear()
-        pendingInputs = 0
-        runningTurnId = undefined
-        pushSystem('Cleared transcript and in-memory thread state.')
-        render()
+        handleClearCommand()
         return
 
       case 'exit':
@@ -448,102 +772,24 @@ export const createPiTuiExampleApp = () => {
         return
 
       case 'help':
-        pushSystem([
-          '/help: show commands',
-          '/clear: reset transcript and Apeira thread state',
-          '/reasoning compact|full: switch reasoning display length',
-          '/skills: list loaded skills',
-          '/skill <name> [instructions]: invoke a skill explicitly',
-          '/exit: quit the demo',
-          '/interrupt <message>: abort the current turn and replace it with a new user request',
-        ].join('\n'))
-        render()
+        handleHelpCommand()
         return
 
       case 'interrupt':
-        if (argument.length === 0) {
-          pushSystem('Usage: /interrupt <message>')
-          render()
-          return
-        }
-
-        pushEntry('user', argument)
-        pendingInputs = 0
-        agent.abort('user interrupted')
-        runningTurnId = agent.send({
-          content: argument,
-          role: 'user',
-          type: 'message',
-        })
-        render()
+        handleInterruptCommand(argument)
         return
 
       case 'reasoning':
-        if (argument !== 'compact' && argument !== 'full') {
-          pushSystem(`Reasoning display is ${reasoningMode}. Usage: /reasoning compact|full`)
-          render()
-          return
-        }
-
-        reasoningMode = argument
-        pushSystem(`Reasoning display set to ${reasoningMode}.`)
-        render()
+        handleReasoningCommand(argument)
         return
 
-      case 'skill': {
-        if (argument.length === 0) {
-          pushSystem('Usage: /skill <name> [instructions]')
-          render()
-          return
-        }
-
-        await refreshSkills()
-
-        const [skillName, ...instructionParts] = argument.split(/\s+/)
-        const skill = skillSet.getSkill(skillName)
-        if (skill == null) {
-          pushSystem(`Unknown skill: ${skillName}`)
-          render()
-          return
-        }
-
-        const invocation = formatSkillInvocation(skill, instructionParts.join(' '))
-
-        pushEntry('user', `/skill ${argument}`)
-
-        const wasBusy = runningTurnId != null
-        agent.send({
-          content: invocation,
-          role: 'user',
-          type: 'message',
-        })
-
-        if (wasBusy)
-          pendingInputs += 1
-
-        render()
+      case 'skill':
+        await handleSkillCommand(argument)
         return
-      }
 
-      case 'skills': {
-        const loadedSkills = await refreshSkills()
-        const diagnostics = skillSet.getDiagnostics()
-
-        pushSystem([
-          loadedSkills.length === 0
-            ? `No skills found in ${skillsDir}.`
-            : loadedSkills.map(skill => `/${skill.name}: ${skill.description}`).join('\n'),
-          diagnostics.length === 0
-            ? ''
-            : [
-                '',
-                'Warnings:',
-                ...diagnostics.map(diagnostic => `${diagnostic.path ?? skillsDir}: ${diagnostic.message}`),
-              ].join('\n'),
-        ].filter(Boolean).join('\n'))
-        render()
+      case 'skills':
+        await handleSkillsCommand()
         return
-      }
 
       default:
         pushSystem(`Unknown command: /${command}`)
@@ -635,7 +881,7 @@ export const createPiTuiExampleApp = () => {
   })
 
   void refreshSkills().then(() => render())
-  pushSystem('Enter to send. Esc cancels the active turn. Commands: /help /skills /skill <name> /reasoning compact|full /clear /exit /interrupt <message>.')
+  pushSystem('Enter to send. Esc cancels the active turn. Approval requests open in a dialog. Commands: /help /skills /skill <name> /reasoning compact|full /clear /exit /interrupt <message>.')
   render()
 
   return {

@@ -1,6 +1,7 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { Agent, CreateAgentOptions, ItemParam } from '@apeira/core'
 import type { Episode } from '@apeira/core/episodic'
+import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
 import type { Subscriber } from 'rxjs'
 
@@ -391,6 +392,10 @@ export class AbstractApeiraAgent extends AbstractAgent {
           session.abort('cancelled')
       }
     })
+  }
+
+  subscribeHitl(threadId: string, listener: (event: HITLEvent) => void) {
+    return this.agent.session({ id: threadId }).subscribe('hitl', listener)
   }
 
   protected override connect(_input: RunAgentInput) {

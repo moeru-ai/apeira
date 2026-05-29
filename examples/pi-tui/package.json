@@ -10,6 +10,7 @@
   "dependencies": {
     "@apeira/core": "workspace:",
     "@apeira/plugin-common-tools": "workspace:",
+    "@apeira/plugin-hitl": "workspace:",
     "@apeira/plugin-skills": "workspace:",
     "@earendil-works/pi-tui": "catalog:",
     "@pnpm/find-workspace-dir": "catalog:",

@@ -31,6 +31,7 @@ export const App = () => {
         <SidebarTrigger className="absolute left-0 top-0 z-10 m-2" />
         <ChatPanel
           className="h-full w-full"
+          key={activeThreadId}
           onThreadUpdated={touchThread}
           threadId={activeThreadId}
         />

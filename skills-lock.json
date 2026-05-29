@@ -7,6 +7,12 @@
       "skillPath": "skills/chat/SKILL.md",
       "computedHash": "c7277fe8be96a8a1eea9e2cc373ebfed21b79e666565e587562dcdfbae65cced"
     },
+    "spark": {
+      "source": "wishworldbetter/seedex-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spark/SKILL.md",
+      "computedHash": "bfbfddd1df1335481f73e7a6852d29041a225855867029f90b165ebd0a6c5c01"
+    },
     "xsai": {
       "source": "moeru-ai/xsai",
       "sourceType": "github",

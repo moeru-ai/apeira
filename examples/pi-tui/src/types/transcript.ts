@@ -1,7 +1,7 @@
 export interface TranscriptEntry {
   id: string
   role: TranscriptRole
-  state?: 'error' | 'pending' | 'success'
+  state?: 'approval' | 'error' | 'running' | 'success'
   text: string
   title?: string
 }
