@@ -52,6 +52,8 @@ export type RejectionMessageFn = (
   reason?: string,
 ) => string
 
+export type ToolNamePattern = RegExp | string
+
 export interface ToolPolicy {
   needsApproval?: ((args: unknown) => boolean) | boolean
 }

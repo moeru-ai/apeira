@@ -19,6 +19,7 @@ export type {
   HITLResolvedEvent,
   HumanInTheLoopOptions,
   RejectionMessageFn,
+  ToolNamePattern,
   ToolPolicy,
 } from './types'
 

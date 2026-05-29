@@ -1,24 +1,15 @@
-import type { AutoReviewPolicy } from '../types'
+import type { AutoReviewPolicy, ToolNamePattern } from '../types'
 
-const matchesPattern = (toolName: string, pattern: string) => {
-  if (pattern === '*')
-    return true
-
-  if (pattern.startsWith('*') && pattern.endsWith('*'))
-    return toolName.includes(pattern.slice(1, -1))
-
-  if (pattern.startsWith('*'))
-    return toolName.endsWith(pattern.slice(1))
-
-  if (pattern.endsWith('*'))
-    return toolName.startsWith(pattern.slice(0, -1))
+const matchesPattern = (toolName: string, pattern: ToolNamePattern) => {
+  if (pattern instanceof RegExp)
+    return pattern.test(toolName)
 
   return toolName === pattern
 }
 
 export const autoReviewByPattern = (options: {
-  always?: string[]
-  never?: string[]
+  always?: ToolNamePattern[]
+  never?: ToolNamePattern[]
 }): AutoReviewPolicy => {
   const always = options.always ?? []
   const never = options.never ?? []

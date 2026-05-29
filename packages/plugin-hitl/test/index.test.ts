@@ -51,10 +51,10 @@ describe('autoReviewByPattern', () => {
     expect(review(createToolCall({ toolName: 'edit' }), {})).toEqual({ type: 'pending' })
   })
 
-  it('supports wildcard patterns', () => {
+  it('supports regular expression patterns', () => {
     const review = autoReviewByPattern({
-      always: ['write_*', '*_delete'],
-      never: ['read_*', '*_list'],
+      always: [/^write_/, /_delete$/],
+      never: [/^read_/, /_list$/],
     })
 
     expect(review(createToolCall({ toolName: 'read_file' }), {})).toEqual({ type: 'approve' })
@@ -63,12 +63,15 @@ describe('autoReviewByPattern', () => {
     expect(review(createToolCall({ toolName: 'hard_delete' }), {})).toEqual({ type: 'pending' })
   })
 
-  it('supports the catch-all wildcard pattern', () => {
+  it('supports exact strings alongside regular expressions', () => {
     const review = autoReviewByPattern({
-      never: ['*'],
+      always: [/^write_/],
+      never: ['read'],
     })
 
-    expect(review(createToolCall({ toolName: 'anything' }), {})).toEqual({ type: 'approve' })
+    expect(review(createToolCall({ toolName: 'read' }), {})).toEqual({ type: 'approve' })
+    expect(review(createToolCall({ toolName: 'write_file' }), {})).toEqual({ type: 'pending' })
+    expect(review(createToolCall({ toolName: 'anything' }), {})).toEqual({ type: 'pending' })
   })
 })
 

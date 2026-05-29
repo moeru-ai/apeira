@@ -27,7 +27,7 @@ const agent = createAgent({
     humanInTheLoop({
       autoReview: autoReviewByPattern({
         always: ['bash', 'write', 'edit'],
-        never: ['read', 'search'],
+        never: ['read', /^search_/],
       }),
     }),
     commonTools(),
@@ -69,7 +69,7 @@ Resolves one pending tool call with a rejection result instead of executing it.
 
 ### `autoReviewByPattern({ always, never })`
 
-Creates a simple tool-name based policy:
+Creates a simple tool-name based policy using exact strings or `RegExp` patterns:
 
 - `never`: auto-approve
 - `always`: require approval

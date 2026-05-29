@@ -160,13 +160,13 @@ export declare function rejectToolCall(toolCallId: string, reason?: string): boo
 
 ```ts
 /**
- * Auto-review by tool name patterns.
+ * Auto-review by exact tool names or regular expressions.
  * - `never`: always auto-approve
  * - `always`: always require human approval
  */
 export function autoReviewByPattern(options: {
-  always?: string[]
-  never?: string[]
+  always?: Array<string | RegExp>
+  never?: Array<string | RegExp>
 }): AutoReviewPolicy
 ```
 
