@@ -44,54 +44,11 @@ interface PendingResolution {
   toolCall: CompletionToolCall
 }
 
-const pendingByKey = new Map<string, PendingResolution>()
-const pendingKeyByToolCallId = new Map<string, string>()
-const turnContextBySignal = new WeakMap<AbortSignal, { sessionId: string, turnId: string }>()
+type ResolvePending = (toolCallId: string, resolution: ApprovalDecision) => boolean
 
-const removePending = (toolCallId: string, key?: string) => {
-  const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
-
-  pendingKeyByToolCallId.delete(toolCallId)
-
-  if (resolvedKey != null)
-    pendingByKey.delete(resolvedKey)
-}
-
-const resolvePending = (
-  toolCallId: string,
-  resolution: ApprovalDecision,
-): boolean => {
-  const key = pendingKeyByToolCallId.get(toolCallId)
-  const pending = key == null ? undefined : pendingByKey.get(key)
-
-  if (pending == null)
-    return false
-
-  removePending(toolCallId, key)
-
-  if (resolution.type === 'approve') {
-    pending.deferred.resolve(pending.toolCall)
-  }
-  else if (resolution.type === 'reject') {
-    pending.deferred.resolve(buildRejectionResult(
-      pending.toolCall,
-      pending.rejectionMessage,
-      resolution.reason,
-    ))
-  }
-  else {
-    return false
-  }
-
-  pending.emit({
-    ...pending.event,
-    auto: false,
-    decision: resolution.type,
-    reason: resolution.type === 'reject' ? resolution.reason : undefined,
-    type: 'hitl.resolved',
-  })
-
-  return true
+const pendingResolverByToolCallId = new Map<string, ResolvePending>()
+const resolvePending = (toolCallId: string, resolution: ApprovalDecision) => {
+  return pendingResolverByToolCallId.get(toolCallId)?.(toolCallId, resolution) ?? false
 }
 
 export const approveToolCall = (toolCallId: string) =>
@@ -102,7 +59,53 @@ export const rejectToolCall = (toolCallId: string, reason?: string) =>
 
 export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin => {
   let pluginApi: AgentPluginApi | undefined
+  const pendingByKey = new Map<string, PendingResolution>()
+  const pendingKeyByToolCallId = new Map<string, string>()
+  const turnContextBySignal = new WeakMap<AbortSignal, { sessionId: string, turnId: string }>()
   const emit = (event: HITLEvent) => pluginApi?.emit('hitl', event)
+  const removePending = (toolCallId: string, key?: string) => {
+    const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
+
+    pendingResolverByToolCallId.delete(toolCallId)
+    pendingKeyByToolCallId.delete(toolCallId)
+
+    if (resolvedKey != null)
+      pendingByKey.delete(resolvedKey)
+  }
+
+  const resolvePendingForPlugin: ResolvePending = (toolCallId, resolution) => {
+    const key = pendingKeyByToolCallId.get(toolCallId)
+    const pending = key == null ? undefined : pendingByKey.get(key)
+
+    if (pending == null)
+      return false
+
+    removePending(toolCallId, key)
+
+    if (resolution.type === 'approve') {
+      pending.deferred.resolve(pending.toolCall)
+    }
+    else if (resolution.type === 'reject') {
+      pending.deferred.resolve(buildRejectionResult(
+        pending.toolCall,
+        pending.rejectionMessage,
+        resolution.reason,
+      ))
+    }
+    else {
+      return false
+    }
+
+    pending.emit({
+      ...pending.event,
+      auto: false,
+      decision: resolution.type,
+      reason: resolution.type === 'reject' ? resolution.reason : undefined,
+      type: 'hitl.resolved',
+    })
+
+    return true
+  }
 
   return {
     enforce: 'pre',
@@ -181,6 +184,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
 
       pendingByKey.set(key, pending)
       pendingKeyByToolCallId.set(toolCall.toolCallId, key)
+      pendingResolverByToolCallId.set(toolCall.toolCallId, resolvePendingForPlugin)
 
       emit({
         ...eventBase,
