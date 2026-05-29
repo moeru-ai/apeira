@@ -285,6 +285,9 @@ importers:
       '@apeira/plugin-ag-ui':
         specifier: 'workspace:'
         version: link:../../packages/plugin-ag-ui
+      '@apeira/plugin-hitl':
+        specifier: 'workspace:'
+        version: link:../../packages/plugin-hitl
       '@copilotkit/react-core':
         specifier: 'catalog:'
         version: 1.57.1(@types/mdast@4.0.4)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(graphql@16.14.0)(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(zod@4.4.3)
