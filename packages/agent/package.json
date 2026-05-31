@@ -1,0 +1,47 @@
+{
+  "name": "@apeira/agent",
+  "type": "module",
+  "version": "0.0.4",
+  "private": true,
+  "description": "stream-first Agent Runtime.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/agent"
+  },
+  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "keywords": [
+    "agent",
+    "ai",
+    "xsai"
+  ],
+  "sideEffects": false,
+  "exports": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll"
+  },
+  "dependencies": {
+    "@moeru/std": "catalog:",
+    "@xsai-ext/responses": "catalog:xsai",
+    "@xsai/shared": "catalog:xsai",
+    "@xsai/shared-chat": "catalog:xsai",
+    "yocto-queue": "catalog:"
+  }
+}
