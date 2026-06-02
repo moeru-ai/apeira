@@ -32,8 +32,6 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
   let pumping = false
   let pumpReady = Promise.resolve()
 
-  // const { channel, run } = options
-
   const emit = (turnId: string, event: AgentEvent) => channel.emit('apeira', { ...event, turnId })
 
   const runTurn = async (turn: { id: string, input: ItemParam[], signal?: AbortSignal }) => {
