@@ -11,7 +11,10 @@ import { chain, chainPrepareStep, sortPlugins } from './plugins'
 import { createAgentQueue } from './queue'
 import { runner } from './runner'
 
-export interface Agent extends AgentChannel, AgentQueue {}
+export interface Agent extends AgentChannel, AgentQueue {
+  init: () => Promise<unknown>
+  stop: () => Promise<void>
+}
 
 export interface CreateAgentOptions<T = unknown> {
   input?: ItemParam[]
@@ -41,18 +44,44 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
       ? options.instructions(options.state ?? {} as AgentState<T>)
       : options.instructions
 
+  let initPromise: Promise<unknown> | undefined
+  let agent: Agent
+
+  const init = async () => {
+    if (initPromise)
+      return initPromise
+
+    initPromise = Promise.all(plugins.map(async p => p.init?.(agent)))
+
+    return initPromise
+  }
+
   const queue = createAgentQueue({
     channel,
-    run: async opts => runner({
-      ...opts,
-      input: [...baseInput, ...opts.input],
-      instructions: await resolveInstructions(),
-      options: responseOptions,
-    }),
+    run: async (opts) => {
+      await init()
+      return runner({
+        ...opts,
+        input: [...baseInput, ...opts.input],
+        instructions: await resolveInstructions(),
+        options: responseOptions,
+      })
+    },
   })
 
-  return {
+  agent = {
     ...channel,
     ...queue,
+    init,
+    stop: async () => {
+      for (let i = plugins.length - 1; i >= 0; i--) {
+        try {
+          await plugins[i].stop?.()
+        }
+        catch {}
+      }
+    },
   }
+
+  return agent
 }
