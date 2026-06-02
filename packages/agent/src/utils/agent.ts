@@ -1,4 +1,5 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
+import type { Tool } from '@xsai/shared-chat'
 
 import type { ItemParam } from '../types/base'
 import type { AgentPlugin } from '../types/plugin'
@@ -26,6 +27,7 @@ export interface CreateAgentOptions<T = unknown> {
 
 export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
   const plugins = sortPlugins(options.plugins ?? [])
+  const state = options.state ?? {} as AgentState<T>
 
   const responseOptions = {
     ...options.options,
@@ -39,10 +41,20 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
   const channel = createAgentChannel()
   const baseInput = structuredClone(options.input ?? [])
 
-  const resolveInstructions = async () =>
-    typeof options.instructions === 'function'
-      ? options.instructions(options.state ?? {} as AgentState<T>)
+  const resolveInstructions = async () => {
+    const base = typeof options.instructions === 'function'
+      ? await options.instructions(state)
       : options.instructions
+
+    const extensions: string[] = []
+    for (const plugin of plugins) {
+      const extended = await plugin.extendInstructions?.(state)
+      if (extended != null)
+        extensions.push(extended)
+    }
+
+    return [base, ...extensions].join('\n\n')
+  }
 
   let initPromise: Promise<unknown> | undefined
   let agent: Agent
@@ -69,11 +81,23 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
     channel,
     run: async (opts) => {
       await init()
+      const instructions = await resolveInstructions()
+
+      const tools: Tool[] = []
+      for (const plugin of plugins) {
+        const extended = await plugin.extendTools?.(state)
+        if (extended != null)
+          tools.push(...extended)
+      }
+
       return runner({
         ...opts,
         input: [...baseInput, ...opts.input],
-        instructions: await resolveInstructions(),
-        options: responseOptions,
+        instructions,
+        options: {
+          ...responseOptions,
+          tools: [...(options.options.tools ?? []), ...tools],
+        },
       })
     },
   })
