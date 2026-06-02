@@ -11,10 +11,11 @@ export type {
   TurnStartEvent,
   WithId,
 } from './types/event'
+export type { AgentPlugin } from './types/plugin'
 export type { AgentState } from './types/state'
 
-export type { AgentChannel, AgentEventListener } from './utils/channel'
-
 export { createAgent } from './utils/agent'
+
 export type { Agent, CreateAgentOptions } from './utils/agent'
+export type { AgentChannel, AgentEventListener } from './utils/channel'
 export type { AgentSendOptions } from './utils/queue'
