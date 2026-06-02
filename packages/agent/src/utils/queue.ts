@@ -10,6 +10,7 @@ export interface AgentQueue {
   clear: () => void
   interrupt: (reason?: unknown) => string | undefined
   remove: () => Promise<void>
+  run: (input: ItemParam) => ReadableStream<AgentEvent>
   send: (item: ItemParam, options?: AgentSendOptions) => string
 }
 
@@ -20,10 +21,10 @@ export interface AgentSendOptions {
 
 export interface CreateAgentQueueOptions {
   channel: AgentChannel
-  run: (options: Omit<RunnerOptions, 'instructions' | 'options'>) => Promise<RunnerResult>
+  runner: (options: Omit<RunnerOptions, 'instructions' | 'options'>) => Promise<RunnerResult>
 }
 
-export const createAgentQueue = (options: CreateAgentQueueOptions): AgentQueue => {
+export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): AgentQueue => {
   const pendingTurns = new Queue<{ id: string, input: ItemParam[], signal?: AbortSignal }>()
   const pendingInput: ItemParam[] = []
   const pendingNextInput: ItemParam[] = []
@@ -31,7 +32,7 @@ export const createAgentQueue = (options: CreateAgentQueueOptions): AgentQueue =
   let pumping = false
   let pumpReady = Promise.resolve()
 
-  const { channel, run } = options
+  // const { channel, run } = options
 
   const emit = (turnId: string, event: AgentEvent) => channel.emit('apeira', { ...event, turnId })
 
@@ -47,7 +48,7 @@ export const createAgentQueue = (options: CreateAgentQueueOptions): AgentQueue =
 
     try {
       while (!controller.signal.aborted) {
-        await run({ abortSignal: controller.signal, channel, input, turnId: turn.id })
+        await runner({ abortSignal: controller.signal, channel, input, turnId: turn.id })
 
         if (pendingInput.length > 0) {
           const drained = pendingInput.splice(0)
@@ -97,46 +98,69 @@ export const createAgentQueue = (options: CreateAgentQueueOptions): AgentQueue =
     return pumpReady
   }
 
-  return {
-    abort: reason => activeTurn?.controller.abort(reason),
+  const abort: AgentQueue['abort'] = reason => activeTurn?.controller.abort(reason)
 
-    clear: () => {
-      activeTurn?.controller.abort('cleared')
-      pendingInput.length = 0
-      pendingNextInput.length = 0
-    },
+  const clear: AgentQueue['clear'] = () => {
+    activeTurn?.controller.abort('cleared')
+    pendingInput.length = 0
+    pendingNextInput.length = 0
+  }
 
-    interrupt: (reason) => {
-      const id = activeTurn?.id
-      activeTurn?.controller.abort(reason)
-      return id
-    },
+  const interrupt: AgentQueue['interrupt'] = (reason) => {
+    const id = activeTurn?.id
+    activeTurn?.controller.abort(reason)
+    return id
+  }
 
-    remove: async () => {
-      activeTurn?.controller.abort('removed')
-      pendingInput.length = 0
-      pendingNextInput.length = 0
-      await pumpReady
-    },
+  const remove: AgentQueue['remove'] = async () => {
+    activeTurn?.controller.abort('removed')
+    pendingInput.length = 0
+    pendingNextInput.length = 0
+    await pumpReady
+  }
 
-    send: (item, opts) => {
-      const active = activeTurn?.controller.signal.aborted !== true ? activeTurn : undefined
+  const send: AgentQueue['send'] = (item, options) => {
+    const active = activeTurn?.controller.signal.aborted !== true ? activeTurn : undefined
 
-      if (active) {
-        if (opts?.mode === 'later') {
-          pendingNextInput.push(item)
-          return active.id
-        }
-        pendingInput.push(item)
-        emit(active.id, { turnId: active.id, type: 'turn.input_queued' })
+    if (active) {
+      if (options?.mode === 'later') {
+        pendingNextInput.push(item)
         return active.id
       }
+      pendingInput.push(item)
+      emit(active.id, { turnId: active.id, type: 'turn.input_queued' })
+      return active.id
+    }
 
-      const id = crypto.randomUUID()
-      pendingTurns.enqueue({ id, input: [item], signal: opts?.signal })
-      emit(id, { turnId: id, type: 'turn.queued' })
-      void pump()
-      return id
+    const id = crypto.randomUUID()
+    pendingTurns.enqueue({ id, input: [item], signal: options?.signal })
+    emit(id, { turnId: id, type: 'turn.queued' })
+    void pump()
+    return id
+  }
+
+  const run: AgentQueue['run'] = input => new ReadableStream<AgentEvent>({
+    cancel: () => {
+      abort('stream cancelled')
     },
+    start: (controller) => {
+      const unsubscribe = channel.subscribe('apeira', (event) => {
+        controller.enqueue(event)
+        if (event.type === 'turn.done' || event.type === 'turn.failed' || event.type === 'turn.aborted') {
+          controller.close()
+          unsubscribe()
+        }
+      })
+      send(input)
+    },
+  })
+
+  return {
+    abort,
+    clear,
+    interrupt,
+    remove,
+    run,
+    send,
   }
 }

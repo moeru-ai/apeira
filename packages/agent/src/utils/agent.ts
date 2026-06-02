@@ -79,7 +79,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
 
   const queue = createAgentQueue({
     channel,
-    run: async (opts) => {
+    runner: async (opts) => {
       await init()
       const instructions = await resolveInstructions()
 
