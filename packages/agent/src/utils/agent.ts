@@ -56,6 +56,15 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
     return initPromise
   }
 
+  const stop = async () => {
+    for (const plugin of plugins.toReversed()) {
+      try {
+        await plugin.stop?.()
+      }
+      catch {}
+    }
+  }
+
   const queue = createAgentQueue({
     channel,
     run: async (opts) => {
@@ -73,14 +82,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
     ...channel,
     ...queue,
     init,
-    stop: async () => {
-      for (let i = plugins.length - 1; i >= 0; i--) {
-        try {
-          await plugins[i].stop?.()
-        }
-        catch {}
-      }
-    },
+    stop,
   }
 
   return agent
