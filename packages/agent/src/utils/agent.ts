@@ -16,7 +16,7 @@ export interface Agent extends AgentChannel, AgentQueue {}
 export interface CreateAgentOptions<T = unknown> {
   input?: ItemParam[]
   instructions: ((state: AgentState<T>) => Promise<string> | string) | string
-  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
+  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
   plugins?: AgentPlugin[]
   state?: AgentState<T>
 }
@@ -26,11 +26,11 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
 
   const responseOptions = {
     ...options.options,
-    onFinish: chain('every', options.options.onFinish, ...plugins.map(p => p.onFinish)),
-    onStepFinish: chain('every', options.options.onStepFinish, ...plugins.map(p => p.onStepFinish)),
-    postToolCall: chain('some', options.options.postToolCall, ...plugins.map(p => p.postToolCall)),
-    prepareStep: chainPrepareStep(options.options.prepareStep, ...plugins.map(p => p.prepareStep)),
-    preToolCall: chain('some', options.options.preToolCall, ...plugins.map(p => p.preToolCall)),
+    onFinish: chain('every', plugins.map(p => p.onFinish)),
+    onStepFinish: chain('every', plugins.map(p => p.onStepFinish)),
+    postToolCall: chain('some', plugins.map(p => p.postToolCall)),
+    prepareStep: chainPrepareStep(plugins.map(p => p.prepareStep)),
+    preToolCall: chain('some', plugins.map(p => p.preToolCall)),
   }
 
   const channel = createAgentChannel()

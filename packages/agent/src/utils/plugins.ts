@@ -13,7 +13,7 @@ export const sortPlugins = (plugins: AgentPlugin[]): AgentPlugin[] => {
 
 export const chain = <H extends (...args: never[]) => unknown>(
   mode: 'every' | 'some',
-  ...hooks: (H | undefined)[]
+  hooks: (H | undefined)[],
 ): H | undefined => {
   const list = hooks.filter(Boolean) as H[]
   if (list.length === 0)
@@ -30,7 +30,7 @@ export const chain = <H extends (...args: never[]) => unknown>(
 }
 
 export const chainPrepareStep = (
-  ...hooks: (PrepareStepHook | undefined)[]
+  hooks: (PrepareStepHook | undefined)[],
 ): ResponsesOptions['prepareStep'] => {
   const list = hooks.filter(Boolean) as PrepareStepHook[]
   if (list.length === 0)
