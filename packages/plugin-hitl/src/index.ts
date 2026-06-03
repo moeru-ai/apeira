@@ -1,4 +1,4 @@
-import type { AgentPlugin, AgentPluginApi } from '@apeira/core'
+import type { Agent, AgentEvent, AgentPlugin } from '@apeira/core'
 import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
 
 import type { ApprovalDecision, HITLEvent, HumanInTheLoopOptions } from './types'
@@ -24,16 +24,14 @@ export type {
 } from './types'
 
 declare module '@apeira/core' {
-  interface AgentChannelMap {
+  interface AgentCustomEvent {
     hitl: HITLEvent
   }
 }
 
 interface PendingResolution {
   deferred: ReturnType<typeof createDeferred<CompletionToolCall | CompletionToolResult>>
-  emit: (event: HITLEvent) => void
   event: {
-    sessionId: string
     timestamp: number
     toolCallId: string
     toolName: string
@@ -58,11 +56,11 @@ export const rejectToolCall = (toolCallId: string, reason?: string) =>
   resolvePending(toolCallId, { reason, type: 'reject' })
 
 export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin => {
-  let pluginApi: AgentPluginApi | undefined
   const pendingByKey = new Map<string, PendingResolution>()
   const pendingKeyByToolCallId = new Map<string, string>()
-  const turnContextBySignal = new WeakMap<AbortSignal, { sessionId: string, turnId: string }>()
-  const emit = (event: HITLEvent) => pluginApi?.emit('hitl', event)
+  let currentTurnId = ''
+  let emit: (event: HITLEvent) => void = () => {}
+
   const removePending = (toolCallId: string, key?: string) => {
     const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
 
@@ -96,7 +94,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       return false
     }
 
-    pending.emit({
+    emit({
       ...pending.event,
       auto: false,
       decision: resolution.type,
@@ -109,18 +107,20 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
 
   return {
     enforce: 'pre',
-    name,
-    onTurnStart: ({ sessionId, signal, turnId }) => {
-      turnContextBySignal.set(signal, { sessionId, turnId })
+    init: (agent) => {
+      emit = (event) => agent.emit('hitl', event)
+      agent.subscribe('apeira', (event) => {
+        const ev = event as AgentEvent
+        if (ev.type === 'turn.start')
+          currentTurnId = ev.turnId
+      })
     },
+    name,
     preToolCall: async (toolCall, executeOptions) => {
-      const context = executeOptions.abortSignal == null
-        ? undefined
-        : turnContextBySignal.get(executeOptions.abortSignal)
-
+      const turnId = currentTurnId
       const decision = resolveDecision(toolCall, options)
 
-      if (context == null) {
+      if (turnId.length === 0) {
         if (decision.type === 'approve')
           return toolCall
 
@@ -132,11 +132,10 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       }
 
       const eventBase = {
-        sessionId: context.sessionId,
         timestamp: Date.now(),
         toolCallId: toolCall.toolCallId,
         toolName: toolCall.toolName,
-        turnId: context.turnId,
+        turnId,
       }
 
       if (decision.type === 'approve') {
@@ -171,11 +170,10 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
         return buildRejectionResult(toolCall, options.rejectionMessage, decision.reason)
       }
 
-      const key = `${context.turnId}:${toolCall.toolCallId}`
+      const key = `${turnId}:${toolCall.toolCallId}`
       const deferred = createDeferred<CompletionToolCall | CompletionToolResult>()
       const pending: PendingResolution = {
         deferred,
-        emit,
         event: eventBase,
         key,
         rejectionMessage: options.rejectionMessage,
@@ -211,9 +209,6 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
         executeOptions.abortSignal?.removeEventListener('abort', onAbort)
         removePending(toolCall.toolCallId, key)
       }
-    },
-    setup: async (api) => {
-      pluginApi = api
     },
     version,
   }

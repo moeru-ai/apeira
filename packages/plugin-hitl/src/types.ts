@@ -17,7 +17,6 @@ export interface HITLAutoReviewedEvent extends HITLBaseEvent {
 }
 
 export interface HITLBaseEvent {
-  sessionId: string
   timestamp: number
   toolCallId: string
   toolName: string

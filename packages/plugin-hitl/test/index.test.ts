@@ -1,21 +1,33 @@
-import type { AgentPluginApi } from '@apeira/core'
 import type { CompletionToolCall, ToolExecuteOptions } from '@xsai/shared-chat'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { approveToolCall, autoReviewByPattern, humanInTheLoop, rejectToolCall } from '../src/index'
 
-const createPluginApi = () => {
+const createMockAgent = () => {
   const emitted: Array<{ channel: string, event: unknown }> = []
+  const listeners = new Map<string, Array<(event: unknown) => void>>()
 
-  const api: AgentPluginApi = {
-    emit: (channel, event) => {
+  return {
+    emit: (channel: string, event: unknown) => {
       emitted.push({ channel, event })
+      listeners.get(channel)?.forEach(l => l(event))
     },
-    subscribe: () => () => true,
+    emitted,
+    subscribe: (channel: string, listener: (event: unknown) => void) => {
+      if (!listeners.has(channel))
+        listeners.set(channel, [])
+      listeners.get(channel)!.push(listener)
+      return () => {
+        const list = listeners.get(channel)
+        if (list) {
+          const idx = list.indexOf(listener)
+          if (idx !== -1)
+            list.splice(idx, 1)
+        }
+      }
+    },
   }
-
-  return { api, emitted }
 }
 
 const createToolCall = (overrides: Partial<CompletionToolCall> = {}): CompletionToolCall => ({
@@ -82,24 +94,16 @@ describe('humanInTheLoop', () => {
         read: { needsApproval: false },
       },
     })
-    const { api, emitted } = createPluginApi()
-    const signal = new AbortController().signal
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall({ toolName: 'read' })
-    const result = await plugin.preToolCall?.(toolCall, createExecuteOptions(signal))
+    const result = await plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
     expect(result).toEqual(toolCall)
-    expect(emitted.map(entry => (entry.event as { type: string }).type)).toEqual([
+    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual([
       'hitl.auto_reviewed',
       'hitl.resolved',
     ])
@@ -109,27 +113,19 @@ describe('humanInTheLoop', () => {
     const plugin = humanInTheLoop({
       autoReview: () => ({ reason: 'Policy blocked', type: 'reject' }),
     })
-    const { api, emitted } = createPluginApi()
-    const signal = new AbortController().signal
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
-    const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions(signal))
+    const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
 
     expect(result).toMatchObject({
       result: 'Tool execution was not approved. Reason: Policy blocked',
       toolCallId: 'call-1',
       toolName: 'write',
     })
-    expect(emitted.map(entry => (entry.event as { type: string }).type)).toEqual([
+    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual([
       'hitl.auto_reviewed',
       'hitl.resolved',
     ])
@@ -137,9 +133,9 @@ describe('humanInTheLoop', () => {
 
   it('fails secure when execution context is missing for a gated tool', async () => {
     const plugin = humanInTheLoop()
-    const { api, emitted } = createPluginApi()
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
+    await plugin.init?.(mockAgent)
 
     const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions())
 
@@ -148,32 +144,24 @@ describe('humanInTheLoop', () => {
       toolCallId: 'call-1',
       toolName: 'write',
     })
-    expect(emitted).toEqual([])
+    expect(mockAgent.emitted).toEqual([])
   })
 
   it('emits a request and resumes execution when approved', async () => {
     const plugin = humanInTheLoop()
-    const { api, emitted } = createPluginApi()
-    const signal = new AbortController().signal
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall()
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(signal))
+    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
-    expect(emitted.map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
+    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
     expect(approveToolCall(toolCall.toolCallId)).toBe(true)
     await expect(pending).resolves.toEqual(toolCall)
 
-    const resolved = emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')
+    const resolved = mockAgent.emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')
     expect(resolved?.event).toMatchObject({
       auto: false,
       decision: 'approve',
@@ -185,20 +173,12 @@ describe('humanInTheLoop', () => {
     const plugin = humanInTheLoop({
       rejectionMessage: 'Denied.',
     })
-    const { api, emitted } = createPluginApi()
-    const signal = new AbortController().signal
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
-    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(signal))
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
     expect(rejectToolCall('call-1', 'No write access')).toBe(true)
 
     await expect(pending).resolves.toMatchObject({
@@ -206,7 +186,7 @@ describe('humanInTheLoop', () => {
       toolCallId: 'call-1',
       toolName: 'write',
     })
-    expect(emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')?.event).toMatchObject({
+    expect(mockAgent.emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')?.event).toMatchObject({
       auto: false,
       decision: 'reject',
       reason: 'No write access',
@@ -216,42 +196,27 @@ describe('humanInTheLoop', () => {
 
   it('ignores duplicate approvals after the first resolution', async () => {
     const plugin = humanInTheLoop()
-    const { api, emitted } = createPluginApi()
-    const signal = new AbortController().signal
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall()
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(signal))
+    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
     expect(approveToolCall(toolCall.toolCallId)).toBe(true)
     expect(approveToolCall(toolCall.toolCallId)).toBe(false)
     await expect(pending).resolves.toEqual(toolCall)
-    expect(emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(1)
+    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(1)
   })
 
   it('rejects pending work on abort and cleans up resolver state', async () => {
     const controller = new AbortController()
     const plugin = humanInTheLoop()
-    const { api } = createPluginApi()
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal: controller.signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const pending = plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal))
     controller.abort('stop')
@@ -264,17 +229,10 @@ describe('humanInTheLoop', () => {
   it('rejects immediately when the signal is already aborted', async () => {
     const controller = new AbortController()
     const plugin = humanInTheLoop()
-    const { api } = createPluginApi()
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
-    await plugin.onTurnStart?.({
-      agentName: 'agent',
-      context: {},
-      sessionId: 'session-1',
-      signal: controller.signal,
-      turnId: 'turn-1',
-      turnInput: { content: 'hi', role: 'user', type: 'message' },
-    })
+    await plugin.init?.(mockAgent)
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     controller.abort('already-aborted')
 
