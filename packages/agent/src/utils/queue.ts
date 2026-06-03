@@ -10,7 +10,6 @@ export interface AgentQueue {
   clear: () => void
   interrupt: (reason?: unknown) => string | undefined
   remove: () => Promise<void>
-  run: (input: ItemParam) => ReadableStream<AgentEvent>
   send: (item: ItemParam, options?: AgentSendOptions) => string
 }
 
@@ -137,28 +136,11 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
     return id
   }
 
-  const run: AgentQueue['run'] = input => new ReadableStream<AgentEvent>({
-    cancel: () => {
-      abort('stream cancelled')
-    },
-    start: (controller) => {
-      const unsubscribe = channel.subscribe('apeira', (event) => {
-        controller.enqueue(event)
-        if (event.type === 'turn.done' || event.type === 'turn.failed' || event.type === 'turn.aborted') {
-          controller.close()
-          unsubscribe()
-        }
-      })
-      send(input)
-    },
-  })
-
   return {
     abort,
     clear,
     interrupt,
     remove,
-    run,
     send,
   }
 }

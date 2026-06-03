@@ -19,3 +19,5 @@ export { createAgent } from './utils/agent'
 export type { Agent, CreateAgentOptions } from './utils/agent'
 export type { AgentChannel, AgentEventListener } from './utils/channel'
 export type { AgentSendOptions } from './utils/queue'
+
+export { run } from './utils/run'
