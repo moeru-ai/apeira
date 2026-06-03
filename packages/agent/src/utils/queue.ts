@@ -8,6 +8,7 @@ import Queue from 'yocto-queue'
 export interface AgentQueue {
   abort: (reason?: unknown) => void
   clear: () => void
+  getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => string | undefined
   remove: () => Promise<void>
   send: (item: ItemParam, options?: AgentSendOptions) => string
@@ -88,6 +89,8 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
     return pumpReady
   }
 
+  const getActiveTurnId: AgentQueue['getActiveTurnId'] = () => activeTurn?.id
+
   const abort: AgentQueue['abort'] = reason => activeTurn?.controller.abort(reason)
 
   const clear: AgentQueue['clear'] = () => {
@@ -126,6 +129,7 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
   return {
     abort,
     clear,
+    getActiveTurnId,
     interrupt,
     remove,
     send,
