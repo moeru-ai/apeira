@@ -1,15 +1,29 @@
-import type { AgentEvent } from '@apeira/core'
+import type { ItemParam } from '@apeira/core'
 
 import { env, exit } from 'node:process'
 
+import { run } from '@apeira/core'
 import { createTelegramAdapter } from '@chat-adapter/telegram'
 import { Chat } from 'chat'
 
-import { agent } from './agent'
+import { createChatAgent } from './agent'
 import { createMemoryState } from './state'
+import { readJSON, threadFilePath, writeJSON } from './storage'
 
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
+
+const threadInputs = new Map<string, ItemParam[]>()
+
+const getThreadInput = async (threadId: string) => {
+  const cached = threadInputs.get(threadId)
+  if (cached != null)
+    return cached
+
+  const items = await readJSON<ItemParam>(threadFilePath(threadId))
+  threadInputs.set(threadId, items)
+  return items
+}
 
 export const startBot = async () => {
   if (TELEGRAM_USER_ID == null) {
@@ -35,25 +49,50 @@ export const startBot = async () => {
 
   await bot.initialize()
 
-  /**
-   * Convert an Apeira Agent event stream into a text stream
-   * that Chat SDK can post to Telegram.
-   */
-  async function* agentTextStream(stream: ReadableStream<AgentEvent>): AsyncIterable<string> {
-    const reader = stream.getReader()
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done)
-          break
-        if (value.type === 'text.delta') {
-          yield value.delta
+  const handleMessage = async (thread: { id: string, post: (content: AsyncIterable<string> | string) => Promise<void> }, message: { text?: string }) => {
+    const text = message.text?.trim()
+    if (text == null) {
+      await thread.post('Please send a text message.')
+      return
+    }
+
+    const input = await getThreadInput(thread.id)
+    input.push({ content: text, role: 'user', type: 'message' })
+
+    const agent = createChatAgent(input)
+    const stream = run(agent, {
+      content: text,
+      role: 'user',
+      type: 'message',
+    })
+
+    // Stream text to Telegram while collecting the full response
+    let assistantText = ''
+    const textStream = (async function* () {
+      const reader = stream.getReader()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done)
+            break
+          if (value.type === 'text.delta') {
+            assistantText += value.delta
+            yield value.delta
+          }
         }
       }
+      finally {
+        reader.releaseLock()
+      }
+    }())
+
+    await thread.post(textStream)
+
+    if (assistantText.length > 0) {
+      input.push({ content: assistantText, role: 'assistant', type: 'message' })
     }
-    finally {
-      reader.releaseLock()
-    }
+
+    await writeJSON(threadFilePath(thread.id), input)
   }
 
   /**
@@ -66,21 +105,7 @@ export const startBot = async () => {
     }
 
     await thread.subscribe()
-
-    const text = message.text?.trim()
-    if (!text) {
-      await thread.post('Please send a text message.')
-      return
-    }
-
-    const session = agent.session({ id: thread.id })
-    const stream = session.run({
-      content: text,
-      role: 'user',
-      type: 'message',
-    })
-
-    await thread.post(agentTextStream(stream))
+    await handleMessage(thread, message)
   })
 
   /**
@@ -90,19 +115,6 @@ export const startBot = async () => {
     if (String(message.author.userId) !== TELEGRAM_USER_ID)
       return
 
-    const text = message.text?.trim()
-    if (!text) {
-      await thread.post('Please send a text message.')
-      return
-    }
-
-    const session = agent.session({ id: thread.id })
-    const stream = session.run({
-      content: text,
-      role: 'user',
-      type: 'message',
-    })
-
-    await thread.post(agentTextStream(stream))
+    await handleMessage(thread, message)
   })
 }

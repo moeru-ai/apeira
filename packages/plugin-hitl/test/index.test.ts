@@ -1,32 +1,41 @@
+import type { Agent, AgentChannel, AgentEventListener } from '@apeira/core'
 import type { CompletionToolCall, ToolExecuteOptions } from '@xsai/shared-chat'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { approveToolCall, autoReviewByPattern, humanInTheLoop, rejectToolCall } from '../src/index'
 
-const createMockAgent = () => {
+interface MockAgent extends Agent {
+  emitted: Array<{ channel: string, event: unknown }>
+}
+
+const createMockAgent = (): MockAgent => {
   const emitted: Array<{ channel: string, event: unknown }> = []
-  const listeners = new Map<string, Array<(event: unknown) => void>>()
+  const listeners = new Map<string, Set<AgentEventListener>>()
 
   return {
+    abort: () => {},
+    clear: () => {},
     emit: (channel: string, event: unknown) => {
       emitted.push({ channel, event })
       listeners.get(channel)?.forEach(l => l(event))
     },
     emitted,
-    subscribe: (channel: string, listener: (event: unknown) => void) => {
+    getActiveTurnId: () => undefined,
+    getInput: () => [],
+    init: async () => {},
+    interrupt: () => undefined,
+    remove: async () => {},
+    send: () => 'turn-mock',
+    stop: async () => {},
+    subscribe: ((channel: string, listener: AgentEventListener) => {
       if (!listeners.has(channel))
-        listeners.set(channel, [])
-      listeners.get(channel)!.push(listener)
+        listeners.set(channel, new Set())
+      listeners.get(channel)!.add(listener)
       return () => {
-        const list = listeners.get(channel)
-        if (list) {
-          const idx = list.indexOf(listener)
-          if (idx !== -1)
-            list.splice(idx, 1)
-        }
+        listeners.get(channel)?.delete(listener)
       }
-    },
+    }) as AgentChannel['subscribe'],
   }
 }
 
