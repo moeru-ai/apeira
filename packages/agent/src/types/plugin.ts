@@ -19,3 +19,10 @@ export interface AgentPlugin {
   stop?: () => MaybePromise<void>
   version?: string
 }
+
+export type AgentPluginOption
+  = | AgentPlugin
+    | AgentPluginOption[]
+    | false
+    | null
+    | undefined

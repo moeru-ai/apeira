@@ -2,13 +2,13 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
 import type { ItemParam } from '../types/base'
-import type { AgentPlugin } from '../types/plugin'
+import type { AgentPluginOption } from '../types/plugin'
 import type { AgentState } from '../types/state'
 import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
 
 import { createAgentChannel } from './channel'
-import { chain, chainPrepareStep, sortPlugins } from './plugins'
+import { chain, chainPrepareStep, normalizePlugins } from './plugins'
 import { createAgentQueue } from './queue'
 import { runner } from './runner'
 
@@ -21,12 +21,12 @@ export interface CreateAgentOptions<T = unknown> {
   input?: ItemParam[]
   instructions: ((state: AgentState<T>) => Promise<string> | string) | string
   options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
-  plugins?: AgentPlugin[]
+  plugins?: AgentPluginOption[]
   state?: AgentState<T>
 }
 
 export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
-  const plugins = sortPlugins(options.plugins ?? [])
+  const plugins = normalizePlugins(options.plugins ?? [])
   const state = options.state ?? {} as AgentState<T>
 
   const responseOptions = {

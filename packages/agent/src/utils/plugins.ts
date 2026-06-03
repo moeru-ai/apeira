@@ -1,12 +1,20 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { AgentPlugin } from '../types/plugin'
+import type { AgentPlugin, AgentPluginOption } from '../types/plugin'
 
 type PrepareStepHook = NonNullable<ResponsesOptions['prepareStep']>
 
-export const sortPlugins = (plugins: AgentPlugin[]): AgentPlugin[] => {
+export const normalizePlugins = (options: AgentPluginOption[]): AgentPlugin[] => {
+  const plugins = options.flatMap((option) => {
+    if (option == null || option === false)
+      return []
+    if (Array.isArray(option))
+      return normalizePlugins(option)
+    return [option]
+  })
+
   const order = { post: 2, pre: 0 } as const
-  return [...plugins].sort(
+  return plugins.sort(
     (a, b) => (order[a.enforce as keyof typeof order] ?? 1) - (order[b.enforce as keyof typeof order] ?? 1),
   )
 }
