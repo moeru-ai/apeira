@@ -355,7 +355,6 @@ export class AbstractApeiraAgent extends AbstractAgent {
           this.isRunning = false
 
         subscriber.next(aguiEvent)
-
       }) as AgentEventListener)
 
       const stream = run(this.agent, userInput)
@@ -427,5 +426,4 @@ export class AbstractApeiraAgent extends AbstractAgent {
       subscriber.complete()
     })
   }
-
 }

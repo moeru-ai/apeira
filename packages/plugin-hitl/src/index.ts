@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentPlugin } from '@apeira/core'
+import type { AgentPlugin } from '@apeira/core'
 import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
 
 import type { ApprovalDecision, HITLEvent, HumanInTheLoopOptions } from './types'
@@ -108,9 +108,9 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
   return {
     enforce: 'pre',
     init: (agent) => {
-      emit = (event) => agent.emit('hitl', event)
+      emit = event => agent.emit('hitl', event)
       agent.subscribe('apeira', (event) => {
-        const ev = event as AgentEvent
+        const ev = event
         if (ev.type === 'turn.start')
           currentTurnId = ev.turnId
       })

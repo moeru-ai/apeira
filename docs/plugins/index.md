@@ -43,8 +43,10 @@ import type { AgentPlugin } from '@apeira/core'
 const loggingPlugin: AgentPlugin = {
   init: (agent) => {
     agent.subscribe('apeira', (event) => {
-      if (event.type === 'turn.failed')
-        console.error('turn failed:', event.error)
+      if (event.type !== 'turn.failed')
+        return
+
+      console.error('turn failed:', event.error)
     })
   },
   name: 'logging',

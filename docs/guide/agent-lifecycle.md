@@ -95,7 +95,7 @@ Agent `state` is a plain object that plugins and instructions can read and write
 ```ts
 const agent = createAgent({
   instructions: state => `You are helping ${state.userId ?? 'a user'}.`,
-  options: { ... },
+  options: {},
   state: { userId: 'user_123' },
 })
 ```
