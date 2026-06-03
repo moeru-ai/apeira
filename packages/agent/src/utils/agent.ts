@@ -18,18 +18,18 @@ export interface Agent extends AgentChannel, AgentQueue {
   stop: () => Promise<void>
 }
 
-export interface CreateAgentOptions<T = unknown> {
+export interface CreateAgentOptions {
   input?: ItemParam[]
-  instructions: ((state: AgentState<T>) => Promise<string> | string) | string
+  instructions: ((state: AgentState) => Promise<string> | string) | string
   options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
   plugins?: AgentPluginOption[]
-  state?: AgentState<T>
+  state?: AgentState
 }
 
-export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
+export const createAgent = (options: CreateAgentOptions): Agent => {
   const input = structuredClone(options.input ?? [])
   const plugins = normalizePlugins(options.plugins ?? [])
-  const state = options.state ?? {} as AgentState<T>
+  const state = options.state ?? {}
 
   const responseOptions = {
     ...options.options,
