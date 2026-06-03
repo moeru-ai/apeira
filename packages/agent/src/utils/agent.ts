@@ -13,6 +13,7 @@ import { createAgentQueue } from './queue'
 import { runner } from './runner'
 
 export interface Agent extends AgentChannel, AgentQueue {
+  getInput: () => ItemParam[]
   init: () => Promise<unknown>
   stop: () => Promise<void>
 }
@@ -26,6 +27,7 @@ export interface CreateAgentOptions<T = unknown> {
 }
 
 export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
+  const input = structuredClone(options.input ?? [])
   const plugins = normalizePlugins(options.plugins ?? [])
   const state = options.state ?? {} as AgentState<T>
 
@@ -39,7 +41,6 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
   }
 
   const channel = createAgentChannel()
-  const baseInput = structuredClone(options.input ?? [])
 
   const resolveInstructions = async () => {
     const base = typeof options.instructions === 'function'
@@ -68,6 +69,8 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
     return initPromise
   }
 
+  const getInput: Agent['getInput'] = () => structuredClone(input)
+
   const stop = async () => {
     for (const plugin of plugins.toReversed()) {
       try {
@@ -92,7 +95,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
 
       return runner({
         ...opts,
-        input: [...baseInput, ...opts.input],
+        input: [...input, ...opts.input],
         instructions,
         options: {
           ...responseOptions,
@@ -105,6 +108,7 @@ export const createAgent = <T>(options: CreateAgentOptions<T>): Agent => {
   agent = {
     ...channel,
     ...queue,
+    getInput,
     init,
     stop,
   }

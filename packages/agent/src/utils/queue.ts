@@ -14,6 +14,12 @@ export interface AgentQueue {
   send: (item: ItemParam, options?: AgentSendOptions) => string
 }
 
+export interface AgentQueueTurn {
+  id: string
+  input: ItemParam[]
+  signal?: AbortSignal
+}
+
 export interface AgentSendOptions {
   signal?: AbortSignal
 }
@@ -24,7 +30,7 @@ export interface CreateAgentQueueOptions {
 }
 
 export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): AgentQueue => {
-  const pendingTurns = new Queue<{ id: string, input: ItemParam[], signal?: AbortSignal }>()
+  const pendingTurns = new Queue<AgentQueueTurn>()
   const pendingInput: ItemParam[] = []
   let activeTurn: undefined | { controller: AbortController, id: string }
   let pumping = false
@@ -32,7 +38,7 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
 
   const emit = (turnId: string, event: AgentEvent) => channel.emit('apeira', { ...event, turnId })
 
-  const runTurn = async (turn: { id: string, input: ItemParam[], signal?: AbortSignal }) => {
+  const runTurn = async (turn: AgentQueueTurn) => {
     const controller = new AbortController()
     if (turn.signal)
       turn.signal.addEventListener('abort', () => controller.abort(turn.signal!.reason), { once: true })
