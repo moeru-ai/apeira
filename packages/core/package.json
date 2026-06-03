@@ -20,7 +20,6 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./episodic": "./src/episodic/index.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -31,10 +30,6 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      },
-      "./episodic": {
-        "types": "./dist/episodic/index.d.ts",
-        "default": "./dist/episodic/index.js"
       },
       "./package.json": "./package.json"
     },

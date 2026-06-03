@@ -1,5 +1,9 @@
 import type { Event as XSAIEvent } from '@xsai-ext/responses'
 
+export interface AgentCustomEvent {
+  apeira: AgentEvent
+}
+
 export type AgentEvent = WithId<ApeiraEvent | XSAIEvent>
 
 export type ApeiraEvent
@@ -43,6 +47,5 @@ export interface TurnStartEvent {
 }
 
 export type WithId<T> = T & {
-  sessionId: string
   turnId: string
 }
