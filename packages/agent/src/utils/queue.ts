@@ -14,7 +14,6 @@ export interface AgentQueue {
 }
 
 export interface AgentSendOptions {
-  mode?: 'later' | 'now'
   signal?: AbortSignal
 }
 
@@ -26,7 +25,6 @@ export interface CreateAgentQueueOptions {
 export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): AgentQueue => {
   const pendingTurns = new Queue<{ id: string, input: ItemParam[], signal?: AbortSignal }>()
   const pendingInput: ItemParam[] = []
-  const pendingNextInput: ItemParam[] = []
   let activeTurn: undefined | { controller: AbortController, id: string }
   let pumping = false
   let pumpReady = Promise.resolve()
@@ -51,11 +49,6 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
           const drained = pendingInput.splice(0)
           emit(turn.id, { count: drained.length, turnId: turn.id, type: 'turn.input_drained' })
           input = drained
-          continue
-        }
-
-        if (pendingNextInput.length > 0) {
-          input = pendingNextInput.splice(0)
           continue
         }
 
@@ -100,7 +93,6 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
   const clear: AgentQueue['clear'] = () => {
     activeTurn?.controller.abort('cleared')
     pendingInput.length = 0
-    pendingNextInput.length = 0
   }
 
   const interrupt: AgentQueue['interrupt'] = (reason) => {
@@ -112,7 +104,6 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
   const remove: AgentQueue['remove'] = async () => {
     activeTurn?.controller.abort('removed')
     pendingInput.length = 0
-    pendingNextInput.length = 0
     await pumpReady
   }
 
@@ -120,10 +111,6 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
     const active = activeTurn?.controller.signal.aborted !== true ? activeTurn : undefined
 
     if (active) {
-      if (options?.mode === 'later') {
-        pendingNextInput.push(item)
-        return active.id
-      }
       pendingInput.push(item)
       emit(active.id, { turnId: active.id, type: 'turn.input_queued' })
       return active.id
