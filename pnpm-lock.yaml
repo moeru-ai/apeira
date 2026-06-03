@@ -498,6 +498,9 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../core
+      '@moeru/std':
+        specifier: 'catalog:'
+        version: 0.1.0-beta.18
 
   packages/plugin-unstorage:
     devDependencies:

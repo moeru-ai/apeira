@@ -53,6 +53,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@apeira/core": "workspace:"
+    "@apeira/core": "workspace:",
+    "@moeru/std": "catalog:"
   }
 }

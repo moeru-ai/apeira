@@ -1,4 +1,4 @@
-export type { AgentContext, Instructions, ItemParam } from './types/base'
+export type { AgentContext, Instructions, ItemParam, MaybePromise } from './types/base'
 export type {
   AgentEvent,
   ApeiraEvent,
