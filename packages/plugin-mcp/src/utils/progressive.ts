@@ -10,17 +10,16 @@ import { mcpInfoFromString } from './names'
 import { createErrorToolResult } from './result'
 
 export interface CreateProgressiveMCPToolsOptions {
-  getConnectedClient: (serverId: string, signal?: AbortSignal) => Promise<Client>
-  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalog>
+  getConnectedClient: (serverId: string) => Promise<Client>
+  listToolCatalog: () => Promise<MCPToolCatalog>
   servers: Record<string, NormalizedMCPServerConfig>
 }
 
 const findCatalogEntry = async (
-  listToolCatalog: (signal?: AbortSignal) => Promise<MCPToolCatalog>,
+  listToolCatalog: () => Promise<MCPToolCatalog>,
   name: string,
-  signal?: AbortSignal,
 ) => {
-  const catalog = await listToolCatalog(signal)
+  const catalog = await listToolCatalog()
   return catalog.entriesByName.get(name)
 }
 
@@ -29,10 +28,10 @@ export const createProgressiveMCPTools = (
 ): MCPTool[] => [
   rawTool({
     description: 'Search available MCP tools by name, server, and description. Returns concise matches only; use get_mcp_tool_details before calling a tool.',
-    execute: async (input, executeOptions) => {
+    execute: async (input, _executeOptions) => {
       const { limit = 10, query = '' } = input as { limit?: number, query?: string }
       const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
-      const catalog = await options.listToolCatalog(executeOptions.abortSignal)
+      const catalog = await options.listToolCatalog()
       const matches = catalog.entries
         .map((entry) => {
           const haystack = [
@@ -85,14 +84,14 @@ export const createProgressiveMCPTools = (
   }),
   rawTool({
     description: 'Get the full schema and description for one MCP tool returned by search_mcp_tools.',
-    execute: async (input, executeOptions) => {
+    execute: async (input, _executeOptions) => {
       const { name } = input as { name: string }
       const info = mcpInfoFromString(name)
 
       if (info == null)
         throw new Error(`Invalid MCP tool name format: ${name}`)
 
-      const entry = await findCatalogEntry(options.listToolCatalog, name, executeOptions.abortSignal)
+      const entry = await findCatalogEntry(options.listToolCatalog, name)
 
       if (entry == null)
         throw new Error(`Unknown MCP tool: ${name}`)
@@ -120,19 +119,19 @@ export const createProgressiveMCPTools = (
   }),
   rawTool({
     description: 'Call one MCP tool by name after inspecting it with get_mcp_tool_details.',
-    execute: async (input, executeOptions) => {
+    execute: async (input, _executeOptions) => {
       const { arguments: toolArguments = {}, name } = input as { arguments?: Record<string, unknown>, name: string }
       const info = mcpInfoFromString(name)
 
       if (info == null)
         throw new Error(`Invalid MCP tool name format: ${name}`)
 
-      const entry = await findCatalogEntry(options.listToolCatalog, name, executeOptions.abortSignal)
+      const entry = await findCatalogEntry(options.listToolCatalog, name)
 
       if (entry == null)
         throw new Error(`Unknown MCP tool: ${name}`)
 
-      const client = await options.getConnectedClient(entry.serverId, executeOptions.abortSignal)
+      const client = await options.getConnectedClient(entry.serverId)
       const serverConfig = options.servers[entry.serverId]
 
       if (serverConfig == null)
@@ -145,7 +144,7 @@ export const createProgressiveMCPTools = (
             name: entry.toolName,
           },
           undefined,
-          getRequestOptions(serverConfig, executeOptions.abortSignal),
+          getRequestOptions(serverConfig),
         )
       }
       catch (error) {

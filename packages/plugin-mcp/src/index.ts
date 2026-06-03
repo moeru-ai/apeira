@@ -36,7 +36,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
   for (const serverId of Object.keys(servers))
     states.set(serverId, {})
 
-  const getConnectedClient = async (serverId: string, signal?: AbortSignal) => {
+  const getConnectedClient = async (serverId: string) => {
     const config = servers[serverId]
     const state = states.get(serverId)
 
@@ -56,7 +56,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
         })
         const transport = await createMCPTransport(config)
 
-        await client.connect(transport, getRequestOptions(config, signal))
+        await client.connect(transport, getRequestOptions(config))
 
         client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
           state.definitions = undefined
@@ -78,7 +78,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return state.connectPromise
   }
 
-  const listServerToolDefinitions = async (serverId: string, signal?: AbortSignal): Promise<MCPToolDefinition[]> => {
+  const listServerToolDefinitions = async (serverId: string): Promise<MCPToolDefinition[]> => {
     const config = servers[serverId]
     const state = states.get(serverId)
 
@@ -88,7 +88,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     if (state.definitions != null)
       return state.definitions
 
-    const client: Client = await getConnectedClient(serverId, signal)
+    const client: Client = await getConnectedClient(serverId)
 
     const definitions: MCPToolDefinition[] = []
     let cursor: string | undefined
@@ -96,7 +96,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     do {
       const listed = await client.listTools(
         cursor == null ? undefined : { cursor },
-        getRequestOptions(config, signal),
+        getRequestOptions(config),
       )
 
       definitions.push(...listed.tools)
@@ -114,12 +114,12 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return state.definitions
   }
 
-  const listToolCatalog = async (signal?: AbortSignal): Promise<MCPToolCatalog> => {
+  const listToolCatalog = async (): Promise<MCPToolCatalog> => {
     if (catalog != null)
       return catalog
 
     const results = await Promise.allSettled([...states.keys()].map(async (serverId) => {
-      const definitions = await listServerToolDefinitions(serverId, signal)
+      const definitions = await listServerToolDefinitions(serverId)
 
       return definitions.map(definition => ({
         definition,
@@ -128,9 +128,6 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
         toolName: definition.name,
       }))
     }))
-
-    if (signal?.aborted)
-      throw signal.reason ?? new Error('MCP tool resolution aborted.')
 
     const entries = results.flatMap((result, index) => {
       const serverId = [...states.keys()][index]
@@ -157,7 +154,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return catalog
   }
 
-  const listServerTools = async (serverId: string, signal?: AbortSignal): Promise<MCPTool[]> => {
+  const listServerTools = async (serverId: string): Promise<MCPTool[]> => {
     const serverConfig = servers[serverId]
     const state = states.get(serverId)
 
@@ -167,8 +164,8 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     if (state.tools != null)
       return state.tools
 
-    const definitions = await listServerToolDefinitions(serverId, signal)
-    const client: Client = await getConnectedClient(serverId, signal)
+    const definitions = await listServerToolDefinitions(serverId)
+    const client: Client = await getConnectedClient(serverId)
     const tools: MCPTool[] = []
 
     for (const mcpTool of definitions) {
@@ -205,7 +202,9 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
   }
 
   return {
-    extendTools: async ({ signal }) => {
+    // TODO: restore abort signal once core's extendTools passes it through.
+    // Currently agent's extendTools only receives state, not the turn's abortSignal.
+    extendTools: async () => {
       if (config.progressiveToolDiscovery === true) {
         return createProgressiveMCPTools({
           getConnectedClient,
@@ -215,10 +214,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
       }
 
       const serverIds = [...states.keys()]
-      const results = await Promise.allSettled(serverIds.map(async serverId => listServerTools(serverId, signal)))
-
-      if (signal.aborted)
-        throw signal.reason ?? new Error('MCP tool resolution aborted.')
+      const results = await Promise.allSettled(serverIds.map(async serverId => listServerTools(serverId)))
 
       results.forEach((result, index) => {
         const serverId = serverIds[index]
@@ -234,7 +230,19 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
 
       return results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
     },
+    init: async () => {
+      await Promise.allSettled([...states.keys()].map(async serverId => getConnectedClient(serverId)))
+    },
     name,
+    stop: async () => {
+      for (const state of states.values()) {
+        await state.client?.close()
+        await state.transport?.close()
+        state.client = undefined
+        state.connectPromise = undefined
+        state.transport = undefined
+      }
+    },
     version,
   }
 }
