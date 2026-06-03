@@ -4,7 +4,7 @@ import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 import { skills } from '@apeira/plugin-skills'
 import { fsSkillSet } from '@apeira/plugin-skills/fs'
 
-import { agentName, apiKey, baseURL, instructions, model } from './config'
+import { apiKey, baseURL, instructions, model } from './config'
 
 export const skillsDir = '.agents/skills'
 
@@ -14,7 +14,6 @@ export const skillSet = fsSkillSet({
 
 export const agent = createAgent({
   instructions,
-  name: agentName,
   options: {
     apiKey,
     baseURL,

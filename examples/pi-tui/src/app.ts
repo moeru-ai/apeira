@@ -1,4 +1,4 @@
-import type { AgentEvent } from '@apeira/core'
+import type { AgentEvent, AgentEventListener } from '@apeira/core'
 import type { HITLEvent, HITLRequestEvent } from '@apeira/plugin-hitl'
 import type { Component, MarkdownTheme, SlashCommand } from '@earendil-works/pi-tui'
 
@@ -625,7 +625,7 @@ export const createPiTuiExampleApp = () => {
   }
 
   const unsubscribeAgent = agent.subscribe('apeira', onEvent)
-  const unsubscribeHitl = agent.subscribe('hitl', onHitlEvent)
+  const unsubscribeHitl = agent.subscribe('hitl', onHitlEvent as AgentEventListener)
 
   const shutdown = (code: number) => {
     if (stopped)

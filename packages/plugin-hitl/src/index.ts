@@ -1,4 +1,4 @@
-import type { Agent, AgentEvent, AgentPlugin } from '@apeira/core'
+import type { AgentEvent, AgentPlugin } from '@apeira/core'
 import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
 
 import type { ApprovalDecision, HITLEvent, HumanInTheLoopOptions } from './types'
