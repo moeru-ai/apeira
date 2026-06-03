@@ -1,11 +1,11 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
-import type { Agent, CreateAgentOptions, ItemParam } from '@apeira/core'
-import type { Episode } from '@apeira/core/episodic'
+import type { Agent, AgentEventListener, CreateAgentOptions, ItemParam } from '@apeira/core'
+import type { AGUIEvent } from '@apeira/plugin-ag-ui'
 import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
 import type { Subscriber } from 'rxjs'
 
-import { createAgent } from '@apeira/core'
+import { createAgent, run } from '@apeira/core'
 import {
   AbstractAgent,
   EventType,
@@ -13,11 +13,11 @@ import {
 import { Observable } from 'rxjs'
 
 import { AGENT_ID, AGENT_NAME } from './const'
-import { isItemEpisode } from './is-item-episode'
 
 type PersistedMessageItem = Extract<ItemParam, { type: 'message' }>
+
 interface PersistedThreadState {
-  episodic?: string
+  input?: ItemParam[]
 }
 
 type PersistedUserMessageItem = Extract<PersistedMessageItem, { role: 'user' }>
@@ -216,109 +216,106 @@ const toUserMessageContent = (value: PersistedUserMessageItem['content']): Extra
   return content.length > 0 ? content : toMessageText(value)
 }
 
-const readPersistedMessages = (threadId: string): Message[] => {
+const readPersistedInput = (threadId: string): ItemParam[] => {
   try {
     const raw = localStorage.getItem(getStorageKey(threadId))
     if (raw == null)
       return []
 
     const state = JSON.parse(raw) as PersistedThreadState
-
-    const items: ItemParam[] = []
-    const lines = (state.episodic ?? '').split('\n')
-    for (const line of lines) {
-      if (!line.trim())
-        continue
-      try {
-        const episode = JSON.parse(line) as Episode
-        if (isItemEpisode(episode)) {
-          items.push(episode.payload.item)
-        }
-      }
-      catch {}
-    }
-
-    return items.flatMap((item): Message[] => {
-      // TODO
-      // eslint-disable-next-line ts/switch-exhaustiveness-check
-      switch (item.type) {
-        case 'function_call_output':
-          return [{
-            content: typeof item.output === 'string'
-              ? item.output
-              : JSON.stringify(item.output),
-            id: item.id ?? item.call_id,
-            role: 'tool',
-            toolCallId: item.call_id,
-          }]
-
-        case 'message': {
-          const content = toMessageText(item.content)
-          if (content.length === 0)
-            return []
-
-          if (item.role === 'assistant') {
-            return [{
-              content,
-              id: item.id ?? crypto.randomUUID(),
-              role: 'assistant',
-            }]
-          }
-
-          if (item.role === 'developer' || item.role === 'system') {
-            return [{
-              content,
-              id: item.id ?? crypto.randomUUID(),
-              role: item.role,
-            }]
-          }
-
-          if (item.role === 'user') {
-            return [{
-              content: toUserMessageContent(item.content),
-              id: item.id ?? crypto.randomUUID(),
-              role: 'user',
-            }]
-          }
-
-          return []
-        }
-
-        default:
-          return []
-      }
-    })
+    return state.input ?? []
   }
   catch {
     return []
   }
 }
 
+const persistInput = (threadId: string, input: ItemParam[]) => {
+  localStorage.setItem(getStorageKey(threadId), JSON.stringify({ input }))
+}
+
+const readPersistedMessages = (threadId: string): Message[] => {
+  const items = readPersistedInput(threadId)
+
+  return items.flatMap((item): Message[] => {
+    // TODO
+    // eslint-disable-next-line ts/switch-exhaustiveness-check
+    switch (item.type) {
+      case 'function_call_output':
+        return [{
+          content: typeof item.output === 'string'
+            ? item.output
+            : JSON.stringify(item.output),
+          id: item.id ?? item.call_id,
+          role: 'tool',
+          toolCallId: item.call_id,
+        }]
+
+      case 'message': {
+        const content = toMessageText(item.content)
+        if (content.length === 0)
+          return []
+
+        if (item.role === 'assistant') {
+          return [{
+            content,
+            id: item.id ?? crypto.randomUUID(),
+            role: 'assistant',
+          }]
+        }
+
+        if (item.role === 'developer' || item.role === 'system') {
+          return [{
+            content,
+            id: item.id ?? crypto.randomUUID(),
+            role: item.role,
+          }]
+        }
+
+        if (item.role === 'user') {
+          return [{
+            content: toUserMessageContent(item.content),
+            id: item.id ?? crypto.randomUUID(),
+            role: 'user',
+          }]
+        }
+
+        return []
+      }
+
+      default:
+        return []
+    }
+  })
+}
+
 export class AbstractApeiraAgent extends AbstractAgent {
-  private readonly agent: Agent<unknown>
-  private readonly agentOptions: CreateAgentOptions<unknown>
+  private readonly agent: Agent
+  private readonly agentOptions: CreateAgentOptions
   private readonly onThreadUpdated?: (threadId: string) => void
 
   constructor(
-    agentOptions: CreateAgentOptions<unknown>,
+    agentOptions: CreateAgentOptions,
     onThreadUpdated?: (threadId: string) => void,
+    threadId = 'default',
   ) {
     super({
       agentId: AGENT_ID,
       description: 'Apeira browser agent',
-      initialMessages: readPersistedMessages('default'),
-      threadId: 'default',
+      initialMessages: readPersistedMessages(threadId),
+      threadId,
     })
     this.agentOptions = agentOptions
-    this.agent = createAgent(agentOptions)
+    this.agent = createAgent({
+      ...agentOptions,
+      input: readPersistedInput(threadId),
+    })
     this.onThreadUpdated = onThreadUpdated
   }
 
   override clone(): this {
-    const cloned = new AbstractApeiraAgent(this.agentOptions, this.onThreadUpdated) as this
+    const cloned = new AbstractApeiraAgent(this.agentOptions, this.onThreadUpdated, this.threadId) as this
     cloned.agentId = this.agentId
-    cloned.threadId = this.threadId
-    cloned.setMessages(readPersistedMessages(this.threadId))
     return cloned
   }
 
@@ -337,10 +334,8 @@ export class AbstractApeiraAgent extends AbstractAgent {
         return
       }
 
-      const session = this.agent.session({ id: this.threadId })
       let activeRunId: string | undefined
-
-      const unsubscribe = session.subscribe('ag-ui', (aguiEvent) => {
+      const unsubscribe = this.agent.subscribe('ag-ui', ((aguiEvent: AGUIEvent) => {
         const eventThreadId = aguiEvent.threadId ?? (aguiEvent.rawEvent as undefined | { sessionId?: string })?.sessionId
         if (eventThreadId != null && eventThreadId !== this.threadId)
           return
@@ -361,13 +356,10 @@ export class AbstractApeiraAgent extends AbstractAgent {
 
         subscriber.next(aguiEvent)
 
-        if (aguiEvent.type === EventType.RUN_FINISHED || aguiEvent.type === EventType.RUN_ERROR) {
-          this.onThreadUpdated?.(this.threadId)
-          subscriber.complete()
-        }
-      })
+      }) as AgentEventListener)
 
-      const reader = session.run(userInput).getReader()
+      const stream = run(this.agent, userInput)
+      const reader = stream.getReader()
 
       void (async () => {
         try {
@@ -376,6 +368,12 @@ export class AbstractApeiraAgent extends AbstractAgent {
             if (done)
               break
           }
+
+          persistInput(this.threadId, this.agent.getInput())
+          this.onThreadUpdated?.(this.threadId)
+
+          if (!subscriber.closed)
+            subscriber.complete()
         }
         catch (error) {
           if (!subscriber.closed) {
@@ -389,13 +387,19 @@ export class AbstractApeiraAgent extends AbstractAgent {
         void reader.cancel().catch(() => undefined)
 
         if (this.isRunning)
-          session.abort('cancelled')
+          this.agent.abort('cancelled')
       }
     })
   }
 
   subscribeHitl(threadId: string, listener: (event: HITLEvent) => void) {
-    return this.agent.session({ id: threadId }).subscribe('hitl', listener)
+    void this.agent.init()
+    return this.agent.subscribe('hitl', ((event: HITLEvent) => {
+      if ('turnId' in event && threadId !== this.threadId)
+        return
+
+      listener(event)
+    }) as AgentEventListener)
   }
 
   protected override connect(_input: RunAgentInput) {
@@ -423,4 +427,5 @@ export class AbstractApeiraAgent extends AbstractAgent {
       subscriber.complete()
     })
   }
+
 }

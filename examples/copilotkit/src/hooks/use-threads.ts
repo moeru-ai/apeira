@@ -1,12 +1,10 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { ItemParam } from '@apeira/core'
-import type { Episode } from '@apeira/core/episodic'
 
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import { AGENT_NAME } from '../utils/const'
-import { isItemEpisode } from '../utils/is-item-episode'
 
 const THREADS_KEY = 'apeira:copilotkit:threads'
 const ACTIVE_THREAD_KEY = 'apeira:copilotkit:active-thread-id'
@@ -20,7 +18,7 @@ export interface LocalThread {
 }
 
 interface PersistedThreadState {
-  episodic?: string
+  input?: ItemParam[]
 }
 
 const now = () => Date.now()
@@ -39,24 +37,8 @@ const readThreadState = (threadId: string) => {
   }
 }
 
-const readThreadItems = (threadId: string): ItemParam[] => {
-  const items: ItemParam[] = []
-  const lines = (readThreadState(threadId).episodic ?? '').split('\n')
-
-  for (const line of lines) {
-    if (!line.trim())
-      continue
-
-    try {
-      const episode = JSON.parse(line) as Episode
-      if (isItemEpisode(episode))
-        items.push(episode.payload.item)
-    }
-    catch {}
-  }
-
-  return items
-}
+const readThreadItems = (threadId: string): ItemParam[] =>
+  readThreadState(threadId).input ?? []
 
 const getText = (content: Extract<ItemParam, { type: 'message' }>['content']) =>
   typeof content === 'string'

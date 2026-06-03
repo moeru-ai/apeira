@@ -83,8 +83,8 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const queue = createAgentQueue({
     channel,
+    init,
     runner: async (opts) => {
-      await init()
       const instructions = await resolveInstructions()
 
       const tools: Tool[] = []
@@ -94,7 +94,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
-      return runner({
+      const result = await runner({
         ...opts,
         input: [...input, ...opts.input],
         instructions,
@@ -103,6 +103,10 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools: [...(options.options.tools ?? []), ...tools],
         },
       })
+
+      input.push(...opts.input, ...result.output)
+
+      return result
     },
   })
 

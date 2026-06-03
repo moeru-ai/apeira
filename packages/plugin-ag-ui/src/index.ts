@@ -5,6 +5,8 @@ import { EventType } from '@ag-ui/core'
 
 import { name, version } from '../package.json'
 
+export type { AGUIEvent } from '@ag-ui/core'
+
 declare module '@apeira/core' {
   interface AgentCustomEvent {
     'ag-ui': AGUIEvent
@@ -12,7 +14,7 @@ declare module '@apeira/core' {
 }
 
 export interface AGUIPluginOptions {
-  threadId?: string
+  threadId: string
 }
 
 interface TurnState {
@@ -31,7 +33,7 @@ const toErrorMessage = (value: unknown) =>
     ? value.message
     : String(value)
 
-export const agui = (options: AGUIPluginOptions = {}): AgentPlugin => {
+export const agui = (options: AGUIPluginOptions): AgentPlugin => {
   const turnStates = new Map<string, TurnState>()
 
   let unsubscribe: (() => void) | undefined

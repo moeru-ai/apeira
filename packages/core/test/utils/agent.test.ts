@@ -6,7 +6,7 @@ import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it } from 'vitest'
 
 import { createAgent, run } from '../../src/index'
-import { createMockFetch, message, sleep } from '../_shared'
+import { assistantMessage, createMockFetch, message, sleep } from '../_shared'
 
 const createTestAgent = (opts?: {
   delayMs?: number
@@ -242,7 +242,7 @@ describe('queue', () => {
     expect(events1.at(-1)?.type).toBe('turn.done')
     expect(events2.at(-1)?.type).toBe('turn.done')
     expect(inputs[0]).toEqual([message('first')])
-    expect(inputs[1]).toEqual([message('second')])
+    expect(inputs[1]).toEqual([message('first'), assistantMessage('hello'), message('second')])
   })
 
   it('drains input into active turn instead of queueing new turn', async () => {

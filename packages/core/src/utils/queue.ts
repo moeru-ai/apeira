@@ -26,10 +26,11 @@ export interface AgentSendOptions {
 
 export interface CreateAgentQueueOptions {
   channel: AgentChannel
+  init?: () => Promise<void>
   runner: (options: Omit<RunnerOptions, 'instructions' | 'options'>) => Promise<RunnerResult>
 }
 
-export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): AgentQueue => {
+export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOptions): AgentQueue => {
   const pendingTurns = new Queue<AgentQueueTurn>()
   const pendingInput: ItemParam[] = []
   let activeTurn: undefined | { controller: AbortController, id: string }
@@ -44,6 +45,7 @@ export const createAgentQueue = ({ channel, runner }: CreateAgentQueueOptions): 
       turn.signal.addEventListener('abort', () => controller.abort(turn.signal!.reason), { once: true })
 
     activeTurn = { controller, id: turn.id }
+    await init?.()
     emit(turn.id, { turnId: turn.id, type: 'turn.start' })
 
     let input = turn.input
