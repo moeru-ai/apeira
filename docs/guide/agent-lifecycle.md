@@ -1,10 +1,10 @@
 # Agent Lifecycle
 
-An Apeira agent owns one or more sessions. Each session keeps an append-only Episodic log and runs submitted turns one at a time.
+An Apeira agent keeps an append-only input log and runs submitted turns one at a time.
 
-## Episodic history
+## Input history
 
-The default session starts with the optional `input` passed to `createAgent()`. Explicit sessions can also receive their own initial `input`.
+The agent starts with the optional `input` passed to `createAgent()`.
 
 ```ts
 const agent = createAgent({
@@ -16,7 +16,6 @@ const agent = createAgent({
     },
   ],
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
   options: {
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -25,37 +24,45 @@ const agent = createAgent({
 })
 ```
 
-Initial `input` is appended to the session's Episodic log. When a turn starts, Apeira forks that log into a working copy, appends the new input, assembles model input, and forwards it to `@xsai-ext/responses`. On success, only the new working episodes are merged back into the committed log. On failure or abort, the working log is discarded.
+Initial `input` seeds the agent's history. When a turn starts, Apeira appends the new input, assembles model input from the accumulated history, and forwards it to `@xsai-ext/responses`. On success, the model output is appended to the history.
+
+You can read the current accumulated input at any time:
+
+```ts
+const currentInput = agent.getInput()
+```
 
 ## Queueing
 
-Top-level turns on the same session are serialized. If `run()` is called while another turn is running, the new turn waits until the running turn finishes.
+Top-level turns on the same agent are serialized. If `run()` is called while another turn is running, the new turn waits until the running turn finishes.
 
 ```ts
-const first = agent.run(input)
-const second = agent.run(input) // waits for first
+import { run } from 'apeira'
+
+const first = run(agent, input)
+const second = run(agent, input) // waits for first
 ```
 
-Different sessions can run concurrently:
+Different agents can run concurrently:
 
 ```ts
-const sessionA = agent.session({ id: 'a' })
-const sessionB = agent.session({ id: 'b' })
+const agentA = createAgent({ ...options })
+const agentB = createAgent({ ...options })
 
-sessionA.run(input) // starts immediately
-sessionB.run(input) // starts immediately
+run(agentA, input) // starts immediately
+run(agentB, input) // starts immediately, runs in parallel
 ```
 
 `send()` queues input into the active turn if one exists, or creates a new turn. If the active turn is already aborted, input targets the next scheduled turn.
 
 ## Interrupt vs abort vs clear vs remove
 
-| Method | Records boundary | Clears queue | Resets Episodic | Deletes session |
-|--------|-----------------|--------------|----------------|-----------------|
-| `interrupt(reason)` | Yes | No | No | No |
-| `abort(reason)` | No | No | No | No |
-| `clear()` | No | Yes | Yes | No |
-| `remove()` | No | Yes | Yes | Yes |
+| Method | Records boundary | Clears queue | Resets input history |
+|--------|-----------------|--------------|---------------------|
+| `interrupt(reason)` | Yes | No | No |
+| `abort(reason)` | No | No | No |
+| `clear()` | No | Yes | Yes |
+| `remove()` | No | Yes | Yes |
 
 **Interrupt** aborts the active turn and appends an `interrupt` boundary visible to the model on the next turn. The queue continues.
 
@@ -69,48 +76,28 @@ agent.interrupt('user interrupted')
 agent.abort('user cancelled')
 ```
 
-**Clear** aborts the running turn, removes queued turns, and resets the Episodic log to the original `input`. The running turn emits `turn.aborted` with reason `cleared`.
+**Clear** aborts the running turn, removes queued turns, and resets the input history to the original `input`. The running turn emits `turn.aborted` with reason `cleared`.
 
 ```ts
 agent.clear()
 ```
 
-**Remove** is available on explicit sessions. It aborts active work, removes queued turns, deletes persisted session state, and closes the old session handle.
+**Remove** aborts active work, removes queued turns, and clears the agent. After removal, the agent handle is no longer usable.
 
 ```ts
-await session.remove()
+await agent.remove()
 ```
 
-## Context
+## State
 
-Agent context is a three-layer merge: **agent context**, then **session context**, then **run context**. Later layers override earlier fields.
+Agent `state` is a plain object that plugins and instructions can read and write.
 
 ```ts
 const agent = createAgent({
-  context: { locale: 'en-US', userId: 'user_123' },
-  instructions: ctx => `You are helping ${ctx.userId}.`,
-  name: 'assistant',
-  options: {
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  },
+  instructions: state => `You are helping ${state.userId ?? 'a user'}.`,
+  options: { ... },
+  state: { userId: 'user_123' },
 })
-
-agent.setContext({ locale: 'zh-CN' })
-
-const session = agent.session({
-  context: { userId: 'user_456' },
-})
-
-session.setContext({ locale: 'en-US' })
-
-// run context is transient
-session.run(input, { context: { requestId: 'req_123' } })
 ```
 
-The effective context for a turn is `merge(agentContext, sessionContext, runContext)`. Instructions receive the merged context and can adapt the system prompt dynamically.
-
-For more on session-level context, see [Sessions](/guide/sessions).
-
-
+`state` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime.

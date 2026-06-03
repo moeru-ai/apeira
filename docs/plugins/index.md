@@ -12,7 +12,6 @@ import { createAgent } from 'apeira'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
   options: {
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -42,15 +41,17 @@ const agent = createAgent({
 import type { AgentPlugin } from '@apeira/core'
 
 const loggingPlugin: AgentPlugin = {
+  init: (agent) => {
+    agent.subscribe('apeira', (event) => {
+      if (event.type === 'turn.failed')
+        console.error('turn failed:', event.error)
+    })
+  },
   name: 'logging',
-  onEvent: event => event.type === 'turn.failed' && console.error(event.error),
-  onTurnDone: ({ snapshot, turnId }) => console.log('turn finished:', turnId, snapshot.episodic.length),
-  onTurnStart: ({ turnId }) => {
-    console.log('turn started:', turnId)
+  onFinish: ({ usage }) => {
+    console.log('usage:', usage)
   },
 }
 ```
 
 Register it by passing it in the `plugins` array to `createAgent()`.
-
-

@@ -9,7 +9,6 @@ import { createAgent } from 'apeira'
 
 const agent = createAgent({
   instructions: 'You are a concise assistant.',
-  name: 'assistant',
   options: {
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -25,7 +24,9 @@ const agent = createAgent({
 `run()` submits one user turn and returns a `ReadableStream` of events for that turn.
 
 ```ts
-const stream = agent.run({
+import { run } from 'apeira'
+
+const stream = run(agent, {
   content: 'Say hello.',
   role: 'user',
   type: 'message',
@@ -66,11 +67,9 @@ Pass an `AbortSignal` to abort a specific turn:
 ```ts
 const controller = new AbortController()
 
-agent.run(input, { signal })
+run(agent, input, { signal: controller.signal })
 
 controller.abort('cancelled')
 ```
 
 Cancelling the `ReadableStream` reader only stops reading events. It does not abort the running turn.
-
-

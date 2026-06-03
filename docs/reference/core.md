@@ -3,9 +3,9 @@
 The core API is exported from both `apeira` and `@apeira/core`.
 
 ```ts
-import { createAgent } from 'apeira'
+import { createAgent, run } from 'apeira'
 // or
-import { createAgent } from '@apeira/core'
+import { createAgent, run } from '@apeira/core'
 ```
 
 ## createAgent()
@@ -13,7 +13,6 @@ import { createAgent } from '@apeira/core'
 ```ts
 const agent = createAgent({
   instructions: 'You are a concise assistant.',
-  name: 'assistant',
   options: {
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -25,44 +24,44 @@ const agent = createAgent({
 ### Options
 
 ```ts
-interface CreateAgentOptions<T> {
-  context?: AgentContext<T>
+interface CreateAgentOptions {
   input?: ItemParam[]
-  instructions: ((context: AgentContext<T>) => Promise<string> | string) | string
-  name: string
-  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions'>
-  plugins?: AgentPlugin[]
+  instructions: ((state: AgentState) => Promise<string> | string) | string
+  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
+  plugins?: AgentPluginOption[]
+  state?: AgentState
 }
 ```
 
 `options` are xsAI response options. Apeira owns the input state, instructions, and abort signal for each turn.
-`input` seeds the default session's Episodic log.
+`input` seeds the agent's history.
 
 ## Agent
 
-Agent methods operate as if on the default session (id = `'default'`) unless a session is explicitly created.
+An agent is both an `AgentChannel` (event bus) and an `AgentQueue` (turn queue).
 
-### run()
+### init()
 
-Submits a turn and returns a `ReadableStream` of events for that turn.
+Initializes all plugins. Called automatically before the first turn runs; you only need to call it manually if you want to eager-initialize plugins.
 
 ```ts
-const stream = agent.run({
-  content: 'Say hello.',
-  role: 'user',
-  type: 'message',
-})
+await agent.init()
 ```
 
-The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
+### stop()
 
-Pass run options with a transient context overlay or `AbortSignal`:
+Stops all plugins in reverse registration order.
 
 ```ts
-agent.run(input, {
-  context: { requestId: 'req_123' },
-  signal,
-})
+await agent.stop()
+```
+
+### getInput()
+
+Returns the accumulated input history (including user inputs and model outputs from completed turns).
+
+```ts
+const input = agent.getInput()
 ```
 
 ### send()
@@ -78,6 +77,28 @@ const turnId = agent.send({
 ```
 
 If no turn is active or scheduled, a new top-level turn is created. If a turn is active or scheduled, input is queued for that turn and the returned ID is the existing turn ID. If the active turn is already aborted, input targets the next scheduled turn.
+
+### run()
+
+`run()` is a free function (not an agent method) that submits a turn and returns a `ReadableStream` of events.
+
+```ts
+import { run } from 'apeira'
+
+const stream = run(agent, {
+  content: 'Say hello.',
+  role: 'user',
+  type: 'message',
+})
+```
+
+The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
+
+Pass run options with an `AbortSignal`:
+
+```ts
+run(agent, input, { signal: controller.signal })
+```
 
 ### interrupt()
 
@@ -97,58 +118,18 @@ agent.abort('user cancelled')
 
 ### clear()
 
-Aborts the running turn, clears queued turns, and resets the default session's Episodic log to the original `input`.
+Aborts the running turn, clears queued turns, and resets the input history to the original `input`.
 
 ```ts
 agent.clear()
 ```
 
-### session()
+### remove()
 
-Creates or addresses an explicit session. Each session has its own queue, interrupt state, Episodic log, and context overlay.
-
-```ts
-const session = agent.session({ context: { userId: 'user_123' }, id: 'conversation-1' })
-
-session.run({
-  content: 'Say hello.',
-  role: 'user',
-  type: 'message',
-})
-```
-
-Calling `session()` with an existing `id` returns that session and merges the provided context. The `input` option only applies when creating a new session.
+Aborts active work, removes queued turns, and clears the agent. After removal, the agent handle is no longer usable.
 
 ```ts
-interface SessionOptions<T> {
-  context?: Partial<AgentContext<T>>
-  episodic?: string
-  id?: string
-  input?: ItemParam[]
-}
-```
-
-Use `episodic` to restore a session from a previously saved JSONL string. Use `input` only to seed a new log from raw items.
-If both are provided when creating a session, `episodic` is the restored log and `input` is ignored.
-
-For a full guide, see [Sessions](/guide/sessions).
-
-### setContext()
-
-Updates context at the agent or session level. Context is merged as a partial overlay.
-
-```ts
-agent.setContext({ locale: 'en-US', product: 'docs' })
-
-session.setContext({ locale: 'zh-CN' })
-```
-
-### getContext()
-
-Returns the merged agent context.
-
-```ts
-const context = agent.getContext()
+await agent.remove()
 ```
 
 ### subscribe('apeira')
@@ -160,52 +141,38 @@ const unsubscribe = agent.subscribe('apeira', event =>
   console.log(event.turnId, event.type))
 ```
 
-Returns a function that removes the listener and returns whether it was present.
+Returns a function that removes the listener.
 
-## AgentSession
+### emit()
 
-Session methods operate on a single isolated conversation. See [Sessions](/guide/sessions) for usage.
-
-### fork()
-
-Creates a new session from the committed Episodic log and session context of an existing session.
+Emits an event on a named channel.
 
 ```ts
-const forked = await session.fork({
-  context: { locale: 'zh-CN' },
-  id: 'conversation-1-draft',
-})
+agent.emit('my-channel', { ok: true })
 ```
 
-If the source session has an active turn, only already committed episodes are copied. Passing an existing target `id` throws.
+Plugins can declare typed channels via `declare module '@apeira/core'`.
 
-## Advanced Episodic API
-
-Episodic is available from the advanced subpath:
+## AgentChannel
 
 ```ts
-import type { Episode, Episodic, EpisodicQuery } from '@apeira/core/episodic'
-
-import { createEpisodic } from '@apeira/core/episodic'
-```
-
-The persisted session state shape is:
-
-```ts
-interface SessionState<T = unknown> {
-  context: Partial<AgentContext<T>>
-  episodic: string
+interface AgentChannel {
+  emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown) => void
+  subscribe: <K extends string>(channel: K, listener: K extends keyof AgentCustomEvent ? AgentEventListener<AgentCustomEvent[K]> : AgentEventListener) => () => void
 }
 ```
 
-For behavior details, see [Episodic](/advanced/episodic).
-
-### remove()
-
-Deletes an explicit session from memory and storage.
+## AgentQueue
 
 ```ts
-await session.remove()
+interface AgentQueue {
+  abort: (reason?: unknown) => void
+  clear: () => void
+  getActiveTurnId: () => string | undefined
+  interrupt: (reason?: unknown) => string | undefined
+  remove: () => Promise<void>
+  send: (item: ItemParam, options?: AgentSendOptions) => string
+}
 ```
 
-The default session cannot be removed. Removed handles reject later method calls; calling `agent.session({ id })` after removal creates a fresh session.
+

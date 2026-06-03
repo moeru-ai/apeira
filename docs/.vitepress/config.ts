@@ -25,7 +25,7 @@ export default defineConfig({
       {
         items: [
           { link: '/guide/first-turn', text: 'First Turn' },
-          { link: '/guide/sessions', text: 'Sessions' },
+
           { link: '/guide/agent-lifecycle', text: 'Agent Lifecycle' },
           { link: '/guide/events', text: 'Events' },
         ],
@@ -44,7 +44,7 @@ export default defineConfig({
       },
       {
         items: [
-          { link: '/advanced/episodic', text: 'Episodic' },
+
           { link: '/advanced/plugin-api', text: 'Plugin API' },
         ],
         text: 'Advanced',

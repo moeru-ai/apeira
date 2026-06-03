@@ -9,77 +9,39 @@ A plugin is an object that conforms to `AgentPlugin`:
 ```ts
 interface AgentPlugin {
   enforce?: 'post' | 'pre'
-  extendInput?: (options: ExtendInputOptions) => MaybePromise<ItemParam[] | void>
-  extendInstructions?: (options: ExtendInstructionsOptions) => MaybePromise<string | void>
-  extendTools?: (options: ResponseOptions) => MaybePromise<Tool[] | void>
-  onEvent?: (event: AgentEvent) => void
+  extendInstructions?: (state: AgentState) => MaybePromise<string | void>
+  extendTools?: (state: AgentState) => MaybePromise<Tool[] | void>
+  init?: (agent: Agent) => MaybePromise<void>
+  name: string
   onFinish?: ResponsesOptions['onFinish']
-  onSessionInit?: (options: SessionInitOptions) => MaybePromise<void>
   onStepFinish?: ResponsesOptions['onStepFinish']
-  onTurnDone?: (options: TurnDoneOptions) => MaybePromise<void>
-  onTurnStart?: (options: TurnStartOptions) => MaybePromise<void>
   postToolCall?: ResponsesOptions['postToolCall']
   prepareStep?: ResponsesOptions['prepareStep']
   preToolCall?: ResponsesOptions['preToolCall']
-  setup?: (api: AgentPluginApi) => MaybePromise<void>
-  storage?: {
-    getItem: (key: string) => MaybePromise<null | string | undefined>
-    removeItem: (key: string) => MaybePromise<void>
-    setItem: (key: string, value: string) => MaybePromise<void>
-  }
-}
-
-interface ExtendInputOptions extends PluginHookBase {
-  episodic: Episodic
-  input: readonly ItemParam[]
-  turnInput: ItemParam
-}
-
-interface ExtendInstructionsOptions extends PluginHookBase {
-  turnInput: ItemParam
-}
-
-interface PluginHookBase {
-  agentName: string
-  context: AgentContext<unknown>
-  sessionId: string
-  signal: AbortSignal
-  turnId: string
+  stop?: () => MaybePromise<void>
+  version?: string
 }
 ```
 
 ### Lifecycle hooks
 
-- `setup(api)` — called when the plugin is registered. Use `api.emit()` and `api.subscribe()` for custom channels. See [Channels](#channels) below.
-- `onSessionInit` — called when a session is first accessed.
-- `onTurnStart` / `onTurnDone` — called at the beginning and end of each turn.
-- `onEvent` — observe all agent events.
+- `init(agent)` — called before the first turn runs. Use `agent.subscribe()` and `agent.emit()` for custom channels. See [Channels](#channels) below.
+- `stop()` — called when the agent is stopped or removed. Use it to clean up resources.
 
 ### Instruction and tool hooks
 
-- `extendInstructions` — append content to the system prompt. Receives the merged context and current `turnInput`.
-- `extendInput` — append temporary model input items for the next model call. This is the hook that receives the working `episodic` log. Returned items are not persisted unless the plugin appends episodes itself.
-- `extendTools` — inject tools into model calls for a session.
+- `extendInstructions` — append content to the system prompt. Receives the agent `state`.
+- `extendTools` — inject tools into model calls.
 - `onFinish`, `onStepFinish`, `prepareStep`, `preToolCall`, `postToolCall` — pass-through hooks to xsAI response lifecycle.
   - `preToolCall` — called before a tool is executed. Return a modified tool call or a tool result to short-circuit execution. The first plugin to return a non-empty value wins.
   - `postToolCall` — called after a tool is executed. Return a modified tool result to override the output. The first plugin to return a non-empty value wins.
 
 ```ts
 const journalPlugin: AgentPlugin = {
-  extendInput: () => [
-    {
-      content: 'User prefers concise answers.',
-      role: 'user',
-      type: 'message',
-    },
-  ],
+  extendInstructions: () => 'User prefers concise answers.',
   name: 'journal',
 }
 ```
-
-### Storage
-
-Plugins can provide a `storage` object with `getItem`, `setItem`, and `removeItem`. When present, session state (`context` + `episodic` JSONL) is serialized to JSON and persisted.
 
 ### Ordering
 
@@ -87,10 +49,10 @@ Set `enforce: 'pre'` to run a hook before other plugins, or `enforce: 'post'` to
 
 ## Channels
 
-Plugins communicate with the outside world through named channels. The `AgentPluginApi` passed to `setup()` exposes `emit` and `subscribe` for this purpose.
+Plugins communicate with the outside world through named channels on the agent itself.
 
-- `api.emit(channel, event)` — emit an event on a named channel
-- `api.subscribe(channel, listener)` — listen for events on a named channel
+- `agent.emit(channel, event)` — emit an event on a named channel
+- `agent.subscribe(channel, listener)` — listen for events on a named channel
 
 Known channels (like `'apeira'`) provide typed events; unknown channels fall back to `unknown`.
 
@@ -98,13 +60,13 @@ The built-in channel `'apeira'` carries all core agent lifecycle and model strea
 
 ### Declaring a typed channel
 
-If your plugin emits events on a custom channel, use `declare module` to register it in `AgentChannelMap`. This lets consumers get typed events when they `subscribe` to your channel.
+If your plugin emits events on a custom channel, use `declare module` to register it in `AgentCustomEvent`. This lets consumers get typed events when they `subscribe` to your channel.
 
 ```ts
 import type { AGUIEvent } from '@ag-ui/core'
 
 declare module '@apeira/core' {
-  interface AgentChannelMap {
+  interface AgentCustomEvent {
     'ag-ui': AGUIEvent
   }
 }
@@ -114,24 +76,22 @@ Once declared, `agent.subscribe('ag-ui', event => ...)` infers `event` as `AGUIE
 
 ### Internal plugin communication
 
-Plugins can also use `api.subscribe()` and `api.emit()` to communicate with each other during `setup()`:
+Plugins can also use `agent.subscribe()` and `agent.emit()` to communicate with each other during `init()`:
 
 ```ts
 const pluginA: AgentPlugin = {
-  name: 'plugin-a',
-  setup: (api) => {
-    api.subscribe('custom-channel', (event) => {
+  init: (agent) => {
+    agent.subscribe('custom-channel', (event) => {
       // handle event from other plugins
     })
   },
+  name: 'plugin-a',
 }
 
 const pluginB: AgentPlugin = {
-  name: 'plugin-b',
-  setup: (api) => {
-    api.emit('custom-channel', { ok: true })
+  init: (agent) => {
+    agent.emit('custom-channel', { ok: true })
   },
+  name: 'plugin-b',
 }
 ```
-
-

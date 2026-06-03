@@ -1,10 +1,9 @@
 # Events
 
-Apeira is event-driven. Every emitted event includes the `sessionId` and `turnId` of the turn it belongs to.
+Apeira is event-driven. Every emitted event includes the `turnId` of the turn it belongs to.
 
 ```ts
 type AgentEvent = (ApeiraEvent | XSAIEvent) & {
-  sessionId: string
   turnId: string
 }
 ```
@@ -25,7 +24,7 @@ Apeira emits these lifecycle events:
 
 ## xsAI forwarded events
 
-Apeira forwards streaming events from `@xsai-ext/responses` and attaches the same `sessionId` and `turnId`. These include:
+Apeira forwards streaming events from `@xsai-ext/responses` and attaches the same `turnId`. These include:
 
 - `step.start` — a model reasoning step started.
 - `step.done` — a step completed.
@@ -51,7 +50,9 @@ agent.subscribe('apeira', (event) => {
 `run()` returns a `ReadableStream` that is automatically filtered to the submitted turn.
 
 ```ts
-const stream = agent.run(input)
+import { run } from 'apeira'
+
+const stream = run(agent, input)
 
 for await (const event of stream) {
   if (event.type === 'turn.done')
@@ -63,7 +64,7 @@ The stream closes after `turn.done`, `turn.failed`, or `turn.aborted`.
 
 ## Global listeners
 
-`subscribe('apeira', ...)` receives all core events from all sessions and turns.
+`subscribe('apeira', ...)` receives all core events from all turns.
 
 ```ts
 const unsubscribe = agent.subscribe('apeira', event =>
@@ -73,5 +74,3 @@ unsubscribe()
 ```
 
 The returned function removes the listener and returns whether it was present. Listener errors are silently ignored — one subscriber cannot break event delivery to others.
-
-

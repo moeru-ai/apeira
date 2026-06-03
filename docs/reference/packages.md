@@ -15,7 +15,7 @@ Use this when you want the single default entry point.
 The stream-first agent runtime.
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, run } from '@apeira/core'
 ```
 
 Provides:
@@ -26,7 +26,7 @@ Provides:
 - fire-and-forget submission through `send()`
 - global event subscriptions
 - abort, interrupt, and clear behavior
-- Episodic session history and session management
+- `init()` / `stop()` plugin lifecycle
 
 ## @apeira/plugin-skills
 
