@@ -1,51 +1,55 @@
-import type { AgentPluginApi } from '@apeira/core'
+import type { Agent } from '@apeira/core'
 
 import { EventType } from '@ag-ui/core'
 import { describe, expect, it } from 'vitest'
 
 import { agui } from '../src/index'
 
-const createPluginApi = () => {
+const createMockAgent = () => {
   const emitted: Array<{ channel: string, event: unknown }> = []
+  const listeners = new Map<string, Array<(event: unknown) => void>>()
 
-  const api: AgentPluginApi = {
-    emit: (channel, event) => {
+  return {
+    emit: (channel: string, event: unknown) => {
       emitted.push({ channel, event })
+      listeners.get(channel)?.forEach(l => l(event))
     },
-    subscribe: () => () => true,
-  }
-
-  return { api, emitted }
+    emitted,
+    subscribe: (channel: string, listener: (event: unknown) => void) => {
+      if (!listeners.has(channel))
+        listeners.set(channel, [])
+      listeners.get(channel)!.push(listener)
+      return () => {
+        const list = listeners.get(channel)
+        if (list) {
+          const idx = list.indexOf(listener)
+          if (idx !== -1)
+            list.splice(idx, 1)
+        }
+      }
+    },
+  } as unknown as (Agent & { emitted: Array<{ channel: string, event: unknown }> })
 }
 
 describe('agui', () => {
   it('maps run, step, and text events to AG-UI events', async () => {
+    const plugin = agui({ threadId: 'thread-1' })
+    const mockAgent = createMockAgent()
     const received: unknown[] = []
-    const plugin = agui({
-      onEvent: event => received.push(event),
-    })
-    const { api, emitted } = createPluginApi()
+    mockAgent.subscribe('ag-ui', event => received.push(event))
 
-    await plugin.setup?.(api)
+    await plugin.init?.(mockAgent)
 
-    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-1', type: 'turn.start' })
-    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-1', type: 'step.start' })
-    await plugin.onEvent?.({ outputIndex: 0, sessionId: 'session-1', turnId: 'turn-1', type: 'text.start' })
-    await plugin.onEvent?.({ delta: 'Hello', sessionId: 'session-1', turnId: 'turn-1', type: 'text.delta' })
-    await plugin.onEvent?.({ sessionId: 'session-1', text: 'Hello', turnId: 'turn-1', type: 'text.done' })
-    await plugin.onEvent?.({ output: [], sessionId: 'session-1', turnId: 'turn-1', type: 'step.done' })
-    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-1', type: 'turn.done' })
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'step.start' })
+    mockAgent.emit('apeira', { outputIndex: 0, turnId: 'turn-1', type: 'text.start' })
+    mockAgent.emit('apeira', { delta: 'Hello', turnId: 'turn-1', type: 'text.delta' })
+    mockAgent.emit('apeira', { text: 'Hello', turnId: 'turn-1', type: 'text.done' })
+    mockAgent.emit('apeira', { output: [], turnId: 'turn-1', type: 'step.done' })
+    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.done' })
 
-    expect(emitted.map(entry => entry.channel)).toEqual([
-      'ag-ui',
-      'ag-ui',
-      'ag-ui',
-      'ag-ui',
-      'ag-ui',
-      'ag-ui',
-      'ag-ui',
-    ])
-    expect(emitted.map(entry => (entry.event as { type: string }).type)).toEqual([
+    const aguiEvents = mockAgent.emitted.filter(entry => entry.channel === 'ag-ui')
+    expect(aguiEvents.map(entry => (entry.event as { type: string }).type)).toEqual([
       EventType.RUN_STARTED,
       EventType.STEP_STARTED,
       EventType.TEXT_MESSAGE_START,
@@ -58,39 +62,38 @@ describe('agui', () => {
   })
 
   it('maps tool, reasoning, and failure events with stable ids', async () => {
-    const plugin = agui()
-    const { api, emitted } = createPluginApi()
+    const plugin = agui({ threadId: 'thread-1' })
+    const mockAgent = createMockAgent()
 
-    await plugin.setup?.(api)
+    await plugin.init?.(mockAgent)
 
-    await plugin.onEvent?.({ sessionId: 'session-1', turnId: 'turn-2', type: 'turn.start' })
-    await plugin.onEvent?.({ outputIndex: 0, sessionId: 'session-1', turnId: 'turn-2', type: 'text.start' })
-    await plugin.onEvent?.({
+    mockAgent.emit('apeira', { turnId: 'turn-2', type: 'turn.start' })
+    mockAgent.emit('apeira', { outputIndex: 0, turnId: 'turn-2', type: 'text.start' })
+    mockAgent.emit('apeira', {
       outputIndex: 1,
-      sessionId: 'session-1',
       toolCall: { id: 'call_1', name: 'weather' },
       turnId: 'turn-2',
       type: 'tool-call.start',
     })
-    await plugin.onEvent?.({ delta: '{"city":"Taipei"}', sessionId: 'session-1', turnId: 'turn-2', type: 'tool-call.delta' })
-    await plugin.onEvent?.({
-      sessionId: 'session-1',
+    mockAgent.emit('apeira', { delta: '{"city":"Taipei"}', turnId: 'turn-2', type: 'tool-call.delta' })
+    mockAgent.emit('apeira', {
       toolCall: { arguments: '{"city":"Taipei"}', id: 'call_1', name: 'weather' },
       turnId: 'turn-2',
       type: 'tool-call.done',
     })
-    await plugin.onEvent?.({
-      sessionId: 'session-1',
+    mockAgent.emit('apeira', {
       toolResult: { id: 'call_1', name: 'weather', output: { forecast: 'sunny' } },
       turnId: 'turn-2',
       type: 'tool-result.done',
     })
-    await plugin.onEvent?.({ outputIndex: 0, sessionId: 'session-1', turnId: 'turn-2', type: 'reasoning.start' })
-    await plugin.onEvent?.({ delta: 'Thinking', sessionId: 'session-1', turnId: 'turn-2', type: 'reasoning.delta' })
-    await plugin.onEvent?.({ sessionId: 'session-1', text: 'Thinking', turnId: 'turn-2', type: 'reasoning.done' })
-    await plugin.onEvent?.({ error: new Error('boom'), sessionId: 'session-1', turnId: 'turn-2', type: 'turn.failed' })
+    mockAgent.emit('apeira', { outputIndex: 0, turnId: 'turn-2', type: 'reasoning.start' })
+    mockAgent.emit('apeira', { delta: 'Thinking', turnId: 'turn-2', type: 'reasoning.delta' })
+    mockAgent.emit('apeira', { text: 'Thinking', turnId: 'turn-2', type: 'reasoning.done' })
+    mockAgent.emit('apeira', { error: new Error('boom'), turnId: 'turn-2', type: 'turn.failed' })
 
-    const events = emitted.map(entry => entry.event as { [key: string]: unknown, type: string })
+    const events = mockAgent.emitted
+      .filter(entry => entry.channel === 'ag-ui')
+      .map(entry => entry.event as { [key: string]: unknown, type: string })
 
     expect(events.map(event => event.type)).toEqual([
       EventType.RUN_STARTED,
