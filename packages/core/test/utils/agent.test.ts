@@ -197,7 +197,6 @@ describe('turn lifecycle', () => {
       events.push(event)
     }
     const types = events.map(e => e.type)
-    expect(types).toContain('turn.queued')
     expect(types).toContain('turn.start')
     expect(types).toContain('turn.done')
   })
@@ -208,7 +207,7 @@ describe('turn lifecycle', () => {
     for await (const event of run(agent, message('hi'))) {
       events.push(event)
     }
-    const turnId = events.find(e => e.type === 'turn.queued')?.turnId
+    const turnId = events.find(e => e.type === 'turn.start')?.turnId
     expect(turnId).toBeDefined()
     for (const event of events) {
       expect(event.turnId).toBe(turnId)
@@ -395,5 +394,93 @@ describe('queue', () => {
 
     await expect(reader.read()).rejects.toThrow(error)
     expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('filters run stream events by turn id', async () => {
+    let listener: ((event: AgentEvent) => void) | undefined
+    const unsubscribe = vi.fn()
+    // eslint-disable-next-line @masknet/type-no-force-cast-via-top-type
+    const agent = {
+      abort: vi.fn(),
+      clear: vi.fn(),
+      emit: vi.fn(),
+      getActiveTurnId: vi.fn(() => undefined),
+      getInput: vi.fn(() => []),
+      init: vi.fn(),
+      interrupt: vi.fn(),
+      remove: vi.fn(),
+      send: vi.fn(() => {
+        listener?.({ turnId: 'other-turn', type: 'turn.queued' })
+        queueMicrotask(() => {
+          listener?.({ turnId: 'target-turn', type: 'turn.start' })
+          listener?.({ turnId: 'other-turn', type: 'turn.done' })
+          listener?.({ turnId: 'target-turn', type: 'turn.done' })
+        })
+        return 'target-turn'
+      }),
+      stop: vi.fn(),
+      subscribe: vi.fn((_channel: string, next: unknown) => {
+        listener = next as (event: AgentEvent) => void
+        return unsubscribe
+      }),
+    } as unknown as Agent
+
+    const reader = run(agent, message('hi')).getReader()
+    const first = await reader.read()
+    const second = await reader.read()
+    const third = await reader.read()
+
+    expect(first.value?.type).toBe('turn.start')
+    expect(second.value?.type).toBe('turn.done')
+    expect(third.done).toBe(true)
+    expect(first.value?.turnId).toBe('target-turn')
+    expect(second.value?.turnId).toBe('target-turn')
+  })
+
+  it('waits for active turn before sending run input', async () => {
+    let listener: ((event: AgentEvent) => void) | undefined
+    const unsubscribe = vi.fn()
+    let activeTurnId: string | undefined = 'active-turn'
+    // eslint-disable-next-line @masknet/type-no-force-cast-via-top-type
+    const agent = {
+      abort: vi.fn(),
+      clear: vi.fn(),
+      emit: vi.fn(),
+      getActiveTurnId: vi.fn(() => activeTurnId),
+      getInput: vi.fn(() => []),
+      init: vi.fn(),
+      interrupt: vi.fn(),
+      remove: vi.fn(),
+      send: vi.fn(() => {
+        queueMicrotask(() => {
+          listener?.({ turnId: 'new-turn', type: 'turn.start' })
+          listener?.({ turnId: 'other-turn', type: 'turn.done' })
+          listener?.({ turnId: 'new-turn', type: 'turn.done' })
+        })
+        return 'new-turn'
+      }),
+      stop: vi.fn(),
+      subscribe: vi.fn((_channel: string, next: unknown) => {
+        listener = next as (event: AgentEvent) => void
+        return unsubscribe
+      }),
+    } as unknown as Agent
+
+    const reader = run(agent, message('hi')).getReader()
+    expect(agent.send).not.toHaveBeenCalled()
+
+    activeTurnId = undefined
+    listener?.({ turnId: 'active-turn', type: 'turn.done' })
+
+    const first = await reader.read()
+    const second = await reader.read()
+    const third = await reader.read()
+
+    expect(agent.send).toHaveBeenCalledOnce()
+    expect(first.value?.type).toBe('turn.start')
+    expect(second.value?.type).toBe('turn.done')
+    expect(third.done).toBe(true)
+    expect(first.value?.turnId).toBe('new-turn')
+    expect(second.value?.turnId).toBe('new-turn')
   })
 })
