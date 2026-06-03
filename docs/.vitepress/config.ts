@@ -39,7 +39,6 @@ export default defineConfig({
           { link: '/plugins/mcp', text: 'MCP' },
           { link: '/plugins/skills', text: 'Skills' },
           { link: '/plugins/ag-ui', text: 'AG-UI' },
-          { link: '/plugins/unstorage', text: 'Unstorage' },
         ],
         text: 'Plugins',
       },

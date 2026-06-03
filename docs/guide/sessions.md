@@ -179,33 +179,3 @@ Listen to all core events from this session (filtered to the session).
 const unsubscribe = session.subscribe('apeira', event =>
   console.log(event.turnId, event.type))
 ```
-
-## Persistence
-
-When a storage plugin (e.g. `@apeira/plugin-unstorage`) is configured, session state — context and Episodic JSONL — is serialized to JSON and persisted.
-
-Persisted state uses the current `episodic` JSONL field; old `items` history arrays are not migrated.
-
-```ts
-import fsDriver from 'unstorage/drivers/fs'
-
-import { unstorage } from '@apeira/plugin-unstorage'
-import { createStorage } from 'unstorage'
-
-const agent = createAgent({
-  instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  },
-  plugins: [
-    unstorage({
-      storage: createStorage({ driver: fsDriver({ base: './data' }) }),
-    }),
-  ],
-})
-```
-
-
