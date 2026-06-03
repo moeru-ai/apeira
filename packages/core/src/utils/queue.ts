@@ -41,8 +41,14 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
   const runTurn = async (turn: AgentQueueTurn) => {
     const controller = new AbortController()
-    if (turn.signal)
-      turn.signal.addEventListener('abort', () => controller.abort(turn.signal!.reason), { once: true })
+    const onAbort = () => controller.abort(turn.signal!.reason)
+
+    if (turn.signal != null) {
+      if (turn.signal.aborted)
+        controller.abort(turn.signal.reason)
+      else
+        turn.signal.addEventListener('abort', onAbort, { once: true })
+    }
 
     activeTurn = { controller, id: turn.id }
     await init?.()
@@ -64,7 +70,10 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
         break
       }
 
-      emit(turn.id, { turnId: turn.id, type: 'turn.done' })
+      if (controller.signal.aborted)
+        emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
+      else
+        emit(turn.id, { turnId: turn.id, type: 'turn.done' })
     }
     catch (error) {
       if (controller.signal.aborted)
@@ -73,6 +82,11 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
         emit(turn.id, { error, turnId: turn.id, type: 'turn.failed' })
     }
     finally {
+      if (turn.signal != null)
+        turn.signal.removeEventListener('abort', onAbort)
+
+      pendingInput.length = 0
+
       if (activeTurn?.id === turn.id)
         activeTurn = undefined
     }

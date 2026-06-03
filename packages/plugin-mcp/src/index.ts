@@ -236,8 +236,16 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     name,
     stop: async () => {
       for (const state of states.values()) {
-        await state.client?.close()
-        await state.transport?.close()
+        try {
+          await state.client?.close()
+        }
+        catch {}
+
+        try {
+          await state.transport?.close()
+        }
+        catch {}
+
         state.client = undefined
         state.connectPromise = undefined
         state.transport = undefined

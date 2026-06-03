@@ -41,7 +41,7 @@ export const runner = async ({ abortSignal, channel, input, instructions, option
   }
 
   const output = (await result.input).slice(inputLength)
-  const usage = await result.totalUsage
+  const usage = await result.totalUsage.catch(() => undefined)
 
   return { output, usage }
 }

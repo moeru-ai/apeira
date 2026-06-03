@@ -19,7 +19,14 @@ export const run = (agent: Agent, input: ItemParam, options?: AgentSendOptions) 
           unsubscribe?.()
         }
       })
-      agent.send(input, options)
+
+      try {
+        agent.send(input, options)
+      }
+      catch (error) {
+        unsubscribe?.()
+        controller.error(error)
+      }
     },
   })
 }

@@ -1,9 +1,9 @@
 import type { Tool } from '@xsai/shared-chat'
 
-import type { AgentEvent, AgentPluginOption, AgentState, ItemParam } from '../../src/index'
+import type { Agent, AgentEvent, AgentPluginOption, AgentState, ItemParam } from '../../src/index'
 
 import { stepCountAtLeast } from '@xsai-ext/responses'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createAgent, run } from '../../src/index'
 import { assistantMessage, createMockFetch, message, sleep } from '../_shared'
@@ -214,6 +214,25 @@ describe('turn lifecycle', () => {
       expect(event.turnId).toBe(turnId)
     }
   })
+
+  it('aborts turn when send signal is already aborted', async () => {
+    const { agent } = createTestAgent()
+    const events: AgentEvent[] = []
+    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const controller = new AbortController()
+    controller.abort('already aborted')
+
+    const turnId = agent.send(message('hi'), { signal: controller.signal })
+    await sleep(20)
+    unsubscribe()
+
+    const turnEvents = events.filter(e => e.turnId === turnId)
+    expect(turnEvents.map(e => e.type)).toContain('turn.aborted')
+    expect(turnEvents.at(-1)).toMatchObject({
+      reason: 'already aborted',
+      type: 'turn.aborted',
+    })
+  })
 })
 
 describe('queue', () => {
@@ -350,5 +369,31 @@ describe('queue', () => {
     unsubscribe()
 
     expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'stream cancelled')).toBe(true)
+  })
+
+  it('unsubscribes when run send throws synchronously', async () => {
+    const unsubscribe = vi.fn()
+    const error = new Error('send failed')
+    // eslint-disable-next-line @masknet/type-no-force-cast-via-top-type
+    const agent = {
+      abort: vi.fn(),
+      clear: vi.fn(),
+      emit: vi.fn(),
+      getActiveTurnId: vi.fn(),
+      getInput: vi.fn(() => []),
+      init: vi.fn(),
+      interrupt: vi.fn(),
+      remove: vi.fn(),
+      send: vi.fn(() => {
+        throw error
+      }),
+      stop: vi.fn(),
+      subscribe: vi.fn(() => unsubscribe),
+    } as unknown as Agent
+
+    const reader = run(agent, message('hi')).getReader()
+
+    await expect(reader.read()).rejects.toThrow(error)
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })
