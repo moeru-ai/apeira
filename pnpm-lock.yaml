@@ -159,6 +159,9 @@ catalogs:
     vitest:
       specifier: ^4.1.6
       version: 4.1.6
+    yaml:
+      specifier: ^2.9.0
+      version: 2.9.0
     yocto-queue:
       specifier: ^1.2.2
       version: 1.2.2
@@ -471,7 +474,7 @@ importers:
         specifier: catalog:xsai
         version: 0.5.0-beta.5(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       yaml:
-        specifier: ^2.9.0
+        specifier: 'catalog:'
         version: 2.9.0
       zod:
         specifier: 'catalog:'
@@ -8860,7 +8863,7 @@ snapshots:
       pathe: 2.0.3
       pnpm-workspace-yaml: 1.6.0
       tinyglobby: 0.2.16
-      yaml: 2.8.4
+      yaml: 2.9.0
       yaml-eslint-parser: 2.0.0
 
   eslint-plugin-prefer-arrow@1.2.3(eslint@10.3.0(jiti@2.7.0)):
@@ -10680,7 +10683,7 @@ snapshots:
 
   pnpm-workspace-yaml@1.6.0:
     dependencies:
-      yaml: 2.8.4
+      yaml: 2.9.0
 
   points-on-curve@0.2.0: {}
 
@@ -11782,7 +11785,7 @@ snapshots:
   yaml-eslint-parser@2.0.0:
     dependencies:
       eslint-visitor-keys: 5.0.1
-      yaml: 2.8.4
+      yaml: 2.9.0
 
   yaml@2.8.4: {}
 
