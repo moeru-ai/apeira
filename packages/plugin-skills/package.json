@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@xsai/tool": "catalog:xsai",
-    "yaml": "^2.9.0",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

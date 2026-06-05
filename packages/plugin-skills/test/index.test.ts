@@ -79,7 +79,7 @@ describe('formatSkillsForSystemPrompt', () => {
   })
 
   it('omits low-priority skills when budget is extremely tight', () => {
-    const extraSkill: Skill = { ...inspectSkill, name: 'extra', description: 'Extra.', filePath: '/x/SKILL.md' }
+    const extraSkill: Skill = { ...inspectSkill, description: 'Extra.', filePath: '/x/SKILL.md', name: 'extra' }
     const prompt = formatSkillsForSystemPrompt([inspectSkill, extraSkill], 100)
     expect(prompt).toContain('<name>inspect</name>')
     expect(prompt).not.toContain('<name>extra</name>')
