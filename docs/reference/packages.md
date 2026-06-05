@@ -28,6 +28,16 @@ Provides:
 - abort, interrupt, and clear behavior
 - `init()` / `stop()` plugin lifecycle
 
+## @apeira/plugin-compact
+
+Automatic context compaction for long-running agents. See the [Compact plugin](/plugins/compact) guide.
+
+```ts
+import { compact } from '@apeira/plugin-compact'
+```
+
+Provides a `compact()` plugin that summarizes older conversation history with a temporary agent when context usage approaches a configured threshold.
+
 ## @apeira/plugin-skills
 
 Filesystem-agnostic skills primitives for plugins and host applications. See the [Skills plugin](/plugins/skills) guide.

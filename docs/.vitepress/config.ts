@@ -34,6 +34,7 @@ export default defineConfig({
       {
         items: [
           { link: '/plugins/', text: 'Overview' },
+          { link: '/plugins/compact', text: 'Compact' },
           { link: '/plugins/common-tools', text: 'Common Tools' },
           { link: '/plugins/hitl', text: 'HITL' },
           { link: '/plugins/mcp', text: 'MCP' },

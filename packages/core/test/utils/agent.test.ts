@@ -13,6 +13,7 @@ const createTestAgent = (opts?: {
   input?: ItemParam[]
   instructions?: ((state: AgentState) => string) | string
   plugins?: AgentPluginOption[]
+  state?: AgentState
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
@@ -26,6 +27,7 @@ const createTestAgent = (opts?: {
       stopWhen: stepCountAtLeast(1),
     },
     plugins: opts?.plugins,
+    state: opts?.state,
   })
   return { agent, ...mock }
 }
@@ -39,6 +41,15 @@ describe('createAgent', () => {
   it('returns empty input when none provided', () => {
     const { agent } = createTestAgent()
     expect(agent.getInput()).toEqual([])
+  })
+
+  it('returns a cloned agent state', () => {
+    const { agent } = createTestAgent({ state: { contextLength: 8_000 } })
+    const state = agent.getState()
+
+    state.contextLength = 16_000
+
+    expect(agent.getState()).toEqual({ contextLength: 8_000 })
   })
 })
 

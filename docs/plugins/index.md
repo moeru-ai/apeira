@@ -29,6 +29,7 @@ const agent = createAgent({
 
 | Package | Description |
 |---------|-------------|
+| `@apeira/plugin-compact` | Automatic context compaction for long-running agents. See [Compact](/plugins/compact). |
 | `@apeira/plugin-common-tools` | Common development tools (read, write, edit, bash, fetch, search). See [Common Tools](/plugins/common-tools). |
 | `@apeira/plugin-hitl` | Human-in-the-loop tool approval. See [HITL](/plugins/hitl). |
 | `@apeira/plugin-mcp` | Model Context Protocol integration. See [MCP](/plugins/mcp). |
