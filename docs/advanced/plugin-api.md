@@ -9,8 +9,8 @@ A plugin is an object that conforms to `AgentPlugin`:
 ```ts
 interface AgentPlugin {
   enforce?: 'post' | 'pre'
-  extendInstructions?: (state: AgentState) => MaybePromise<string | void>
-  extendTools?: (state: AgentState) => MaybePromise<Tool[] | void>
+  extendInstructions?: (options: ExtendOptions) => MaybePromise<string | void>
+  extendTools?: (options: ExtendOptions) => MaybePromise<Tool[] | void>
   init?: (agent: Agent) => MaybePromise<void>
   name: string
   onFinish?: ResponsesOptions['onFinish']
@@ -21,6 +21,12 @@ interface AgentPlugin {
   stop?: () => MaybePromise<void>
   version?: string
 }
+
+interface ExtendOptions {
+  signal?: AbortSignal
+  state: AgentState
+  turnId: string
+}
 ```
 
 ### Lifecycle hooks
@@ -30,8 +36,8 @@ interface AgentPlugin {
 
 ### Instruction and tool hooks
 
-- `extendInstructions` — append content to the system prompt. Receives the agent `state`.
-- `extendTools` — inject tools into model calls.
+- `extendInstructions` — append content to the system prompt. Receives the agent `state`, the turn's `turnId`, and an optional `signal` for cancellation.
+- `extendTools` — inject tools into model calls. Receives the same `ExtendOptions` as `extendInstructions`.
 - `onFinish`, `onStepFinish`, `prepareStep`, `preToolCall`, `postToolCall` — pass-through hooks to xsAI response lifecycle.
   - `preToolCall` — called before a tool is executed. Return a modified tool call or a tool result to short-circuit execution. The first plugin to return a non-empty value wins.
   - `postToolCall` — called after a tool is executed. Return a modified tool result to override the output. The first plugin to return a non-empty value wins.

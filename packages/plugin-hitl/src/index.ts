@@ -111,9 +111,13 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
     init: (agent) => {
       emit = event => agent.emit('hitl', event)
       unsubscribe = agent.subscribe('apeira', (event) => {
-        const ev = event
-        if (ev.type === 'turn.start')
-          currentTurnId = ev.turnId
+        if (event.type === 'turn.start') {
+          currentTurnId = event.turnId
+        }
+        else if (['turn.aborted', 'turn.done', 'turn.failed'].includes(event.type)) {
+          if (currentTurnId === event.turnId)
+            currentTurnId = ''
+        }
       })
     },
     name,

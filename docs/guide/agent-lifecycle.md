@@ -57,14 +57,14 @@ run(agentB, input) // starts immediately, runs in parallel
 
 ## Interrupt vs abort vs clear vs remove
 
-| Method | Records boundary | Clears queue | Resets input history |
-|--------|-----------------|--------------|---------------------|
-| `interrupt(reason)` | Yes | No | No |
-| `abort(reason)` | No | No | No |
-| `clear()` | No | Yes | Yes |
-| `remove()` | No | Yes | Yes |
+| Method | Clears queue | Resets input history |
+|--------|--------------|---------------------|
+| `interrupt(reason)` | No | No |
+| `abort(reason)` | No | No |
+| `clear()` | Yes | Yes |
+| `remove()` | Yes | Yes |
 
-**Interrupt** aborts the active turn and appends an `interrupt` boundary visible to the model on the next turn. The queue continues.
+**Interrupt** aborts the active turn. The queue continues.
 
 ```ts
 agent.interrupt('user interrupted')
