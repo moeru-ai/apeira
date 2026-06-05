@@ -1,4 +1,4 @@
-import type { Agent } from '@apeira/core'
+import type { Agent, ExtendOptions } from '@apeira/core'
 
 import type { Skill } from '../src/index'
 
@@ -17,6 +17,8 @@ import {
   formatSkillsForSystemPrompt,
   skills,
 } from '../src/index'
+
+const createOptions = (): ExtendOptions => ({ state: {}, turnId: 'test' })
 
 const inspectSkill: Skill = {
   content: 'Inspect the code carefully.',
@@ -92,7 +94,7 @@ describe('createSkillSet', () => {
 describe('skills', () => {
   it('injects available skills through extendInstructions', async () => {
     const plugin = skills({ skills: [inspectSkill] })
-    const result = await plugin.extendInstructions?.({})
+    const result = await plugin.extendInstructions?.(createOptions())
 
     expect(result).toContain('<available_skills>')
   })
@@ -117,7 +119,7 @@ describe('skills', () => {
 
   it('provides a skill tool backed by skill set content', async () => {
     const plugin = skills({ skills: [inspectSkill] })
-    const tools = await plugin.extendTools?.({})
+    const tools = await plugin.extendTools?.(createOptions())
 
     expect(tools?.[0]?.function.name).toBe('skill')
     expect(await tools?.[0]?.execute({ additionalInstructions: 'Focus on tests.', name: 'inspect' }, {
@@ -140,7 +142,7 @@ describe('skills', () => {
         skills: [referencedSkill],
       })],
     })
-    const tools = await plugin.extendTools?.({})
+    const tools = await plugin.extendTools?.(createOptions())
     const referenceTool = tools?.find(candidate => candidate.function.name === 'skill_reference')
 
     expect(tools?.map(candidate => candidate.function.name)).toEqual(['skill', 'skill_reference'])
@@ -157,7 +159,7 @@ describe('skills', () => {
     })
     const plugin = skills({ sets: [setA, setB] })
 
-    const result = await plugin.extendInstructions?.({})
+    const result = await plugin.extendInstructions?.(createOptions())
 
     expect(result).toContain('<name>inspect</name>')
     expect(result).toContain('<name>extra</name>')
@@ -168,10 +170,10 @@ describe('skills', () => {
     const high = createSkillSet({ priority: 10, skills: [{ ...inspectSkill, description: 'high' }] })
     const plugin = skills({ sets: [low, high] })
 
-    await plugin.extendTools?.({})
+    await plugin.extendTools?.(createOptions())
 
     // high priority wins dedupe
-    expect(plugin.extendInstructions?.({})).toContain('high')
+    expect(plugin.extendInstructions?.(createOptions())).toContain('high')
   })
 })
 

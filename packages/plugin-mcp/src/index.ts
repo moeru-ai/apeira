@@ -78,7 +78,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return state.connectPromise
   }
 
-  const listServerToolDefinitions = async (serverId: string): Promise<MCPToolDefinition[]> => {
+  const listServerToolDefinitions = async (serverId: string, signal?: AbortSignal): Promise<MCPToolDefinition[]> => {
     const config = servers[serverId]
     const state = states.get(serverId)
 
@@ -96,7 +96,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     do {
       const listed = await client.listTools(
         cursor == null ? undefined : { cursor },
-        getRequestOptions(config),
+        getRequestOptions(config, signal),
       )
 
       definitions.push(...listed.tools)
@@ -154,7 +154,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     return catalog
   }
 
-  const listServerTools = async (serverId: string): Promise<MCPTool[]> => {
+  const listServerTools = async (serverId: string, signal?: AbortSignal): Promise<MCPTool[]> => {
     const serverConfig = servers[serverId]
     const state = states.get(serverId)
 
@@ -164,7 +164,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
     if (state.tools != null)
       return state.tools
 
-    const definitions = await listServerToolDefinitions(serverId)
+    const definitions = await listServerToolDefinitions(serverId, signal)
     const client: Client = await getConnectedClient(serverId)
     const tools: MCPTool[] = []
 
@@ -202,9 +202,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
   }
 
   return {
-    // TODO: restore abort signal once core's extendTools passes it through.
-    // Currently agent's extendTools only receives state, not the turn's abortSignal.
-    extendTools: async () => {
+    extendTools: async ({ signal }) => {
       if (config.progressiveToolDiscovery === true) {
         return createProgressiveMCPTools({
           getConnectedClient,
@@ -214,7 +212,7 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
       }
 
       const serverIds = [...states.keys()]
-      const results = await Promise.allSettled(serverIds.map(async serverId => listServerTools(serverId)))
+      const results = await Promise.allSettled(serverIds.map(async serverId => listServerTools(serverId, signal)))
 
       results.forEach((result, index) => {
         const serverId = serverIds[index]

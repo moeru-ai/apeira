@@ -1,3 +1,4 @@
+import type { ExtendOptions } from '@apeira/core'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -95,7 +96,7 @@ vi.mock('@modelcontextprotocol/sdk/client/websocket.js', () => ({
   },
 }))
 
-const createState = () => ({})
+const createState = (): ExtendOptions => ({ state: {}, turnId: 'test' })
 
 describe('mcp', () => {
   beforeEach(() => {

@@ -11,7 +11,7 @@ export type {
   TurnStartEvent,
   WithId,
 } from './types/event'
-export type { AgentPlugin, AgentPluginOption } from './types/plugin'
+export type { AgentPlugin, AgentPluginOption, ExtendOptions } from './types/plugin'
 export type { AgentState } from './types/state'
 export { createAgent } from './utils/agent'
 

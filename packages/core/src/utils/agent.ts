@@ -2,7 +2,7 @@ import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
 import type { ItemParam } from '../types/base'
-import type { AgentPluginOption } from '../types/plugin'
+import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
 import type { AgentState } from '../types/state'
 import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
@@ -42,14 +42,14 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const channel = createAgentChannel()
 
-  const resolveInstructions = async () => {
+  const resolveInstructions = async (opts: ExtendOptions) => {
     const base = typeof options.instructions === 'function'
       ? await options.instructions(state)
       : options.instructions
 
     const extensions: string[] = []
     for (const plugin of plugins) {
-      const extended = await plugin.extendInstructions?.(state)
+      const extended = await plugin.extendInstructions?.(opts)
       if (extended != null && extended !== '')
         extensions.push(extended)
     }
@@ -85,11 +85,17 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     channel,
     init,
     runner: async (opts) => {
-      const instructions = await resolveInstructions()
+      const extendOptions: ExtendOptions = {
+        signal: opts.abortSignal,
+        state,
+        turnId: opts.turnId,
+      }
+
+      const instructions = await resolveInstructions(extendOptions)
 
       const tools: Tool[] = []
       for (const plugin of plugins) {
-        const extended = await plugin.extendTools?.(state)
+        const extended = await plugin.extendTools?.(extendOptions)
         if (extended != null)
           tools.push(...extended)
       }

@@ -7,8 +7,8 @@ import type { AgentState } from './state'
 
 export interface AgentPlugin {
   enforce?: 'post' | 'pre'
-  extendInstructions?: (state: AgentState) => MaybePromise<string | void>
-  extendTools?: (state: AgentState) => MaybePromise<Tool[] | void>
+  extendInstructions?: (options: ExtendOptions) => MaybePromise<string | void>
+  extendTools?: (options: ExtendOptions) => MaybePromise<Tool[] | void>
   init?: (agent: Agent) => MaybePromise<void>
   name: string
   onFinish?: ResponsesOptions['onFinish']
@@ -26,3 +26,9 @@ export type AgentPluginOption
     | false
     | null
     | undefined
+
+export interface ExtendOptions {
+  signal?: AbortSignal
+  state: AgentState
+  turnId: string
+}
