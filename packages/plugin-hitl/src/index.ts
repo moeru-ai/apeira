@@ -117,7 +117,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
             currentTurnId = ''
         }
       })
-      unsubscribeHitl = agent.subscribe('hitl', (event) => {
+      unsubscribeHitl = agent.subscribe('hitl', (event: HITLEvent) => {
         if (event.type === 'control.approve') {
           resolvePendingForPlugin(event.toolCallId, { type: 'approve' })
         }

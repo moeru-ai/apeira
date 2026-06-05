@@ -23,9 +23,8 @@ export const createProgressiveMCPTools = (
 ): MCPTool[] => {
   let catalogPromise: Promise<MCPToolCatalog> | undefined
 
-  const getCatalog = () => {
-    if (catalogPromise == null)
-      catalogPromise = options.listToolCatalog()
+  const getCatalog = async () => {
+    catalogPromise ??= options.listToolCatalog()
     return catalogPromise
   }
 

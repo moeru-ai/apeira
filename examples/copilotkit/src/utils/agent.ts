@@ -1,11 +1,12 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
-import type { Agent, AgentEventListener, CreateAgentOptions, ItemParam } from '@apeira/core'
+import type { Agent, CreateAgentOptions, ItemParam } from '@apeira/core'
 import type { AGUIEvent } from '@apeira/plugin-ag-ui'
 import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
 import type { Subscriber } from 'rxjs'
 
 import { createAgent, run } from '@apeira/core'
+import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 import {
   AbstractAgent,
   EventType,
@@ -313,10 +314,18 @@ export class AbstractApeiraAgent extends AbstractAgent {
     this.onThreadUpdated = onThreadUpdated
   }
 
+  approve(toolCallId: string) {
+    approveToolCall(this.agent, { toolCallId })
+  }
+
   override clone(): this {
     const cloned = new AbstractApeiraAgent(this.agentOptions, this.onThreadUpdated, this.threadId) as this
     cloned.agentId = this.agentId
     return cloned
+  }
+
+  reject(toolCallId: string, reason?: string) {
+    rejectToolCall(this.agent, { reason, toolCallId })
   }
 
   override run(input: RunAgentInput) {
@@ -335,7 +344,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
       }
 
       let activeRunId: string | undefined
-      const unsubscribe = this.agent.subscribe('ag-ui', ((aguiEvent: AGUIEvent) => {
+      const unsubscribe = this.agent.subscribe('ag-ui', (aguiEvent: AGUIEvent) => {
         const eventThreadId = aguiEvent.threadId ?? (aguiEvent.rawEvent as undefined | { sessionId?: string })?.sessionId
         if (eventThreadId != null && eventThreadId !== this.threadId)
           return
@@ -355,7 +364,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
           this.isRunning = false
 
         subscriber.next(aguiEvent)
-      }) as AgentEventListener)
+      })
 
       const stream = run(this.agent, userInput)
       const reader = stream.getReader()
@@ -393,12 +402,12 @@ export class AbstractApeiraAgent extends AbstractAgent {
 
   subscribeHitl(threadId: string, listener: (event: HITLEvent) => void) {
     void this.agent.init()
-    return this.agent.subscribe('hitl', ((event: HITLEvent) => {
+    return this.agent.subscribe('hitl', (event: HITLEvent) => {
       if ('turnId' in event && threadId !== this.threadId)
         return
 
       listener(event)
-    }) as AgentEventListener)
+    })
   }
 
   protected override connect(_input: RunAgentInput) {

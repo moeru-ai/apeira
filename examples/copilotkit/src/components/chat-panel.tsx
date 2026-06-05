@@ -1,7 +1,7 @@
 import type { HITLRequestEvent } from '@apeira/plugin-hitl'
 
 import { agui } from '@apeira/plugin-ag-ui'
-import { approveToolCall, hitl, rejectToolCall } from '@apeira/plugin-hitl'
+import { hitl } from '@apeira/plugin-hitl'
 import {
   CopilotChat,
   CopilotChatConfigurationProvider,
@@ -53,6 +53,8 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
   useEffect(() => {
     const unsubscribe = agent.subscribeHitl(threadId, (event) => {
       switch (event.type) {
+        case 'control.approve':
+        case 'control.reject':
         case 'hitl.auto_reviewed':
           return
 
@@ -85,8 +87,8 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
             />
           </div>
           <ApprovalPanel
-            onApprove={approveToolCall}
-            onReject={toolCallId => rejectToolCall(toolCallId, 'Rejected by user')}
+            onApprove={toolCallId => agent.approve(toolCallId)}
+            onReject={toolCallId => agent.reject(toolCallId, 'Rejected by user')}
             requests={approvalRequests}
           />
         </CopilotChatConfigurationProvider>
