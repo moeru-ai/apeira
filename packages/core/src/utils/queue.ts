@@ -51,12 +51,13 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     }
 
     activeTurn = { controller, id: turn.id }
-    await init?.()
-    emit(turn.id, { turnId: turn.id, type: 'turn.start' })
 
     let input = turn.input
 
     try {
+      await init?.()
+      emit(turn.id, { turnId: turn.id, type: 'turn.start' })
+
       while (!controller.signal.aborted) {
         await runner({ abortSignal: controller.signal, channel, input, turnId: turn.id })
 
@@ -70,12 +71,18 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
         break
       }
 
+      if (activeTurn?.id === turn.id)
+        activeTurn = undefined
+
       if (controller.signal.aborted)
         emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
       else
         emit(turn.id, { turnId: turn.id, type: 'turn.done' })
     }
     catch (error) {
+      if (activeTurn?.id === turn.id)
+        activeTurn = undefined
+
       if (controller.signal.aborted)
         emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
       else
