@@ -39,6 +39,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
   const emit = (turnId: string, event: AgentEvent) => channel.emit('apeira', { ...event, turnId })
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   const runTurn = async (turn: AgentQueueTurn) => {
     const controller = new AbortController()
     const onAbort = () => controller.abort(turn.signal!.reason)
