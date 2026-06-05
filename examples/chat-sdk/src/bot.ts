@@ -57,7 +57,6 @@ export const startBot = async () => {
     }
 
     const input = await getThreadInput(thread.id)
-    input.push({ content: text, role: 'user', type: 'message' })
 
     const agent = createChatAgent(input)
     const stream = run(agent, {
@@ -66,33 +65,19 @@ export const startBot = async () => {
       type: 'message',
     })
 
-    // Stream text to Telegram while collecting the full response
-    let assistantText = ''
-    const textStream = (async function* () {
-      const reader = stream.getReader()
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done)
-            break
-          if (value.type === 'text.delta') {
-            assistantText += value.delta
-            yield value.delta
-          }
-        }
-      }
-      finally {
-        reader.releaseLock()
-      }
-    }())
+    const textStream = stream.pipeThrough(new TransformStream({
+      transform: (event, controller) => {
+        if (event.type !== 'text.delta')
+          return
+        controller.enqueue(event.delta)
+      },
+    }))
 
     await thread.post(textStream)
 
-    if (assistantText.length > 0) {
-      input.push({ content: assistantText, role: 'assistant', type: 'message' })
-    }
-
-    await writeJSON(threadFilePath(thread.id), input)
+    const updatedInput = agent.getInput()
+    threadInputs.set(thread.id, updatedInput)
+    await writeJSON(threadFilePath(thread.id), updatedInput)
   }
 
   /**

@@ -60,6 +60,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
   const pendingKeyByToolCallId = new Map<string, string>()
   let currentTurnId = ''
   let emit: (event: HITLEvent) => void = () => {}
+  let unsubscribe: (() => void) | undefined
 
   const removePending = (toolCallId: string, key?: string) => {
     const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
@@ -109,7 +110,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
     enforce: 'pre',
     init: (agent) => {
       emit = event => agent.emit('hitl', event)
-      agent.subscribe('apeira', (event) => {
+      unsubscribe = agent.subscribe('apeira', (event) => {
         const ev = event
         if (ev.type === 'turn.start')
           currentTurnId = ev.turnId
@@ -209,6 +210,10 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
         executeOptions.abortSignal?.removeEventListener('abort', onAbort)
         removePending(toolCall.toolCallId, key)
       }
+    },
+    stop: () => {
+      unsubscribe?.()
+      unsubscribe = undefined
     },
     version,
   }

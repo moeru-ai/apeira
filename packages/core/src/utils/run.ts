@@ -9,7 +9,6 @@ const isTerminalTurnEvent = (event: AgentEvent) =>
 export const run = (agent: Agent, input: ItemParam, options?: AgentSendOptions) => {
   let turnId: string | undefined
   let unsubscribe: (() => void) | undefined
-  const waitingTurnId = agent.getActiveTurnId()
 
   return new ReadableStream<AgentEvent>({
     cancel: () => {
@@ -30,6 +29,8 @@ export const run = (agent: Agent, input: ItemParam, options?: AgentSendOptions) 
         }
       }
 
+      let waitingTurnId: string | undefined
+
       unsubscribe = agent.subscribe('apeira', (event) => {
         if (turnId == null) {
           if (isTerminalTurnEvent(event) && event.turnId === waitingTurnId)
@@ -47,6 +48,7 @@ export const run = (agent: Agent, input: ItemParam, options?: AgentSendOptions) 
         }
       })
 
+      waitingTurnId = agent.getActiveTurnId()
       if (waitingTurnId == null)
         send()
     },

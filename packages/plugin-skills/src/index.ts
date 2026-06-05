@@ -324,6 +324,7 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
 
   const referenceToolName = options.referenceToolName ?? 'skill_reference'
   const toolName = options.toolName ?? 'skill'
+  let unsubscribe: (() => void) | undefined
 
   return {
     extendInstructions: () => {
@@ -348,13 +349,17 @@ export const skills = (options: SkillsPluginOptions = {}): AgentPlugin => {
       if (refreshMode !== 'turn')
         return
 
-      agent.subscribe('apeira', (event) => {
+      unsubscribe = agent.subscribe('apeira', (event) => {
         if ((event as { type: string }).type !== 'turn.start')
           return
         void skillSet.refresh()
       })
     },
     name,
+    stop: () => {
+      unsubscribe?.()
+      unsubscribe = undefined
+    },
     version,
   }
 }

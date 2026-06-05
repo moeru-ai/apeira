@@ -56,6 +56,11 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     let input = turn.input
 
     try {
+      if (controller.signal.aborted) {
+        emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
+        return
+      }
+
       await init?.()
       emit(turn.id, { turnId: turn.id, type: 'turn.start' })
 
