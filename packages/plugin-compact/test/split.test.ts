@@ -41,11 +41,17 @@ describe('selectRetainedUserMessages', () => {
       userMessage('new message'),
     ]
 
-    expect(selectRetainedUserMessages(input, 3)).toEqual(['new message'])
+    expect(selectRetainedUserMessages(input, 3)).toEqual([
+      { item: input[2], text: 'new message' },
+    ])
   })
 
   it('partially truncates when only part of a message fits', () => {
-    expect(selectRetainedUserMessages([userMessage('abcdefghij')], 1)).toEqual(['abcd'])
+    const input = [userMessage('abcdefghij')]
+
+    expect(selectRetainedUserMessages(input, 1)).toEqual([
+      { item: input[0], text: 'abcd' },
+    ])
   })
 })
 
@@ -57,7 +63,7 @@ describe('buildCompactInput', () => {
       userMessage('summarize too'),
     ]
 
-    expect(buildCompactInput(input, ['keep as retained'])).toEqual([
+    expect(buildCompactInput(input, [{ item: input[0], text: 'keep as retained' }])).toEqual([
       assistantMessage('still summarize'),
       userMessage('summarize too'),
     ])
@@ -69,8 +75,21 @@ describe('buildCompactInput', () => {
       assistantMessage('still summarize'),
     ]
 
-    expect(buildCompactInput(input, ['abcd'])).toEqual([
+    expect(buildCompactInput(input, [{ item: input[0], text: 'abcd' }])).toEqual([
       assistantMessage('still summarize'),
+    ])
+  })
+
+  it('does not remove another user message with the same retained prefix', () => {
+    const input = [
+      userMessage('Please refactor auth'),
+      assistantMessage('noted'),
+      userMessage('Please update docs'),
+    ]
+
+    expect(buildCompactInput(input, [{ item: input[0], text: 'Please ' }])).toEqual([
+      assistantMessage('noted'),
+      userMessage('Please update docs'),
     ])
   })
 })

@@ -1,5 +1,10 @@
 import type { ItemParam } from '@apeira/core'
 
+export interface RetainedMessage {
+  item: ItemParam
+  text: string
+}
+
 export interface SplitHistoryResult {
   compressible: ItemParam[]
   hasEnoughTurns: boolean
@@ -73,24 +78,24 @@ export const splitHistory = (items: ItemParam[], preserveTurns: number): SplitHi
 export const selectRetainedUserMessages = (
   items: ItemParam[],
   maxTokens: number,
-): string[] => {
-  const userTexts = items
+): RetainedMessage[] => {
+  const userMessages = items
     .filter(item => item.type === 'message' && item.role === 'user')
-    .map(getMessageText)
-    .filter(text => text.length > 0)
+    .map(item => ({ item, text: getMessageText(item) }))
+    .filter(({ text }) => text.length > 0)
 
-  const selected: string[] = []
+  const selected: RetainedMessage[] = []
   let remaining = Math.max(0, maxTokens)
 
-  for (const text of userTexts.toReversed()) {
+  for (const { item, text } of userMessages.toReversed()) {
     const tokens = Math.ceil(text.length / 4)
 
     if (tokens <= remaining) {
-      selected.unshift(text)
+      selected.unshift({ item, text })
       remaining -= tokens
     }
     else if (remaining > 0) {
-      selected.unshift(text.slice(0, remaining * 4))
+      selected.unshift({ item, text: text.slice(0, remaining * 4) })
       break
     }
     else {
@@ -103,22 +108,7 @@ export const selectRetainedUserMessages = (
 
 export const buildCompactInput = (
   compressible: ItemParam[],
-  retained: string[],
+  retained: RetainedMessage[],
 ): ItemParam[] => {
-  return compressible.filter((item) => {
-    if (item.type !== 'message' || item.role !== 'user')
-      return true
-
-    const text = getMessageText(item)
-    const isRetained = retained.some(retainedText =>
-      retainedText === text
-      || (
-        retainedText.length > 0
-        && retainedText.length < text.length
-        && text.startsWith(retainedText)
-      ),
-    )
-
-    return !isRetained
-  })
+  return compressible.filter(item => !retained.some(retainedMessage => retainedMessage.item === item))
 }

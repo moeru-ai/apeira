@@ -1,5 +1,7 @@
 import type { CreateAgentOptions, ItemParam } from '@apeira/core'
 
+import type { RetainedMessage } from './split'
+
 import { createAgent, run } from '@apeira/core'
 
 import {
@@ -79,10 +81,10 @@ const splitWithEmergencyPreserve = (
 
 export const assembleCompactedInput = (
   summary: string,
-  retainedUserMessages: string[],
+  retainedUserMessages: RetainedMessage[],
   preservedTurns: ItemParam[],
 ): ItemParam[] => [
-  ...retainedUserMessages.map(userMessage),
+  ...retainedUserMessages.map(retained => userMessage(retained.text)),
   userMessage(`[Context Summary]\n${summary}`),
   ...preservedTurns,
 ]

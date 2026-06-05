@@ -6,6 +6,7 @@ export {
   buildCompactInput,
   estimateTokens,
   getMessageText,
+  type RetainedMessage,
   selectRetainedUserMessages,
   splitHistory,
 } from './split'
