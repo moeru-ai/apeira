@@ -107,7 +107,7 @@ describe('roleplay plugin', () => {
           creator_notes: 'Shown to the user, not the model.',
           description: 'A wandering mage.',
           first_mes: 'Greetings.',
-          mes_example: '<START>\n{{char}}: Example.',
+          mes_example: '<START>\n{{char}}: First example.\n<START>\n{{user}}: Second example.',
           personality: 'Curious.',
           post_history_instructions: 'Stay in character as {{char}} for {{user}}.',
           scenario: 'A rainy tavern.',
@@ -126,9 +126,15 @@ describe('roleplay plugin', () => {
       '\n',
       'You are roleplaying as Apeira for Alice.',
       '',
-      '[Example dialogue. This is style guidance only, not conversation history.]',
-      '<START>\nApeira: Example.',
-      '[/Example dialogue]',
+      '<example_dialogues>',
+      'These are style and behavior examples, not events from the current conversation.',
+      '<example_dialogue>',
+      'Apeira: First example.',
+      '</example_dialogue>',
+      '<example_dialogue>',
+      'Alice: Second example.',
+      '</example_dialogue>',
+      '</example_dialogues>',
     ].join('\n'))
     expect(mock.bodies[0]?.input[0]).toEqual({
       content: [
