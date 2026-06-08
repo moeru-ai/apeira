@@ -19,11 +19,11 @@ const formatExampleDialogues = (example: string): string => {
   return [
     '<example_dialogues>',
     'These are style and behavior examples, not events from the current conversation.',
-    ...dialogues.map(dialogue => [
+    ...dialogues.flatMap(dialogue => [
       '<example_dialogue>',
       dialogue,
       '</example_dialogue>',
-    ].join('\n')),
+    ]),
     '</example_dialogues>',
   ].join('\n')
 }

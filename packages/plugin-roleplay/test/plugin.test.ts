@@ -111,7 +111,7 @@ describe('roleplay plugin', () => {
           personality: 'Curious.',
           post_history_instructions: 'Stay in character as {{char}} for {{user}}.',
           scenario: 'A rainy tavern.',
-          system_prompt: 'You are roleplaying as {{char}} for {{user}}.',
+          system_prompt: '{{original}}You are roleplaying as {{char}} for {{user}}.',
         }),
       })],
       state: { userName: 'Alice' },
@@ -160,12 +160,14 @@ describe('roleplay plugin', () => {
     if (assembled?.type === 'prompt.assembled') {
       expect(assembled.categories).toEqual(['character', 'post_history_instructions'])
       expect(assembled.instructionExtension).toContain('roleplaying as Apeira')
-      expect(assembled.temporaryInput).toHaveLength(2)
-      expect(assembled.temporaryInput[0]).toMatchObject({ role: 'system' })
-      expect(assembled.temporaryInput[1]).toMatchObject({
-        content: 'Stay in character as Apeira for Alice.',
-        role: 'system',
-      })
+      expect(assembled.instructionExtension).not.toContain('{{original}}')
+      expect(assembled.temporaryInput).toEqual([
+        expect.objectContaining({ role: 'system' }),
+        expect.objectContaining({
+          content: 'Stay in character as Apeira for Alice.',
+          role: 'system',
+        }),
+      ])
     }
   })
 
