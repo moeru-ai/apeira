@@ -64,6 +64,22 @@ Returns the accumulated input history (including user inputs and model outputs f
 const input = agent.getInput()
 ```
 
+### getState()
+
+Returns a cloned snapshot of the agent state.
+
+```ts
+const state = agent.getState()
+```
+
+### setInput()
+
+Replaces the accumulated input history. This is primarily useful for plugins that manage history, such as context compaction.
+
+```ts
+agent.setInput(nextInput)
+```
+
 ### send()
 
 Submits input and returns a turn ID immediately.
@@ -174,5 +190,4 @@ interface AgentQueue {
   send: (item: ItemParam, options?: AgentSendOptions) => string
 }
 ```
-
 

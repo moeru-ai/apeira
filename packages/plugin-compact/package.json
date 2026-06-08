@@ -1,26 +1,26 @@
 {
-  "name": "@apeira/plugin-skills",
+  "name": "@apeira/plugin-compact",
   "type": "module",
   "version": "0.0.4",
-  "description": "stream-first Agent Runtime.",
+  "description": "Automatic context compaction for Apeira agents.",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moeru-ai/apeira.git",
-    "directory": "packages/plugin-skills"
+    "directory": "packages/plugin-compact"
   },
   "bugs": "https://github.com/moeru-ai/apeira/issues",
   "keywords": [
     "agent",
     "ai",
-    "xsai"
+    "xsai",
+    "compact"
   ],
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./fs": "./src/fs.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -31,10 +31,6 @@
       ".": {
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      },
-      "./fs": {
-        "types": "./dist/fs.d.ts",
-        "default": "./dist/fs.js"
       },
       "./package.json": "./package.json"
     },
@@ -48,13 +44,7 @@
   "peerDependencies": {
     "@apeira/core": "workspace:"
   },
-  "dependencies": {
-    "@xsai/tool": "catalog:xsai",
-    "yaml": "catalog:",
-    "zod": "catalog:"
-  },
   "devDependencies": {
-    "@apeira/core": "workspace:",
-    "@moeru/std": "catalog:"
+    "@apeira/core": "workspace:"
   }
 }

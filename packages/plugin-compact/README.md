@@ -1,0 +1,115 @@
+# @apeira/plugin-compact
+
+Automatic context compaction for long-running Apeira agents.
+
+The compact plugin watches model usage and compresses older conversation history before the next turn when the context is near its configured limit. Recent turns are preserved verbatim, selected older user messages are kept as anchors, and the remaining older history is summarized by a temporary Apeira agent.
+
+## Install
+
+```sh
+pnpm add @apeira/plugin-compact
+```
+
+## Usage
+
+```ts
+import { createAgent } from '@apeira/core'
+import { compact } from '@apeira/plugin-compact'
+
+const agent = createAgent({
+  instructions: 'You are a helpful assistant.',
+  options: {
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  },
+  plugins: [
+    compact({
+      compactAgent: {
+        options: {
+          apiKey: process.env.OPENAI_API_KEY,
+          baseURL: 'https://api.openai.com/v1/',
+          model: 'gpt-5.5-mini',
+        },
+      },
+      threshold: 0.9,
+    }),
+  ],
+  state: {
+    contextLength: 128_000,
+  },
+})
+```
+
+`compactAgent.options` should contain the credentials and model used for summarization. It can use a smaller or cheaper model than the main agent.
+
+## How it works
+
+The plugin uses two lifecycle hooks:
+
+- `onFinish` reads `usage.totalTokens`. When usage crosses `state.contextLength * threshold`, the next turn is scheduled for compaction.
+- `prepareStep` runs before the next model step. On the first step of the turn, it compacts historical input and leaves the current turn's live input untouched.
+
+The compacted history is assembled as:
+
+1. retained older user messages
+2. a `[Context Summary]` user message
+3. the most recent preserved turns, kept verbatim
+
+If usage is unavailable, `prepareStep` falls back to a lightweight JSON byte estimate for the input.
+
+## API
+
+### `compact(options)`
+
+Creates an Apeira plugin that automatically replaces old agent input with a compacted version.
+
+```ts
+interface CompactPluginOptions {
+  compactAgent: {
+    instructions?: CreateAgentOptions['instructions']
+    options: CreateAgentOptions['options']
+  }
+  maxRetainedUserTokens?: number
+  preserveTurns?: number
+  threshold?: number
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `compactAgent` | `{ instructions?, options }` | — | Temporary agent configuration used to generate summaries. `options` is required. |
+| `maxRetainedUserTokens` | `number` | `8192` | Approximate token budget for older user messages kept outside the summary. |
+| `preserveTurns` | `number` | `2` | Number of most recent user turns to keep verbatim. |
+| `threshold` | `number` | `0.9` | Compaction threshold as a fraction of `state.contextLength`. |
+
+Set the context window on the agent state:
+
+```ts
+createAgent({
+  // ...
+  state: { contextLength: 128_000 },
+})
+```
+
+If `state.contextLength` is not set, the plugin falls back to `128000`.
+
+## Failure behavior
+
+If the summary request fails or returns an empty/refusal response, the plugin keeps the existing history and retries on later turns. After three consecutive failures, it falls back to hard truncation:
+
+```json
+{
+  "type": "message",
+  "role": "developer",
+  "content": "(Earlier conversation omitted due to length)"
+}
+```
+
+When the preserved recent turns alone are too large, the plugin reduces the preserved turn count before falling back to a minimal truncation.
+
+## Notes
+
+- The temporary summary agent is created without plugins, so compaction cannot recursively compact itself.
+- The plugin mutates the agent's stored input via `agent.setInput()`, so the old history does not reappear in later turns.
+- Token counting uses a cheap heuristic based on `JSON.stringify(input).length / 4`; it intentionally avoids tokenizer dependencies.

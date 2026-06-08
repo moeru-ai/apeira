@@ -14,7 +14,9 @@ import { runner } from './runner'
 
 export interface Agent extends AgentChannel, AgentQueue {
   getInput: () => ItemParam[]
+  getState: () => AgentState
   init: () => Promise<void>
+  setInput: (input: ItemParam[]) => void
   stop: () => Promise<void>
 }
 
@@ -72,6 +74,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const getInput: Agent['getInput'] = () => structuredClone(input)
 
+  const getState: Agent['getState'] = () => structuredClone(state)
+
+  const setInput: Agent['setInput'] = nextInput =>
+    input.splice(0, input.length, ...structuredClone(nextInput))
+
   const stop = async () => {
     for (const plugin of plugins.toReversed()) {
       try {
@@ -120,7 +127,9 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     ...channel,
     ...queue,
     getInput,
+    getState,
     init,
+    setInput,
     stop,
   }
 
