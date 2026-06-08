@@ -83,7 +83,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     input = structuredClone(nextInput)
 
   const setState: Agent['setState'] = nextState =>
-    state = merge(state, nextState)
+    state = structuredClone(merge(state, nextState))
 
   const stop = async () => {
     for (const plugin of plugins.toReversed()) {
