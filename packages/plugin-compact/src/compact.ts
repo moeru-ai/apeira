@@ -6,6 +6,7 @@ import { createAgent, run } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
+  EMERGENCY_PRESERVE_THRESHOLD,
   HARD_TRUNCATION_MESSAGE,
 } from './constants'
 import {
@@ -67,12 +68,12 @@ const splitWithEmergencyPreserve = (
 ) => {
   let result = splitHistory(items, preserveTurns)
 
-  if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * 0.95)
+  if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * EMERGENCY_PRESERVE_THRESHOLD)
     return result
 
   if (preserveTurns > 1) {
     result = splitHistory(items, 1)
-    if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * 0.95)
+    if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * EMERGENCY_PRESERVE_THRESHOLD)
       return result
   }
 

@@ -7,6 +7,27 @@ import { compact } from '../src/index'
 import { assistantMessage, createMockFetch, userMessage } from './_shared'
 
 describe('compact plugin', () => {
+  it('fails fast when prepareStep runs before plugin initialization', async () => {
+    const plugin = compact({
+      compactAgent: {
+        options: {
+          apiKey: 'test',
+          baseURL: 'https://test',
+          fetch: createMockFetch().fetch,
+          model: 'compact-model',
+        },
+      },
+      threshold: 0,
+    })
+
+    await expect(plugin.prepareStep?.({
+      input: [userMessage('live')],
+      model: 'main-model',
+      stepNumber: 0,
+      steps: [],
+    })).rejects.toThrow('[@apeira/plugin-compact] Plugin is not initialized.')
+  })
+
   it('compacts on the next turn after usage crosses threshold', async () => {
     const main = createMockFetch({ responseText: ['first', 'second'], totalTokens: [950, 2] })
     const summarizer = createMockFetch({ responseText: 'checkpoint summary' })
@@ -108,6 +129,7 @@ describe('compact plugin', () => {
       send: () => 'turn-test',
       setInput,
       stop: async () => {},
+      // @ts-expect-error wrong types
       subscribe: (_channel: string, nextListener: AgentEventListener) => {
         listener = nextListener
         return () => {}

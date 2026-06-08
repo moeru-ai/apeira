@@ -34,7 +34,14 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
   let stepCount = 0
   let unsubscribe: (() => void) | undefined
 
-  const getContextLength = () => agent?.getState().contextLength ?? DEFAULT_CONTEXT_LENGTH
+  const getAgent = (): Agent => {
+    if (!agent)
+      throw new Error('[@apeira/plugin-compact] Plugin is not initialized.')
+
+    return agent
+  }
+
+  const getContextLength = () => getAgent().getState().contextLength ?? DEFAULT_CONTEXT_LENGTH
 
   const compactHistoricalInput = async (historicalInput: ItemParam[]) => {
     const contextLength = getContextLength()
@@ -67,7 +74,7 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
         return hardTruncateInput(historicalInput, preserveTurns, contextLength)
       }
 
-      console.warn('[plugin-compact] Failed to compact context.', error)
+      console.warn('[@apeira/plugin-compact] Failed to compact context.', error)
       return historicalInput
     }
   }
@@ -100,12 +107,13 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
       if (!needsCompact && estimateTokens(stepOptions.input) < contextLength * threshold)
         return {}
 
-      const historicalInput = agent?.getInput() ?? []
+      const activeAgent = getAgent()
+      const historicalInput = activeAgent.getInput()
       const liveInput = stepOptions.input.slice(historicalInput.length)
       const compactedHistoricalInput = await compactHistoricalInput(historicalInput)
       const nextInput = [...compactedHistoricalInput, ...liveInput]
 
-      agent?.setInput(compactedHistoricalInput)
+      activeAgent.setInput(compactedHistoricalInput)
 
       return { input: nextInput }
     },

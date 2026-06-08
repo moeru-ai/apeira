@@ -12,5 +12,6 @@ export const DEFAULT_CONTEXT_LENGTH = 128_000
 export const DEFAULT_MAX_RETAINED_USER_TOKENS = 8192
 export const DEFAULT_PRESERVE_TURNS = 2
 export const DEFAULT_THRESHOLD = 0.9
+export const EMERGENCY_PRESERVE_THRESHOLD = 0.95
 export const HARD_TRUNCATION_MESSAGE = '(Earlier conversation omitted due to length)'
 export const MAX_COMPACT_FAILURES = 3

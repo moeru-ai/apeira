@@ -51,6 +51,16 @@ describe('createAgent', () => {
 
     expect(agent.getState()).toEqual({ contextLength: 8_000 })
   })
+
+  it('replaces input with a cloned value', () => {
+    const { agent } = createTestAgent({ input: [message('old')] })
+    const nextInput = [message('new')]
+
+    agent.setInput(nextInput)
+    nextInput[0] = message('mutated')
+
+    expect(agent.getInput()).toEqual([message('new')])
+  })
 })
 
 describe('plugin lifecycle', () => {
