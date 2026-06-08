@@ -47,14 +47,11 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
   const createCBSContext = (
     pickCache = turnPickCache,
     state: AgentState = getAgent().getState(),
-  ): CBSContext => {
-    const userName = (state as { userName?: unknown }).userName
-    return {
-      charName: getCard().data.nickname ?? getCard().data.name,
-      pickCache,
-      userName: typeof userName === 'string' ? userName : undefined,
-    }
-  }
+  ): CBSContext => ({
+    charName: getCard().data.nickname ?? getCard().data.name,
+    pickCache,
+    userName: typeof state.userName === 'string' ? state.userName : undefined,
+  })
 
   const restoreGreeting = () => {
     const activeAgent = getAgent()
