@@ -49,9 +49,7 @@ describe('selectRetainedUserMessages', () => {
   it('partially truncates when only part of a message fits', () => {
     const input = [userMessage('abcdefghij')]
 
-    expect(selectRetainedUserMessages(input, 1)).toEqual([
-      { item: input[0], text: 'abcd' },
-    ])
+    expect(selectRetainedUserMessages(input, 1)).toEqual([])
   })
 })
 

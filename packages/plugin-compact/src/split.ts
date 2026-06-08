@@ -94,10 +94,6 @@ export const selectRetainedUserMessages = (
       selected.unshift({ item, text })
       remaining -= tokens
     }
-    else if (remaining > 0) {
-      selected.unshift({ item, text: text.slice(0, remaining * 4) })
-      break
-    }
     else {
       break
     }
