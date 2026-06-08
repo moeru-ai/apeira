@@ -33,6 +33,7 @@ const agent = createAgent({
 | `@apeira/plugin-common-tools` | Common development tools (read, write, edit, bash, fetch, search). See [Common Tools](/plugins/common-tools). |
 | `@apeira/plugin-hitl` | Human-in-the-loop tool approval. See [HITL](/plugins/hitl). |
 | `@apeira/plugin-mcp` | Model Context Protocol integration. See [MCP](/plugins/mcp). |
+| `@apeira/plugin-roleplay` | Character-card-driven, single-character roleplay. See [Roleplay](/plugins/roleplay). |
 | `@apeira/plugin-skills` | Filesystem-agnostic skills system. See [Skills](/plugins/skills). |
 | `@apeira/plugin-ag-ui` | Bridges Apeira events to `@ag-ui/core` format. See [AG-UI](/plugins/ag-ui). |
 

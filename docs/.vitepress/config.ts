@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   base: '/apeira/',
   description: 'A stream-first agent runtime for TypeScript.',
+  srcExclude: ['spark/**'],
 
   themeConfig: {
     nav: [
@@ -38,6 +39,7 @@ export default defineConfig({
           { link: '/plugins/common-tools', text: 'Common Tools' },
           { link: '/plugins/hitl', text: 'HITL' },
           { link: '/plugins/mcp', text: 'MCP' },
+          { link: '/plugins/roleplay', text: 'Roleplay' },
           { link: '/plugins/skills', text: 'Skills' },
           { link: '/plugins/ag-ui', text: 'AG-UI' },
         ],

@@ -60,6 +60,9 @@ catalogs:
     '@radix-ui/react-tooltip':
       specifier: ^1.2.8
       version: 1.2.8
+    '@risuai/ccardlib':
+      specifier: ^0.4.2
+      version: 0.4.2
     '@types/node':
       specifier: ^25.6.2
       version: 25.6.2
@@ -467,6 +470,19 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../core
+
+  packages/plugin-roleplay:
+    dependencies:
+      '@risuai/ccardlib':
+        specifier: 'catalog:'
+        version: 0.4.2
+    devDependencies:
+      '@apeira/core':
+        specifier: 'workspace:'
+        version: link:../core
+      '@apeira/plugin-compact':
+        specifier: 'workspace:'
+        version: link:../plugin-compact
 
   packages/plugin-skills:
     dependencies:
@@ -1822,6 +1838,9 @@ packages:
     resolution: {integrity: sha512-gp6xo/s2lX54AlTjOiqwDnxA7UW79BNvI9dB9pr3LZTzRKCd1ZA+ZbgKw/ReIiWuvvVw/8QFJpnqeeFyLocMcQ==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
+
+  '@risuai/ccardlib@0.4.2':
+    resolution: {integrity: sha512-Ir/FUG778qqqHEG4H6YJz8b2yMaEenvGCAyVOu7jocDMtPUG1WLXmi0+pKz7j5CWmp96pofKJFzmQjd25yFJiw==}
 
   '@rolldown/binding-android-arm64@1.0.1':
     resolution: {integrity: sha512-fJI3I0r3C3Oj/zdBCpaCmBRZYf07xpaq4yCfDDoSFm+beWNzbIl26puW8RraUdugoJw/95zerNOn6jasAhzSmg==}
@@ -7087,6 +7106,8 @@ snapshots:
   '@react-types/shared@3.34.0(react@19.2.6)':
     dependencies:
       react: 19.2.6
+
+  '@risuai/ccardlib@0.4.2': {}
 
   '@rolldown/binding-android-arm64@1.0.1':
     optional: true

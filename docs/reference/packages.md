@@ -55,6 +55,22 @@ Provides:
 - a built-in `fsSkillSet` (`@apeira/plugin-skills/fs`) that reads skills from a directory
 - no direct filesystem coupling — bring your own loader or use the built-in FS set
 
+## @apeira/plugin-roleplay
+
+Character-card-driven, text-only roleplay. See the [Roleplay plugin](/plugins/roleplay) guide.
+
+```ts
+import { roleplay } from '@apeira/plugin-roleplay'
+```
+
+Provides:
+
+- Character Card V1/V2/V3 normalization
+- greeting initialization and reset
+- CCv3 CBS rendering
+- temporary character prompt assembly
+- typed roleplay debug events
+
 ## @apeira/plugin-ag-ui
 
 Bridges Apeira events to `@ag-ui/core` event format. See the [AG-UI plugin](/plugins/ag-ui) guide.

@@ -61,6 +61,34 @@ describe('createAgent', () => {
 
     expect(agent.getInput()).toEqual([message('new')])
   })
+
+  it('deep-merges cloned state patches', () => {
+    const { agent } = createTestAgent({
+      state: {
+        nested: { first: true },
+      } as AgentState,
+    })
+    const patch = {
+      nested: { second: true },
+    } as Partial<AgentState>
+    const mutablePatch = patch as { nested: { second: boolean } }
+
+    agent.setState(patch)
+    mutablePatch.nested.second = false
+
+    expect(agent.getState()).toEqual({
+      nested: { first: true, second: true },
+    })
+  })
+
+  it('leaves state unchanged when cloning a merged patch fails', () => {
+    const { agent } = createTestAgent({ state: { contextLength: 8_000 } })
+
+    expect(() => agent.setState({
+      invalid: () => {},
+    } as Partial<AgentState>)).toThrow()
+    expect(agent.getState()).toEqual({ contextLength: 8_000 })
+  })
 })
 
 describe('plugin lifecycle', () => {
@@ -343,6 +371,54 @@ describe('queue', () => {
     unsubscribe()
 
     expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'cleared')).toBe(true)
+  })
+
+  it('restores initial input and state and emits one cleared event', () => {
+    const { agent } = createTestAgent({
+      input: [message('initial')],
+      state: { contextLength: 8_000 },
+    })
+    const events: AgentEvent[] = []
+    agent.subscribe('apeira', event => events.push(event))
+
+    agent.setInput([message('changed')])
+    agent.setState({ contextLength: 16_000 })
+    agent.clear()
+
+    expect(agent.getInput()).toEqual([message('initial')])
+    expect(agent.getState()).toEqual({ contextLength: 8_000 })
+    expect(events.filter(event => event.type === 'agent.cleared')).toHaveLength(1)
+    expect(events.find(event => event.type === 'agent.cleared')?.turnId).toBeTruthy()
+  })
+
+  it('clears turns queued from a completed-turn listener', async () => {
+    const { agent, inputs } = createTestAgent()
+
+    agent.subscribe('apeira', (event) => {
+      if (event.type !== 'turn.done')
+        return
+      agent.send(message('queued'))
+      agent.clear()
+    })
+
+    agent.send(message('first'))
+    await sleep(50)
+
+    expect(inputs).toHaveLength(1)
+  })
+
+  it('uses reset state for a turn sent immediately after clear', async () => {
+    const { agent, instructions } = createTestAgent({
+      instructions: state => String(state.contextLength),
+      state: { contextLength: 8_000 },
+    })
+
+    agent.setState({ contextLength: 16_000 })
+    agent.clear()
+    agent.send(message('after clear'))
+    await sleep(50)
+
+    expect(instructions).toEqual(['8000'])
   })
 
   it('remove aborts active turn and waits for completion', async () => {
