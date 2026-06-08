@@ -50,3 +50,8 @@ export const assembleCharacterDefinition = (
 
   return sections.join('\n\n')
 }
+
+export const assemblePostHistoryInstructions = (
+  card: CharacterCardV3,
+  context: CBSContext,
+): string => render(card.data.post_history_instructions, context)

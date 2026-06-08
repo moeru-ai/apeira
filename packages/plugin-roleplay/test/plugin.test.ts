@@ -104,10 +104,12 @@ describe('roleplay plugin', () => {
       },
       plugins: [roleplay({
         card: createV3Card({
+          creator_notes: 'Shown to the user, not the model.',
           description: 'A wandering mage.',
           first_mes: 'Greetings.',
           mes_example: '<START>\n{{char}}: Example.',
           personality: 'Curious.',
+          post_history_instructions: 'Stay in character as {{char}} for {{user}}.',
           scenario: 'A rainy tavern.',
           system_prompt: 'You are roleplaying as {{char}} for {{user}}.',
         }),
@@ -139,14 +141,25 @@ describe('roleplay plugin', () => {
       type: 'message',
     })
     expect(mock.bodies[0]?.input).toContainEqual(userMessage('{{roll:6}} stays literal'))
+    expect(mock.bodies[0]?.input.at(-1)).toEqual({
+      content: 'Stay in character as Apeira for Alice.',
+      role: 'system',
+      type: 'message',
+    })
+    expect(JSON.stringify(mock.bodies[0])).not.toContain('Shown to the user, not the model.')
     expect(agent.getInput().some(item =>
       item.type === 'message' && item.role === 'system')).toBe(false)
     const assembled = events.find(event => event.type === 'prompt.assembled')
     expect(assembled?.type).toBe('prompt.assembled')
     if (assembled?.type === 'prompt.assembled') {
-      expect(assembled.categories).toEqual(['character'])
+      expect(assembled.categories).toEqual(['character', 'post_history_instructions'])
       expect(assembled.instructionExtension).toContain('roleplaying as Apeira')
+      expect(assembled.temporaryInput).toHaveLength(2)
       expect(assembled.temporaryInput[0]).toMatchObject({ role: 'system' })
+      expect(assembled.temporaryInput[1]).toMatchObject({
+        content: 'Stay in character as Apeira for Alice.',
+        role: 'system',
+      })
     }
   })
 
@@ -158,6 +171,7 @@ describe('roleplay plugin', () => {
       card: createV3Card({
         description: '{{pick:first,second}}',
         first_mes: '',
+        post_history_instructions: '{{pick:first,second}}',
         system_prompt: '{{pick:first,second}}',
       }),
     })
@@ -190,6 +204,7 @@ describe('roleplay plugin', () => {
     expect(firstItem?.type).toBe('message')
     if (firstItem?.type === 'message' && typeof firstItem.content === 'string')
       expect(firstItem.content).toContain('first')
+    expect(first?.input?.at(-1)).toMatchObject({ content: 'first' })
 
     agent.emit('apeira', { turnId: 'two', type: 'turn.start' })
     expect(await plugin.extendInstructions?.({

@@ -1,7 +1,11 @@
 import type { Agent, AgentPlugin, AgentState, ItemParam } from '@apeira/core'
 import type { CharacterCardV3 } from '@risuai/ccardlib'
 
-import type { RoleplayEvent, RoleplayPluginOptions } from './types'
+import type {
+  RoleplayEvent,
+  RoleplayPluginOptions,
+  RoleplayPromptCategory,
+} from './types'
 import type { CBSContext } from './utils/cbs'
 
 import { name, version } from '../package.json'
@@ -12,6 +16,7 @@ import { normalizeCard } from './utils/normalize'
 import {
   assembleCharacterDefinition,
   assembleInstructionExtension,
+  assemblePostHistoryInstructions,
 } from './utils/prompt'
 
 export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
@@ -96,14 +101,28 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
     },
     name,
     prepareStep: (stepOptions) => {
-      const definition = assembleCharacterDefinition(getCard(), createCBSContext())
-      const temporaryInput: ItemParam[] = definition.length > 0
+      const context = createCBSContext()
+      const definition = assembleCharacterDefinition(getCard(), context)
+      const postHistoryInstructions = assemblePostHistoryInstructions(getCard(), context)
+      const characterInput: ItemParam[] = definition.length > 0
         ? [systemMessage(definition)]
         : []
-      const hasCharacterContext = instructionExtension.length > 0 || temporaryInput.length > 0
+      const postHistoryInput: ItemParam[] = postHistoryInstructions.length > 0
+        ? [systemMessage(postHistoryInstructions)]
+        : []
+      const temporaryInput = [
+        ...characterInput,
+        ...postHistoryInput,
+      ]
+      const categories: RoleplayPromptCategory[] = []
+
+      if (instructionExtension.length > 0 || characterInput.length > 0)
+        categories.push('character')
+      if (postHistoryInput.length > 0)
+        categories.push('post_history_instructions')
 
       emit({
-        categories: hasCharacterContext ? ['character'] : [],
+        categories,
         instructionExtension,
         temporaryInput,
         turnId: activeTurnId,
@@ -111,7 +130,7 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
       })
 
       return temporaryInput.length > 0
-        ? { input: [...temporaryInput, ...stepOptions.input] }
+        ? { input: [...characterInput, ...stepOptions.input, ...postHistoryInput] }
         : {}
     },
     stop: () => {
