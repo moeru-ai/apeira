@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   base: '/apeira/',
   description: 'A stream-first agent runtime for TypeScript.',
-  srcExclude: ['spark/**'],
+  srcExclude: ['adr/**', 'spark/**'],
 
   themeConfig: {
     nav: [
