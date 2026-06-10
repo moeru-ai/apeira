@@ -57,14 +57,14 @@ run(agentB, input) // starts immediately, runs in parallel
 
 ## Interrupt vs abort vs clear vs remove
 
-| Method | Clears queue | Resets input history |
-|--------|--------------|---------------------|
-| `interrupt(reason)` | No | No |
-| `abort(reason)` | No | No |
-| `clear()` | Yes | Yes |
-| `remove()` | Yes | Yes |
+| Method | Clears queue | Resets input history | Resets state |
+|--------|--------------|---------------------|--------------|
+| `interrupt(reason)` | No | No | No |
+| `abort(reason)` | No | No | No |
+| `clear()` | Yes | Yes | Yes |
+| `remove()` | Yes | No | No |
 
-**Interrupt** aborts the active turn. The queue continues.
+**Interrupt** aborts the active turn and records a model-visible `<turn_aborted>` boundary in the input history. The queue continues.
 
 ```ts
 agent.interrupt('user interrupted')
@@ -76,13 +76,13 @@ agent.interrupt('user interrupted')
 agent.abort('user cancelled')
 ```
 
-**Clear** aborts the running turn, removes queued turns, and resets the input history to the original `input`. The running turn emits `turn.aborted` with reason `cleared`.
+**Clear** aborts the running turn, removes queued turns, resets the input history to the original `input`, and resets `state` to its initial value. The running turn emits `turn.aborted` with reason `cleared`.
 
 ```ts
 agent.clear()
 ```
 
-**Remove** aborts active work, removes queued turns, and clears the agent. After removal, the agent handle is no longer usable.
+**Remove** aborts active work and removes queued turns. Unlike `clear()`, it does not reset input history or state. Other agent methods remain usable after removal.
 
 ```ts
 await agent.remove()

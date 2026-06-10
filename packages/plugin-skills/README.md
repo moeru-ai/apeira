@@ -17,11 +17,11 @@ import { createAgent, responses } from '@apeira/core'
 import { skills } from '@apeira/plugin-skills'
 import { fsSkillSet } from '@apeira/plugin-skills/fs'
 
-const skills = fsSkillSet({ directory: '.agents/skills' })
+const mySkills = fsSkillSet({ directory: '.agents/skills' })
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  plugins: [skills({ sets: [skills] })],
+  plugins: [skills({ sets: [mySkills] })],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -97,7 +97,9 @@ When you pass multiple `SkillSet` instances via the `sets` option, skills are me
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `sets` | `SkillSet[]` | — | Skill sets to merge |
+| `skills` | `Skill[]` | — | Static skills (convenience for trivial cases — no refresh, no priority) |
 | `refresh` | `'manual' \| 'turn'` | `'turn'` when `sets` is provided, else `'manual'` | When to reload skills |
+| `instructionsBudget` | `number` | ~2% of `state.contextLength` (fallback 2560 tokens) | Token budget for the `<available_skills>` section in the system prompt |
 | `toolName` | `string` | `'skill'` | Name for the skill tool |
 | `referenceToolName` | `string` | `'skill_reference'` | Name for the reference tool |
 

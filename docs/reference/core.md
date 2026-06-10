@@ -145,7 +145,7 @@ agent.abort('user cancelled')
 
 ### clear()
 
-Aborts the running turn, clears queued turns, and resets the input history to the original `input`.
+Aborts the running turn, clears queued turns, resets the input history to the original `input`, and resets `state` to its initial value.
 
 ```ts
 agent.clear()
@@ -153,7 +153,7 @@ agent.clear()
 
 ### remove()
 
-Aborts active work, removes queued turns, and clears the agent. After removal, the agent handle is no longer usable.
+Aborts active work and removes queued turns. Unlike `clear()`, it does not reset input history or state. Other agent methods remain usable after removal.
 
 ```ts
 await agent.remove()
@@ -198,6 +198,6 @@ interface AgentQueue {
   getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => string | undefined
   remove: () => Promise<void>
-  send: (item: ItemParam, options?: AgentSendOptions) => string
+  send: (item: AgentInput, options?: AgentSendOptions) => string
 }
 ```

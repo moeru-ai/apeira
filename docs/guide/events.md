@@ -24,7 +24,7 @@ Apeira emits these lifecycle events:
 
 ## xsAI forwarded events
 
-Apeira forwards streaming events from `@xsai-ext/responses` and attaches the same `turnId`. These include:
+Apeira forwards streaming events from the runner and attaches the same `turnId`. These include:
 
 - `step.start` — a model reasoning step started.
 - `step.done` — a step completed.
@@ -73,4 +73,4 @@ const unsubscribe = agent.subscribe('apeira', event =>
 unsubscribe()
 ```
 
-The returned function removes the listener and returns whether it was present. Listener errors are silently ignored — one subscriber cannot break event delivery to others.
+The returned function removes the listener. Listener errors are silently ignored — one subscriber cannot break event delivery to others.

@@ -122,6 +122,7 @@ Supported server transports:
 | `stdio` | Running a local MCP server process |
 | `http` / `streamable-http` | Connecting to a Streamable HTTP MCP server |
 | `sse` | Connecting to a legacy SSE MCP server |
+| `ws` | Connecting to a WebSocket MCP server |
 
 Stdio servers may omit `type`; any server with `command` is treated as `stdio`.
 

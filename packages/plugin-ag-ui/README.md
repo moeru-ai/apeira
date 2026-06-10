@@ -16,7 +16,7 @@ import { agui } from '@apeira/plugin-ag-ui'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  plugins: [agui()],
+  plugins: [agui({ threadId: 'thread-1' })],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
@@ -27,7 +27,7 @@ const agent = createAgent({
 
 ## API
 
-### `agui(options?)`
+### `agui(options)`
 
 Creates an Apeira plugin that maps agent events to `@ag-ui/core` AGUIEvent types:
 
@@ -47,8 +47,8 @@ Creates an Apeira plugin that maps agent events to `@ag-ui/core` AGUIEvent types
 
 ```ts
 interface AGUIPluginOptions {
-  onEvent?: (event: AGUIEvent) => void // Direct callback for AG-UI events
+  threadId: string
 }
 ```
 
-Events are emitted on the `'ag-ui'` channel via `api.emit()` and delivered synchronously through the `onEvent` callback. Use `agent.subscribe('ag-ui', event => ...)` to receive typed AG-UI events — the package augments `AgentChannelMap` so `event` is automatically inferred as `AGUIEvent`.
+Events are emitted on the `'ag-ui'` channel via `agent.emit()`. Use `agent.subscribe('ag-ui', event => ...)` to receive typed AG-UI events — the package augments `AgentCustomEvent` so `event` is automatically inferred as `AGUIEvent`.

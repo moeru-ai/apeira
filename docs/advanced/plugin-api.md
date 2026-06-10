@@ -13,11 +13,11 @@ interface AgentPlugin {
   extendTools?: (options: ExtendOptions) => MaybePromise<Tool[] | void>
   init?: (agent: Agent) => MaybePromise<void>
   name: string
-  onFinish?: ResponsesOptions['onFinish']
-  onStepFinish?: ResponsesOptions['onStepFinish']
-  postToolCall?: ResponsesOptions['postToolCall']
-  prepareStep?: ResponsesOptions['prepareStep']
-  preToolCall?: ResponsesOptions['preToolCall']
+  onFinish?: (step?: CompletionStep) => MaybePromise<unknown>
+  onStepFinish?: (step: CompletionStep) => MaybePromise<unknown>
+  postToolCall?: PostToolCall
+  prepareStep?: PrepareStep<AgentInput[], unknown>
+  preToolCall?: PreToolCall
   stop?: () => MaybePromise<void>
   version?: string
 }

@@ -133,7 +133,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     if (turnId != null) {
       input.push(developer([
         '<turn_aborted>',
-        '  The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.',
+        'The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.',
         '</turn_aborted>',
       ].join('\n')))
     }

@@ -29,7 +29,7 @@ for await (const event of eventStream)
 `run()` returns a `ReadableStream` of events for the submitted turn. The stream
 closes when the turn emits `turn.done`, `turn.failed`, or `turn.aborted`.
 
-For fire-and-forget submission, subscribe to all agent events via `on()` and use `send()`:
+For fire-and-forget submission, subscribe to all agent events via `subscribe()` and use `send()`:
 
 ```ts
 const unsubscribe = agent.subscribe('apeira', event =>
@@ -57,14 +57,14 @@ normally — any queued turns run after the interrupted turn is aborted.
 
 ### Agent Lifecycle
 
-Each session keeps an append-only Episodic log. When a turn starts, Apeira forks
+Each agent keeps an append-only input log. When a turn starts, Apeira forks
 that log into a working copy, appends the new input, assembles model input,
-and passes it to `@xsai-ext/responses`. When the turn completes
+and passes it to the runner. When the turn completes
 successfully, only the new working episodes are merged back. Failed or aborted
 turns are discarded, except `interrupt()` records a boundary for the next turn.
 
-Top-level turns submitted to the same session with `run()` run one at a time. If
-`send()` is called while a turn is active or scheduled on that session, the new
+Top-level turns submitted to the same agent with `run()` run one at a time. If
+`send()` is called while a turn is active or scheduled on that agent, the new
 input is drained into that turn after the current model response completes.
 
 The agent emits Apeira lifecycle events:
@@ -77,56 +77,30 @@ The agent emits Apeira lifecycle events:
 - `turn.failed`
 - `turn.aborted`
 
-It also forwards streaming events from `@xsai-ext/responses`, with `turnId`
-and `sessionId` attached to every event.
+It also forwards streaming events from the runner, with `turnId`
+attached to every event.
 
-### Sessions And Context
+### State
 
-The root agent methods use a default session. Create explicit sessions when one
-agent definition should serve multiple conversations:
-
-```ts
-const session = agent.session({
-  context: {
-    userId: 'user_123',
-  },
-})
-
-session.run({
-  content: 'Say hello.',
-  role: 'user',
-  type: 'message',
-})
-```
-
-Agent context starts as the complete default context. Agent, session, and run
-context updates are partial overlays. Instructions receive the merged context:
+Agent `state` is a plain object that plugins and instructions can read and write.
 
 ```ts
 const agent = createAgent({
-  context: {
-    locale: 'en-US',
-    product: 'docs',
-  },
-  instructions: context => `Use locale ${context.locale}.`,
-  name: 'assistant',
-  options,
-})
-
-session.setContext({ locale: 'zh-CN' })
-
-session.run(input, {
-  context: { requestId: 'req_123' },
+  instructions: state => `You are helping ${state.userId ?? 'a user'}.`,
+  runner: responses({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
+  state: { userId: 'user_123' },
 })
 ```
 
-`agent.setContext()` persists as the agent default. `session.setContext()`
-persists for later turns on that session. Run context only applies to that
-submitted input.
+`state` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime. Update it with `agent.setState(patch)`:
 
-Calling `agent.session()` with an existing `id` returns that session and merges
-the provided context overlay. The `input` option only applies when creating a
-new session.
+```ts
+agent.setState({ userId: 'user_456' })
+```
 
 ### Abort And Clear
 
@@ -139,21 +113,22 @@ agent.abort('user cancelled')
 Use `interrupt()` to abort and record a model-visible turn-aborted boundary.
 Use `abort()` + `send()` to abort and submit different input.
 
-Clear the session:
+Clear the agent:
 
 ```ts
 agent.clear()
 ```
 
-`clear()` aborts the running turn, clears queued turns, and resets the session
-Episodic log to its initial state.
+`clear()` aborts the running turn, clears queued turns, resets the input
+history to the original `input`, and resets `state` to its initial value.
 
 You can also pass an external `AbortSignal` to a single turn:
 
 ```ts
 const controller = new AbortController()
 
-agent.run(
+run(
+  agent,
   {
     content: 'Write a long answer.',
     role: 'user',
