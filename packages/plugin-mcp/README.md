@@ -18,11 +18,6 @@ import { mcp } from '@apeira/plugin-mcp'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  runner: responses({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  }),
   plugins: [
     mcp({
       mcpServers: {
@@ -41,6 +36,11 @@ const agent = createAgent({
       },
     }),
   ],
+  runner: responses({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
 })
 ```
 
@@ -54,14 +54,14 @@ import config from '../.mcp.json'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
+  plugins: [
+    mcp(config),
+  ],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  plugins: [
-    mcp(config),
-  ],
 })
 ```
 

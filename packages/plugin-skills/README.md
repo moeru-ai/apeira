@@ -21,12 +21,12 @@ const skills = fsSkillSet({ directory: '.agents/skills' })
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
+  plugins: [skills({ sets: [skills] })],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  plugins: [skills({ sets: [skills] })],
 })
 ```
 

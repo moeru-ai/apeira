@@ -17,11 +17,6 @@ import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  runner: responses({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  }),
   plugins: [
     humanInTheLoop({
       autoReview: autoReviewByPattern({
@@ -31,6 +26,11 @@ const agent = createAgent({
     }),
     commonTools(),
   ],
+  runner: responses({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
 })
 ```
 

@@ -16,14 +16,14 @@ import { commonTools } from '@apeira/plugin-common-tools'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
+  plugins: [
+    commonTools(),
+  ],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  plugins: [
-    commonTools(),
-  ],
 })
 ```
 

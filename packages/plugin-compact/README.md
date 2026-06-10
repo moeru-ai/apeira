@@ -18,11 +18,6 @@ import { compact } from '@apeira/plugin-compact'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  runner: responses({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  }),
   plugins: [
     compact({
       compactAgent: {
@@ -35,6 +30,11 @@ const agent = createAgent({
       threshold: 0.9,
     }),
   ],
+  runner: responses({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
   state: {
     contextLength: 128_000,
   },

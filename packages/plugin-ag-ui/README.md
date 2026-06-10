@@ -16,12 +16,12 @@ import { agui } from '@apeira/plugin-ag-ui'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
+  plugins: [agui()],
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  plugins: [agui()],
 })
 ```
 
