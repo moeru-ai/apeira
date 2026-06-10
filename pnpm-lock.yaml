@@ -181,6 +181,9 @@ catalogs:
     '@xsai/shared-chat':
       specifier: ^0.5.0-beta.6
       version: 0.5.0-beta.6
+    '@xsai/stream-text':
+      specifier: ^0.5.0-beta.6
+      version: 0.5.0-beta.6
     '@xsai/tool':
       specifier: ^0.5.0-beta.6
       version: 0.5.0-beta.6
@@ -398,6 +401,9 @@ importers:
         specifier: catalog:xsai
         version: 0.5.0-beta.6
       '@xsai/shared-chat':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.6
+      '@xsai/stream-text':
         specifier: catalog:xsai
         version: 0.5.0-beta.6
       yocto-queue:
@@ -3230,6 +3236,9 @@ packages:
 
   '@xsai/shared@0.5.0-beta.6':
     resolution: {integrity: sha512-fE3+vEzDe+NftOIYbxdjFtnTAaHpYBCQ2Bsa/9vfQ03l9Mz9KeC83bOdiz/pvndrBlARtVhZC26h4wnRK3/A0A==}
+
+  '@xsai/stream-text@0.5.0-beta.6':
+    resolution: {integrity: sha512-PcP7wP7QPtwxn1b1QKdFhW4Zdz2YDLowvSuy/HHDrgDJBvD99cCgO9Gvu/OsNVJxBMpdLm3Z9SUfG62hiua6oA==}
 
   '@xsai/tool@0.5.0-beta.6':
     resolution: {integrity: sha512-T5XPZU1iJkTywPENooucNDOmV2Zgw3XMBuxB+2ZsHXPP8c72dgX7Hb3Ef+yHDDAu+pzKMjG1caEsQUsEsQuUog==}
@@ -8981,6 +8990,12 @@ snapshots:
       '@xsai/shared': 0.5.0-beta.6
 
   '@xsai/shared@0.5.0-beta.6': {}
+
+  '@xsai/stream-text@0.5.0-beta.6':
+    dependencies:
+      '@xsai/shared': 0.5.0-beta.6
+      '@xsai/shared-chat': 0.5.0-beta.6
+      '@xsai/shared-stream': 0.5.0-beta.6
 
   '@xsai/tool@0.5.0-beta.6(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:

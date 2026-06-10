@@ -7,6 +7,7 @@ minimumReleaseAgeExclude:
   - '@xsai/shared@0.5.0-beta.6'
   - '@xsai/tool@0.5.0-beta.6'
   - xsschema@0.5.0-beta.6
+  - '@xsai/stream-text@0.5.0-beta.6'
 
 shellEmulator: true
 
@@ -79,4 +80,5 @@ catalogs:
     '@xsai-ext/responses': ^0.5.0-beta.6
     '@xsai/shared': ^0.5.0-beta.6
     '@xsai/shared-chat': ^0.5.0-beta.6
+    '@xsai/stream-text': ^0.5.0-beta.6
     '@xsai/tool': ^0.5.0-beta.6

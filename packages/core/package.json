@@ -45,6 +45,7 @@
     "@xsai-ext/responses": "catalog:xsai",
     "@xsai/shared": "catalog:xsai",
     "@xsai/shared-chat": "catalog:xsai",
+    "@xsai/stream-text": "catalog:xsai",
     "yocto-queue": "catalog:"
   }
 }
