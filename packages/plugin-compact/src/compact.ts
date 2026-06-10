@@ -74,7 +74,7 @@ export const assembleCompactedInput = (
   preservedTurns: ItemParam[],
 ): ItemParam[] => [
   ...retainedUserMessages.map(retained => user(retained.text)),
-  user(`[Context Summary]\n${summary}`),
+  developer(`<context_summary>\n${summary}</context_summary>`),
   ...preservedTurns,
 ]
 
