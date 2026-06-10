@@ -2,7 +2,7 @@ import type { ItemParam } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, responses, run, user } from '@apeira/core'
+import { createAgent, developer, responses, run, user } from '@apeira/core'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -281,7 +281,7 @@ describe('roleplay plugin', () => {
       expect(temporary.role).toBe('system')
       expect(temporary.content).toContain('Temporary definition.')
     }
-    expect(main.bodies[0]?.input).toContainEqual(user('[Context Summary]\nsummary'))
+    expect(main.bodies[0]?.input).toContainEqual(developer('<context_summary>\nsummary\n</context_summary>'))
     expect(agent.getInput().some(item =>
       item.type === 'message' && item.role === 'system')).toBe(false)
   })

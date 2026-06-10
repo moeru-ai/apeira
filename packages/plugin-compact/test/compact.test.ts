@@ -1,4 +1,4 @@
-import { assistant, responses, user } from '@apeira/core'
+import { assistant, developer, responses, user } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
 
 import { executeCompact, hardTruncateInput } from '../src/index'
@@ -32,7 +32,7 @@ describe('executeCompact', () => {
     expect(result.summary).toBe('summary text')
     expect(result.input).toEqual([
       user('old request'),
-      user('[Context Summary]\nsummary text'),
+      developer('<context_summary>\nsummary text\n</context_summary>'),
       user('recent request'),
       assistant('recent answer'),
     ])

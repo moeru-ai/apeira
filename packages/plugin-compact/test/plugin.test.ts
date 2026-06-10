@@ -1,6 +1,6 @@
 import type { Agent, AgentEventListener } from '@apeira/core'
 
-import { assistant, createAgent, responses, run, user } from '@apeira/core'
+import { assistant, createAgent, developer, responses, run, user } from '@apeira/core'
 import { describe, expect, it, vi } from 'vitest'
 
 import { compact } from '../src/index'
@@ -75,7 +75,7 @@ describe('compact plugin', () => {
     expect(main.bodies[1]?.input).toEqual([
       user('old one'),
       user('old two'),
-      user('[Context Summary]\ncheckpoint summary'),
+      developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
       user('trigger compact'),
       assistant('first'),
       user('after compact'),
@@ -83,7 +83,7 @@ describe('compact plugin', () => {
     expect(agent.getInput()).toEqual([
       user('old one'),
       user('old two'),
-      user('[Context Summary]\ncheckpoint summary'),
+      developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
       user('trigger compact'),
       assistant('first'),
       user('after compact'),
@@ -125,7 +125,6 @@ describe('compact plugin', () => {
       getState: () => ({ contextLength: 1000 }),
       init: async () => {},
       interrupt: () => undefined,
-      remove: async () => {},
       send: () => 'turn-test',
       setInput,
       stop: async () => {},
@@ -197,7 +196,6 @@ describe('compact plugin', () => {
       getState: () => ({ contextLength: 1000 }),
       init: async () => {},
       interrupt: () => undefined,
-      remove: async () => {},
       send: () => 'turn-test',
       setInput,
       setState: () => {},
@@ -226,7 +224,7 @@ describe('compact plugin', () => {
     ])
     expect(setInput).toHaveBeenCalledWith([
       user('old one'),
-      user('[Context Summary]\nmulti-live summary'),
+      developer('<context_summary>\nmulti-live summary\n</context_summary>'),
       user('old two'),
       assistant('old answer two'),
     ])

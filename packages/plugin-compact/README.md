@@ -53,7 +53,7 @@ The plugin uses two lifecycle hooks:
 The compacted history is assembled as:
 
 1. retained older user messages
-2. a `[Context Summary]` user message
+2. a `<context_summary>` developer message
 3. the most recent preserved turns, kept verbatim
 
 If usage is unavailable, `prepareStep` falls back to a lightweight JSON byte estimate for the input.
