@@ -59,8 +59,7 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
     switch (event.type) {
       case 'error': {
         emit({
-          code: (event.error as { code?: string }).code ?? undefined,
-          message: toErrorMessage(event.error),
+          message: event.message,
           rawEvent: event,
           timestamp: Date.now(),
           type: EventType.RUN_ERROR,
@@ -102,7 +101,7 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
 
       case 'reasoning.start': {
         const state = getTurnState(event.turnId)
-        const messageId = createMessageId(event.turnId, 'reasoning', event.outputIndex)
+        const messageId = createMessageId(event.turnId, 'reasoning', Math.max(1, state.stepIndex))
 
         state.activeReasoningMessageId = messageId
 
@@ -201,7 +200,7 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
 
       case 'text.start': {
         const state = getTurnState(event.turnId)
-        const messageId = createMessageId(event.turnId, 'text', event.outputIndex)
+        const messageId = createMessageId(event.turnId, 'text', Math.max(1, state.stepIndex))
 
         state.activeTextMessageId = messageId
         state.lastAssistantMessageId = messageId
@@ -235,7 +234,7 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
         emit({
           rawEvent: event,
           timestamp: Date.now(),
-          toolCallId: event.toolCall.id,
+          toolCallId: event.toolCallId,
           type: EventType.TOOL_CALL_END,
         })
         state.activeToolCallId = undefined
@@ -244,14 +243,14 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
 
       case 'tool-call.start': {
         const state = getTurnState(event.turnId)
-        state.activeToolCallId = event.toolCall.id
+        state.activeToolCallId = event.toolCallId
 
         emit({
           parentMessageId: state.lastAssistantMessageId,
           rawEvent: event,
           timestamp: Date.now(),
-          toolCallId: event.toolCall.id,
-          toolCallName: event.toolCall.name,
+          toolCallId: event.toolCallId,
+          toolCallName: event.toolName,
           type: EventType.TOOL_CALL_START,
         })
         return
@@ -259,12 +258,14 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
 
       case 'tool-result.done': {
         emit({
-          content: JSON.stringify(event.toolResult.output),
-          messageId: createMessageId(event.turnId, 'tool-result', event.toolResult.id),
+          content: typeof event.result === 'string'
+            ? event.result
+            : JSON.stringify(event.result),
+          messageId: createMessageId(event.turnId, 'tool-result', event.toolCallId),
           rawEvent: event,
           role: 'tool',
           timestamp: Date.now(),
-          toolCallId: event.toolResult.id,
+          toolCallId: event.toolCallId,
           type: EventType.TOOL_CALL_RESULT,
         })
         return
