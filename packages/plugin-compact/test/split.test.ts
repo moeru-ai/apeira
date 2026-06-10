@@ -1,3 +1,4 @@
+import { assistant, user } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,27 +6,27 @@ import {
   selectRetainedUserMessages,
   splitHistory,
 } from '../src/index'
-import { assistantMessage, userMessage } from './_shared'
+
 
 describe('splitHistory', () => {
   it('splits before the requested user turn from the end', () => {
     const input = [
-      userMessage('one'),
-      assistantMessage('a1'),
-      userMessage('two'),
-      assistantMessage('a2'),
-      userMessage('three'),
+      user('one'),
+      assistant('a1'),
+      user('two'),
+      assistant('a2'),
+      user('three'),
     ]
 
     const result = splitHistory(input, 2)
 
     expect(result.hasEnoughTurns).toBe(true)
-    expect(result.compressible).toEqual([userMessage('one'), assistantMessage('a1')])
-    expect(result.preserved).toEqual([userMessage('two'), assistantMessage('a2'), userMessage('three')])
+    expect(result.compressible).toEqual([user('one'), assistant('a1')])
+    expect(result.preserved).toEqual([user('two'), assistant('a2'), user('three')])
   })
 
   it('marks histories with too few user turns as not compactable', () => {
-    const input = [userMessage('one'), assistantMessage('a1')]
+    const input = [user('one'), assistant('a1')]
 
     const result = splitHistory(input, 2)
 
@@ -36,9 +37,9 @@ describe('splitHistory', () => {
 describe('selectRetainedUserMessages', () => {
   it('keeps most recent user messages within budget', () => {
     const input = [
-      userMessage('old message'),
-      assistantMessage('a1'),
-      userMessage('new message'),
+      user('old message'),
+      assistant('a1'),
+      user('new message'),
     ]
 
     expect(selectRetainedUserMessages(input, 3)).toEqual([
@@ -47,7 +48,7 @@ describe('selectRetainedUserMessages', () => {
   })
 
   it('partially truncates when only part of a message fits', () => {
-    const input = [userMessage('abcdefghij')]
+    const input = [user('abcdefghij')]
 
     expect(selectRetainedUserMessages(input, 1)).toEqual([])
   })
@@ -56,38 +57,38 @@ describe('selectRetainedUserMessages', () => {
 describe('buildCompactInput', () => {
   it('removes retained user messages while preserving other items', () => {
     const input = [
-      userMessage('keep as retained'),
-      assistantMessage('still summarize'),
-      userMessage('summarize too'),
+      user('keep as retained'),
+      assistant('still summarize'),
+      user('summarize too'),
     ]
 
     expect(buildCompactInput(input, [{ item: input[0], text: 'keep as retained' }])).toEqual([
-      assistantMessage('still summarize'),
-      userMessage('summarize too'),
+      assistant('still summarize'),
+      user('summarize too'),
     ])
   })
 
   it('removes a user message when the retained copy is a truncated prefix', () => {
     const input = [
-      userMessage('abcdefghij'),
-      assistantMessage('still summarize'),
+      user('abcdefghij'),
+      assistant('still summarize'),
     ]
 
     expect(buildCompactInput(input, [{ item: input[0], text: 'abcd' }])).toEqual([
-      assistantMessage('still summarize'),
+      assistant('still summarize'),
     ])
   })
 
   it('does not remove another user message with the same retained prefix', () => {
     const input = [
-      userMessage('Please refactor auth'),
-      assistantMessage('noted'),
-      userMessage('Please update docs'),
+      user('Please refactor auth'),
+      assistant('noted'),
+      user('Please update docs'),
     ]
 
     expect(buildCompactInput(input, [{ item: input[0], text: 'Please ' }])).toEqual([
-      assistantMessage('noted'),
-      userMessage('Please update docs'),
+      assistant('noted'),
+      user('Please update docs'),
     ])
   })
 })

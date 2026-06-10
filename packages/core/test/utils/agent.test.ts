@@ -6,7 +6,8 @@ import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAgent, responses, run } from '../../src/index'
-import { assistantMessage, createMockFetch, message, sleep } from '../_shared'
+import { user } from '../../src/index'
+import { createMockFetch, sleep } from '../_shared'
 
 const createTestAgent = (opts?: {
   delayMs?: number
@@ -34,8 +35,8 @@ const createTestAgent = (opts?: {
 
 describe('createAgent', () => {
   it('creates an agent with initial input', () => {
-    const { agent } = createTestAgent({ input: [message('hello')] })
-    expect(agent.getInput()).toEqual([message('hello')])
+    const { agent } = createTestAgent({ input: [user('hello')] })
+    expect(agent.getInput()).toEqual([user('hello')])
   })
 
   it('returns empty input when none provided', () => {
@@ -53,13 +54,13 @@ describe('createAgent', () => {
   })
 
   it('replaces input with a cloned value', () => {
-    const { agent } = createTestAgent({ input: [message('old')] })
-    const nextInput = [message('new')]
+    const { agent } = createTestAgent({ input: [user('old')] })
+    const nextInput = [user('new')]
 
     agent.setInput(nextInput)
-    nextInput[0] = message('mutated')
+    nextInput[0] = user('mutated')
 
-    expect(agent.getInput()).toEqual([message('new')])
+    expect(agent.getInput()).toEqual([user('new')])
   })
 
   it('deep-merges cloned state patches', () => {
@@ -124,7 +125,7 @@ describe('plugin hooks', () => {
         { extendInstructions: () => 'ext2', name: 'p2' },
       ],
     })
-    for await (const event of run(agent, message('hi')))
+    for await (const event of run(agent, user('hi')))
       void event
     expect(instructions[0]).toBe('base\n\next1\n\next2')
   })
@@ -138,7 +139,7 @@ describe('plugin hooks', () => {
         { extendInstructions: () => 'real', name: 'p3' },
       ],
     })
-    for await (const event of run(agent, message('hi')))
+    for await (const event of run(agent, user('hi')))
       void event
     expect(instructions[0]).toBe('base\n\nreal')
   })
@@ -152,7 +153,7 @@ describe('plugin hooks', () => {
     const { agent, bodies } = createTestAgent({
       plugins: [{ extendTools: () => [tool], name: 'p1' }],
     })
-    for await (const event of run(agent, message('hi')))
+    for await (const event of run(agent, user('hi')))
       void event
     expect(bodies[0]?.tools).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'test-tool', type: 'function' }),
@@ -170,7 +171,7 @@ describe('plugin hooks', () => {
         },
       ],
     })
-    for await (const event of run(agent, message('hi')))
+    for await (const event of run(agent, user('hi')))
       void event
     expect(calls).toContain('p1 onFinish')
     expect(calls).toContain('p1 onStepFinish')
@@ -242,7 +243,7 @@ describe('turn lifecycle', () => {
   it('returns turn events in correct order', async () => {
     const { agent } = createTestAgent()
     const events: AgentEvent[] = []
-    for await (const event of run(agent, message('hi'))) {
+    for await (const event of run(agent, user('hi'))) {
       events.push(event)
     }
     const types = events.map(e => e.type)
@@ -253,7 +254,7 @@ describe('turn lifecycle', () => {
   it('assigns turnId to all events', async () => {
     const { agent } = createTestAgent()
     const events: AgentEvent[] = []
-    for await (const event of run(agent, message('hi'))) {
+    for await (const event of run(agent, user('hi'))) {
       events.push(event)
     }
     const turnId = events.find(e => e.type === 'turn.start')?.turnId
@@ -270,7 +271,7 @@ describe('turn lifecycle', () => {
     const controller = new AbortController()
     controller.abort('already aborted')
 
-    const turnId = agent.send(message('hi'), { signal: controller.signal })
+    const turnId = agent.send(user('hi'), { signal: controller.signal })
     await sleep(20)
     unsubscribe()
 
@@ -298,9 +299,9 @@ describe('queue', () => {
         events2.push(event)
     })
 
-    id1 = agent.send(message('first'))
+    id1 = agent.send(user('first'))
     await sleep(20)
-    id2 = agent.send(message('second'))
+    id2 = agent.send(user('second'))
     expect(id1).not.toBe(id2)
 
     await sleep(50)
@@ -308,8 +309,8 @@ describe('queue', () => {
 
     expect(events1.at(-1)?.type).toBe('turn.done')
     expect(events2.at(-1)?.type).toBe('turn.done')
-    expect(inputs[0]).toEqual([message('first')])
-    expect(inputs[1]).toEqual([message('first'), assistantMessage('hello'), message('second')])
+    expect(inputs[0]).toEqual([user('first')])
+    expect(inputs[1]).toEqual([user('first'), { content: [{ text: 'hello', type: 'output_text' }], role: 'assistant', type: 'message' }, user('second')])
   })
 
   it('drains input into active turn instead of queueing new turn', async () => {
@@ -317,11 +318,11 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
-    const turnId = agent.send(message('Initial turn.'))
+    const turnId = agent.send(user('Initial turn.'))
 
     await sleep(15)
 
-    const sameTurnId = agent.send(message('Follow up.'))
+    const sameTurnId = agent.send(user('Follow up.'))
     expect(sameTurnId).toBe(turnId)
 
     await sleep(80)
@@ -338,7 +339,7 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
-    const turnId = agent.send(message('hi'))
+    const turnId = agent.send(user('hi'))
     await sleep(10)
     agent.abort('test abort')
 
@@ -351,7 +352,7 @@ describe('queue', () => {
 
   it('interrupt returns active turn id and aborts', async () => {
     const { agent } = createTestAgent({ delayMs: 100 })
-    const id = agent.send(message('hi'))
+    const id = agent.send(user('hi'))
     await sleep(10)
     const interruptedId = agent.interrupt('test')
     expect(interruptedId).toBe(id)
@@ -362,9 +363,9 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
-    agent.send(message('first'))
+    agent.send(user('first'))
     await sleep(10)
-    agent.send(message('second'))
+    agent.send(user('second'))
     agent.clear()
 
     await sleep(150)
@@ -375,17 +376,17 @@ describe('queue', () => {
 
   it('restores initial input and state and emits one cleared event', () => {
     const { agent } = createTestAgent({
-      input: [message('initial')],
+      input: [user('initial')],
       state: { contextLength: 8_000 },
     })
     const events: AgentEvent[] = []
     agent.subscribe('apeira', event => events.push(event))
 
-    agent.setInput([message('changed')])
+    agent.setInput([user('changed')])
     agent.setState({ contextLength: 16_000 })
     agent.clear()
 
-    expect(agent.getInput()).toEqual([message('initial')])
+    expect(agent.getInput()).toEqual([user('initial')])
     expect(agent.getState()).toEqual({ contextLength: 8_000 })
     expect(events.filter(event => event.type === 'agent.cleared')).toHaveLength(1)
     expect(events.find(event => event.type === 'agent.cleared')?.turnId).toBeTruthy()
@@ -397,11 +398,11 @@ describe('queue', () => {
     agent.subscribe('apeira', (event) => {
       if (event.type !== 'turn.done')
         return
-      agent.send(message('queued'))
+      agent.send(user('queued'))
       agent.clear()
     })
 
-    agent.send(message('first'))
+    agent.send(user('first'))
     await sleep(50)
 
     expect(inputs).toHaveLength(1)
@@ -415,7 +416,7 @@ describe('queue', () => {
 
     agent.setState({ contextLength: 16_000 })
     agent.clear()
-    agent.send(message('after clear'))
+    agent.send(user('after clear'))
     await sleep(50)
 
     expect(instructions).toEqual(['8000'])
@@ -426,7 +427,7 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
-    const turnId = agent.send(message('hi'))
+    const turnId = agent.send(user('hi'))
     await sleep(10)
     await agent.remove()
 
@@ -441,7 +442,7 @@ describe('queue', () => {
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
     const controller = new AbortController()
-    const turnId = agent.send(message('hi'), { signal: controller.signal })
+    const turnId = agent.send(user('hi'), { signal: controller.signal })
     await sleep(10)
     controller.abort('user abort')
 
@@ -456,7 +457,7 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     const unsubscribe = agent.subscribe('apeira', event => events.push(event))
 
-    const stream = run(agent, message('hi'))
+    const stream = run(agent, user('hi'))
     const reader = stream.getReader()
     await sleep(10)
     await reader.cancel()
@@ -487,7 +488,7 @@ describe('queue', () => {
       subscribe: vi.fn(() => unsubscribe),
     } as unknown as Agent
 
-    const reader = run(agent, message('hi')).getReader()
+    const reader = run(agent, user('hi')).getReader()
 
     await expect(reader.read()).rejects.toThrow(error)
     expect(unsubscribe).toHaveBeenCalledOnce()
@@ -522,7 +523,7 @@ describe('queue', () => {
       }),
     } as unknown as Agent
 
-    const reader = run(agent, message('hi')).getReader()
+    const reader = run(agent, user('hi')).getReader()
     const first = await reader.read()
     const second = await reader.read()
     const third = await reader.read()
@@ -563,7 +564,7 @@ describe('queue', () => {
       }),
     } as unknown as Agent
 
-    const reader = run(agent, message('hi')).getReader()
+    const reader = run(agent, user('hi')).getReader()
     expect(agent.send).not.toHaveBeenCalled()
 
     activeTurnId = undefined

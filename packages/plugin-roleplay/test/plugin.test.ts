@@ -2,12 +2,12 @@ import type { ItemParam } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, responses, run } from '@apeira/core'
+import { createAgent, responses, run, user } from '@apeira/core'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
 
 import { roleplay } from '../src'
-import { createMockFetch, createV3Card, userMessage } from './_shared'
+import { createMockFetch, createV3Card } from './_shared'
 
 const runner = responses({
   apiKey: 'test',
@@ -51,7 +51,7 @@ describe('roleplay plugin', () => {
   })
 
   it('does not add a greeting to restored history or for empty content', async () => {
-    const restored = userMessage('existing')
+    const restored = user('existing')
     const agent = createAgent({
       input: [restored],
       instructions: '',
@@ -121,7 +121,7 @@ describe('roleplay plugin', () => {
     const events: RoleplayEvent[] = []
     agent.subscribe('roleplay', event => events.push(event))
 
-    for await (const event of run(agent, userMessage('{{roll:6}} stays literal')))
+    for await (const event of run(agent, user('{{roll:6}} stays literal')))
       void event
 
     expect(mock.bodies[0]?.instructions).toBe([
@@ -148,7 +148,7 @@ describe('roleplay plugin', () => {
       role: 'system',
       type: 'message',
     })
-    expect(mock.bodies[0]?.input).toContainEqual(userMessage('{{roll:6}} stays literal'))
+    expect(mock.bodies[0]?.input).toContainEqual(user('{{roll:6}} stays literal'))
     expect(mock.bodies[0]?.input.at(-1)).toEqual({
       content: 'Stay in character as Apeira for Alice.',
       role: 'system',
@@ -229,13 +229,13 @@ describe('roleplay plugin', () => {
     const summarizer = createMockFetch('summary')
     const agent = createAgent({
       input: [
-        userMessage('old one'),
+        user('old one'),
         {
           content: [{ text: 'old answer one', type: 'output_text' }],
           role: 'assistant',
           type: 'message',
         },
-        userMessage('old two'),
+        user('old two'),
         {
           content: [{ text: 'old answer two', type: 'output_text' }],
           role: 'assistant',
@@ -272,7 +272,7 @@ describe('roleplay plugin', () => {
       state: { contextLength: 1_000 },
     })
 
-    for await (const event of run(agent, userMessage('live')))
+    for await (const event of run(agent, user('live')))
       void event
 
     const temporary = main.bodies[0]?.input[0]
@@ -281,7 +281,7 @@ describe('roleplay plugin', () => {
       expect(temporary.role).toBe('system')
       expect(temporary.content).toContain('Temporary definition.')
     }
-    expect(main.bodies[0]?.input).toContainEqual(userMessage('[Context Summary]\nsummary'))
+    expect(main.bodies[0]?.input).toContainEqual(user('[Context Summary]\nsummary'))
     expect(agent.getInput().some(item =>
       item.type === 'message' && item.role === 'system')).toBe(false)
   })

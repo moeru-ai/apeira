@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest'
 
 import { chat, createAgent, responses, run } from '../../src/index'
 import { createAgentChannel } from '../../src/utils/channel'
-import { createMockFetch, message } from '../_shared'
+import { user } from '../../src/index'
+import { createMockFetch } from '../_shared'
 
 const createRunnerContext = (
   input: AgentInput[],
@@ -72,7 +73,7 @@ describe('responses', () => {
       stopWhen: stepCountAtLeast(1),
     })
 
-    const result = await runner(createRunnerContext([message('hi')]))
+    const result = await runner(createRunnerContext([user('hi')]))
 
     expect(mock.bodies[0]?.instructions).toBe('system instructions')
     expect(result.output).toEqual([{
@@ -97,11 +98,11 @@ describe('chat', () => {
       }),
     })
 
-    for await (const event of run(agent, message('hi')))
+    for await (const event of run(agent, user('hi')))
       void event
 
     expect(agent.getInput()).toEqual([
-      message('hi'),
+      user('hi'),
       expect.objectContaining({
         content: 'hello',
         role: 'assistant',
@@ -123,7 +124,7 @@ describe('chat', () => {
       stopWhen: stepCountAtLeast(1),
     })
 
-    const result = await runner(createRunnerContext([message('hi')], { channel }))
+    const result = await runner(createRunnerContext([user('hi')], { channel }))
 
     expect(mock.bodies[0]?.messages).toEqual([
       { content: 'system instructions', role: 'system' },
@@ -155,10 +156,10 @@ describe('chat', () => {
       stopWhen: stepCountAtLeast(1),
     })
 
-    await runner(createRunnerContext([message('original')], {
+    await runner(createRunnerContext([user('original')], {
       prepareStep: ({ input }) => {
-        expect(input).toEqual([message('original')])
-        return { input: [...input, message('temporary')] }
+        expect(input).toEqual([user('original')])
+        return { input: [...input, user('temporary')] }
       },
     }))
 
@@ -179,7 +180,7 @@ describe('chat', () => {
       stopWhen: stepCountAtLeast(1),
     })
 
-    const result = await runner(createRunnerContext([message('hi')], {
+    const result = await runner(createRunnerContext([user('hi')], {
       tools: [{
         execute: () => 'tool result',
         function: { name: 'test-tool', parameters: {} },

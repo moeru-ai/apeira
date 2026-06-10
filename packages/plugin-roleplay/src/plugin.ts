@@ -8,10 +8,11 @@ import type {
 } from './types'
 import type { CBSContext } from './utils/cbs'
 
+import { assistant, system } from '@apeira/core'
+
 import { name, version } from '../package.json'
 import { renderCBS } from './utils/cbs'
 import { selectGreeting } from './utils/greeting'
-import { assistantMessage, systemMessage } from './utils/message'
 import { normalizeCard } from './utils/normalize'
 import {
   assembleCharacterDefinition,
@@ -59,7 +60,7 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
     const rendered = renderCBS(selected.greeting, createCBSContext(new Map())).text
 
     if (activeAgent.getInput().length === 0 && rendered.length > 0)
-      activeAgent.setInput([assistantMessage(rendered)])
+      activeAgent.setInput([assistant(rendered)])
 
     return rendered.length > 0
   }
@@ -102,10 +103,10 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
       const definition = assembleCharacterDefinition(getCard(), context)
       const postHistoryInstructions = assemblePostHistoryInstructions(getCard(), context)
       const characterInput: ItemParam[] = definition.length > 0
-        ? [systemMessage(definition)]
+        ? [system(definition)]
         : []
       const postHistoryInput: ItemParam[] = postHistoryInstructions.length > 0
-        ? [systemMessage(postHistoryInstructions)]
+        ? [system(postHistoryInstructions)]
         : []
       const temporaryInput = [
         ...characterInput,

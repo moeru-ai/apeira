@@ -1,17 +1,5 @@
 import type { ItemParam } from '@apeira/core'
 
-export const userMessage = (content: string): ItemParam => ({
-  content,
-  role: 'user',
-  type: 'message',
-})
-
-export const assistantMessage = (text: string): ItemParam => ({
-  content: [{ text, type: 'output_text' }],
-  role: 'assistant',
-  type: 'message',
-})
-
 export const createMockFetch = (opts?: {
   responseItem?: ItemParam | ItemParam[]
   responseText?: string | string[]
@@ -34,9 +22,10 @@ export const createMockFetch = (opts?: {
     callIndex++
 
     const encoder = new TextEncoder()
+    const defaultAssistant: ItemParam = { content: [{ text, type: 'output_text' }], role: 'assistant', type: 'message' }
     const assistant = Array.isArray(responseItem)
-      ? (responseItem[callIndex - 1] ?? responseItem.at(-1) ?? assistantMessage(text))
-      : responseItem ?? assistantMessage(text)
+      ? (responseItem[callIndex - 1] ?? responseItem.at(-1) ?? defaultAssistant)
+      : responseItem ?? defaultAssistant
 
     return new Response(new ReadableStream({
       start: (controller) => {

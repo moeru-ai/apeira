@@ -4,18 +4,6 @@ import { sleep } from '@moeru/std/sleep'
 
 export { sleep }
 
-export const message = (content: string): ItemParam => ({
-  content,
-  role: 'user',
-  type: 'message',
-})
-
-export const assistantMessage = (text: string): ItemParam => ({
-  content: [{ text, type: 'output_text' }],
-  role: 'assistant',
-  type: 'message',
-})
-
 export const createMockFetch = (opts?: { delayMs?: number, responseText?: string | string[] }) => {
   const { delayMs = 0, responseText = 'hello' } = opts ?? {}
   const bodies: Array<{ input: unknown[], instructions?: unknown, tools?: unknown[] }> = []

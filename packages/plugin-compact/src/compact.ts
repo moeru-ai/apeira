@@ -2,7 +2,7 @@ import type { CreateAgentOptions, ItemParam, Runner } from '@apeira/core'
 
 import type { RetainedMessage } from './split'
 
-import { createAgent, run } from '@apeira/core'
+import { createAgent, developer, run, user } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
@@ -34,18 +34,6 @@ export interface CompactHistoryResult {
   input: ItemParam[]
   summary: string
 }
-
-const userMessage = (content: string): ItemParam => ({
-  content,
-  role: 'user',
-  type: 'message',
-})
-
-const developerMessage = (content: string): ItemParam => ({
-  content,
-  role: 'developer',
-  type: 'message',
-})
 
 const extractAssistantSummary = (items: ItemParam[]): string => {
   for (const item of items.toReversed()) {
@@ -85,8 +73,8 @@ export const assembleCompactedInput = (
   retainedUserMessages: RetainedMessage[],
   preservedTurns: ItemParam[],
 ): ItemParam[] => [
-  ...retainedUserMessages.map(retained => userMessage(retained.text)),
-  userMessage(`[Context Summary]\n${summary}`),
+  ...retainedUserMessages.map(retained => user(retained.text)),
+  user(`[Context Summary]\n${summary}`),
   ...preservedTurns,
 ]
 
@@ -98,7 +86,7 @@ export const hardTruncateInput = (
   const { preserved } = splitWithEmergencyPreserve(items, preserveTurns, contextLength)
 
   return [
-    developerMessage(HARD_TRUNCATION_MESSAGE),
+    developer(HARD_TRUNCATION_MESSAGE),
     ...preserved,
   ]
 }
@@ -135,7 +123,7 @@ export const executeCompact = async ({
   })
 
   try {
-    for await (const event of run(tempAgent, userMessage('Summarize the conversation.'), { signal })) {
+    for await (const event of run(tempAgent, user('Summarize the conversation.'), { signal })) {
       if (event.type === 'turn.failed')
         throw event.error
 

@@ -62,12 +62,6 @@ export const createV3Card = (
   spec_version: '3.0',
 })
 
-export const userMessage = (content: string): ItemParam => ({
-  content,
-  role: 'user',
-  type: 'message',
-})
-
 export const createMockFetch = (responseText = 'response') => {
   const bodies: Array<{ input: ItemParam[], instructions?: string }> = []
 

@@ -1,10 +1,10 @@
 import type { Agent, AgentEventListener } from '@apeira/core'
 
-import { createAgent, responses, run } from '@apeira/core'
+import { assistant, createAgent, responses, run, user } from '@apeira/core'
 import { describe, expect, it, vi } from 'vitest'
 
 import { compact } from '../src/index'
-import { assistantMessage, createMockFetch, userMessage } from './_shared'
+import { createMockFetch } from './_shared'
 
 describe('compact plugin', () => {
   it('fails fast when prepareStep runs before plugin initialization', async () => {
@@ -21,7 +21,7 @@ describe('compact plugin', () => {
     })
 
     await expect(plugin.prepareStep?.({
-      input: [userMessage('live')],
+      input: [user('live')],
       model: 'main-model',
       stepNumber: 0,
       steps: [],
@@ -34,10 +34,10 @@ describe('compact plugin', () => {
 
     const agent = createAgent({
       input: [
-        userMessage('old one'),
-        assistantMessage('old answer one'),
-        userMessage('old two'),
-        assistantMessage('old answer two'),
+        user('old one'),
+        assistant('old answer one'),
+        user('old two'),
+        assistant('old answer two'),
       ],
       instructions: 'main',
       plugins: [
@@ -63,31 +63,31 @@ describe('compact plugin', () => {
       state: { contextLength: 1000 },
     })
 
-    for await (const event of run(agent, userMessage('trigger compact')))
+    for await (const event of run(agent, user('trigger compact')))
       void event
 
     expect(summarizer.bodies).toHaveLength(0)
 
-    for await (const event of run(agent, userMessage('after compact')))
+    for await (const event of run(agent, user('after compact')))
       void event
 
     expect(summarizer.bodies).toHaveLength(1)
     expect(main.bodies[1]?.input).toEqual([
-      userMessage('old one'),
-      userMessage('old two'),
-      userMessage('[Context Summary]\ncheckpoint summary'),
-      userMessage('trigger compact'),
-      assistantMessage('first'),
-      userMessage('after compact'),
+      user('old one'),
+      user('old two'),
+      user('[Context Summary]\ncheckpoint summary'),
+      user('trigger compact'),
+      assistant('first'),
+      user('after compact'),
     ])
     expect(agent.getInput()).toEqual([
-      userMessage('old one'),
-      userMessage('old two'),
-      userMessage('[Context Summary]\ncheckpoint summary'),
-      userMessage('trigger compact'),
-      assistantMessage('first'),
-      userMessage('after compact'),
-      assistantMessage('second'),
+      user('old one'),
+      user('old two'),
+      user('[Context Summary]\ncheckpoint summary'),
+      user('trigger compact'),
+      assistant('first'),
+      user('after compact'),
+      assistant('second'),
     ])
   })
 
@@ -96,10 +96,10 @@ describe('compact plugin', () => {
     let listener: AgentEventListener | undefined
     const setInput = vi.fn()
     const historicalInput = [
-      userMessage('old'),
-      assistantMessage('old answer'),
-      userMessage('recent'),
-      assistantMessage('recent answer'),
+      user('old'),
+      assistant('old answer'),
+      user('recent'),
+      assistant('recent answer'),
     ]
     const plugin = compact({
       compactAgent: {
@@ -142,7 +142,7 @@ describe('compact plugin', () => {
     for (let i = 0; i < 3; i++) {
       listener?.({ turnId: `turn-${i}`, type: 'turn.start' })
       result = await plugin.prepareStep?.({
-        input: [...historicalInput, userMessage('live')],
+        input: [...historicalInput, user('live')],
         model: 'main-model',
         stepNumber: 0,
         steps: [],
@@ -160,8 +160,8 @@ describe('compact plugin', () => {
         role: 'developer',
         type: 'message',
       },
-      userMessage('recent'),
-      assistantMessage('recent answer'),
+      user('recent'),
+      assistant('recent answer'),
     ])
     warn.mockRestore()
   })
@@ -169,10 +169,10 @@ describe('compact plugin', () => {
   it('keeps all live input items out of the compacted historical region', async () => {
     const summarizer = createMockFetch({ responseText: 'multi-live summary' })
     const historicalInput = [
-      userMessage('old one'),
-      assistantMessage('old answer one'),
-      userMessage('old two'),
-      assistantMessage('old answer two'),
+      user('old one'),
+      assistant('old answer one'),
+      user('old two'),
+      assistant('old answer two'),
     ]
     const setInput = vi.fn()
     const plugin = compact({
@@ -210,25 +210,25 @@ describe('compact plugin', () => {
     const result = await plugin.prepareStep?.({
       input: [
         ...historicalInput,
-        userMessage('live one'),
-        userMessage('live two'),
+        user('live one'),
+        user('live two'),
       ],
       model: 'main-model',
       stepNumber: 0,
       steps: [],
     })
 
-    expect(summarizer.bodies[0]?.input).not.toContainEqual(userMessage('live one'))
-    expect(summarizer.bodies[0]?.input).not.toContainEqual(userMessage('live two'))
+    expect(summarizer.bodies[0]?.input).not.toContainEqual(user('live one'))
+    expect(summarizer.bodies[0]?.input).not.toContainEqual(user('live two'))
     expect(result?.input?.slice(-2)).toEqual([
-      userMessage('live one'),
-      userMessage('live two'),
+      user('live one'),
+      user('live two'),
     ])
     expect(setInput).toHaveBeenCalledWith([
-      userMessage('old one'),
-      userMessage('[Context Summary]\nmulti-live summary'),
-      userMessage('old two'),
-      assistantMessage('old answer two'),
+      user('old one'),
+      user('[Context Summary]\nmulti-live summary'),
+      user('old two'),
+      assistant('old answer two'),
     ])
   })
 })
