@@ -42,8 +42,8 @@ const turnId = agent.send({
 })
 ```
 
-`send()` returns a turn id immediately. If a turn is already active or scheduled,
-the input is queued for that turn and the returned id is the existing turn id.
+`send()` returns a turn id immediately. If a turn is already active, the input
+is queued for that turn and the returned id is the existing turn id.
 Turn progress is reported through subscribed events.
 
 Interrupt the active turn and record a model-visible turn-aborted boundary:
@@ -64,8 +64,8 @@ successfully, only the new working episodes are merged back. Failed or aborted
 turns are discarded, except `interrupt()` records a boundary for the next turn.
 
 Top-level turns submitted to the same agent with `run()` run one at a time. If
-`send()` is called while a turn is active or scheduled on that agent, the new
-input is drained into that turn after the current model response completes.
+`send()` is called while a turn is active on that agent, the new input is
+drained into that turn after the current model response completes.
 
 The agent emits Apeira lifecycle events:
 

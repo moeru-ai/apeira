@@ -53,7 +53,8 @@ run(agentA, input) // starts immediately
 run(agentB, input) // starts immediately, runs in parallel
 ```
 
-`send()` queues input into the active turn if one exists, or creates a new turn. If the active turn is already aborted, input targets the next scheduled turn.
+`send()` queues input into the active turn if one exists, or creates a new
+top-level turn.
 
 ## Interrupt vs abort vs clear vs remove
 

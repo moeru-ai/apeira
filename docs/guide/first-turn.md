@@ -58,7 +58,8 @@ const turnId = agent.send({
 unsubscribe()
 ```
 
-If no turn is active or scheduled, `send()` creates a new top-level turn. If a turn is already active or scheduled, it queues the input for that turn and returns the existing turn ID.
+If a turn is already active, `send()` queues the input for that turn and returns
+the existing turn ID. If no turn is active, it creates a new top-level turn.
 
 ## Per-turn abort
 

@@ -103,7 +103,8 @@ const turnId = agent.send({
 })
 ```
 
-If no turn is active or scheduled, a new top-level turn is created. If a turn is active or scheduled, input is queued for that turn and the returned ID is the existing turn ID. If the active turn is already aborted, input targets the next scheduled turn.
+If a turn is active, input is queued for that turn and the returned ID is the
+existing turn ID. If no turn is active, a new top-level turn is created.
 
 ### run()
 
