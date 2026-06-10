@@ -10,7 +10,6 @@ export default defineConfig({
       { link: '/getting-started', text: 'Getting Started' },
       { link: '/guide/first-turn', text: 'Guide' },
       { link: '/plugins/', text: 'Plugins' },
-      { link: '/reference/core', text: 'Reference' },
     ],
 
     search: { provider: 'local' },
