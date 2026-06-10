@@ -32,7 +32,7 @@ interface ExtendOptions {
 ### Lifecycle hooks
 
 - `init(agent)` — called before the first turn runs. Use `agent.subscribe()` and `agent.emit()` for custom channels. See [Channels](#channels) below.
-- `stop()` — called when the agent is stopped or removed. Use it to clean up resources.
+- `stop()` — called when the agent is stopped. Use it to clean up resources.
 
 ### Instruction and tool hooks
 

@@ -56,14 +56,13 @@ run(agentB, input) // starts immediately, runs in parallel
 `send()` queues input into the active turn if one exists, or creates a new
 top-level turn.
 
-## Interrupt vs abort vs clear vs remove
+## Interrupt vs abort vs clear
 
 | Method | Clears queue | Resets input history | Resets state |
 |--------|--------------|---------------------|--------------|
 | `interrupt(reason)` | No | No | No |
 | `abort(reason)` | No | No | No |
 | `clear()` | Yes | Yes | Yes |
-| `remove()` | Yes | No | No |
 
 **Interrupt** aborts the active turn and records a model-visible `<turn_aborted>` boundary in the input history. The queue continues.
 
@@ -83,11 +82,7 @@ agent.abort('user cancelled')
 agent.clear()
 ```
 
-**Remove** aborts active work and removes queued turns. Unlike `clear()`, it does not reset input history or state. Other agent methods remain usable after removal.
 
-```ts
-await agent.remove()
-```
 
 ## State
 

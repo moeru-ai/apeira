@@ -10,7 +10,6 @@ export interface AgentQueue {
   clear: () => void
   getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => string | undefined
-  remove: () => Promise<void>
   send: (item: AgentInput, options?: AgentSendOptions) => string
 }
 
@@ -140,12 +139,6 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     return active?.id
   }
 
-  const remove: AgentQueue['remove'] = async () => {
-    activeTurn?.controller.abort('removed')
-    pendingInput.length = 0
-    await pumpReady
-  }
-
   const send: AgentQueue['send'] = (item, options) => {
     const active = activeTurn?.controller.signal.aborted !== true ? activeTurn : undefined
 
@@ -167,7 +160,6 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     clear,
     getActiveTurnId,
     interrupt,
-    remove,
     send,
   }
 }

@@ -152,14 +152,6 @@ Aborts the running turn, clears queued turns, resets the input history to the or
 agent.clear()
 ```
 
-### remove()
-
-Aborts active work and removes queued turns. Unlike `clear()`, it does not reset input history or state. Other agent methods remain usable after removal.
-
-```ts
-await agent.remove()
-```
-
 ### subscribe('apeira')
 
 Subscribes to all core events from the agent.
@@ -198,7 +190,6 @@ interface AgentQueue {
   clear: () => void
   getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => string | undefined
-  remove: () => Promise<void>
   send: (item: AgentInput, options?: AgentSendOptions) => string
 }
 ```

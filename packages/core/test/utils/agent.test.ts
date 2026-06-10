@@ -437,20 +437,6 @@ describe('queue', () => {
     expect(instructions).toEqual(['8000'])
   })
 
-  it('remove aborts active turn and waits for completion', async () => {
-    const { agent } = createTestAgent({ delayMs: 100 })
-    const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
-
-    const turnId = agent.send(user('hi'))
-    await sleep(10)
-    await agent.remove()
-
-    unsubscribe()
-    const turnEvents = events.filter(e => e.turnId === turnId)
-    expect(turnEvents.some(e => e.type === 'turn.aborted' && e.reason === 'removed')).toBe(true)
-  })
-
   it('aborts turn when send signal is aborted', async () => {
     const { agent } = createTestAgent({ delayMs: 100 })
     const events: AgentEvent[] = []
@@ -467,22 +453,6 @@ describe('queue', () => {
     expect(events.filter(e => e.turnId === turnId).some(e => e.type === 'turn.aborted')).toBe(true)
   })
 
-  it('aborts turn when run stream is cancelled', async () => {
-    const { agent } = createTestAgent({ delayMs: 100 })
-    const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
-
-    const stream = run(agent, user('hi'))
-    const reader = stream.getReader()
-    await sleep(10)
-    await reader.cancel()
-
-    await sleep(150)
-    unsubscribe()
-
-    expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'stream cancelled')).toBe(true)
-  })
-
   it('unsubscribes when run send throws synchronously', async () => {
     const unsubscribe = vi.fn()
     const error = new Error('send failed')
@@ -495,7 +465,6 @@ describe('queue', () => {
       getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
-      remove: vi.fn(),
       send: vi.fn(() => {
         throw error
       }),
@@ -521,7 +490,6 @@ describe('queue', () => {
       getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
-      remove: vi.fn(),
       send: vi.fn(() => {
         listener?.({ turnId: 'other-turn', type: 'turn.queued' })
         queueMicrotask(() => {
@@ -563,7 +531,6 @@ describe('queue', () => {
       getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
-      remove: vi.fn(),
       send: vi.fn(() => {
         queueMicrotask(() => {
           listener?.({ turnId: 'new-turn', type: 'turn.start' })
