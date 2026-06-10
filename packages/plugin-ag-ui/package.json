@@ -2,7 +2,7 @@
   "name": "@apeira/plugin-ag-ui",
   "type": "module",
   "version": "0.0.4",
-  "description": "stream-first Agent Runtime.",
+  "description": "Bridge Apeira events to the AG-UI protocol for compatible frontends.",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",

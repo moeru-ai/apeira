@@ -2,7 +2,7 @@
   "name": "@apeira/plugin-mcp",
   "type": "module",
   "version": "0.0.4",
-  "description": "stream-first Agent Runtime.",
+  "description": "Expose Model Context Protocol server tools to Apeira agents.",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",
