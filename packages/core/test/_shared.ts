@@ -1,5 +1,3 @@
-import type { ItemParam } from '../src/index'
-
 import { sleep } from '@moeru/std/sleep'
 
 export { sleep }

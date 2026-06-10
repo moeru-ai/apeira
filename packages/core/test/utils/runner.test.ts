@@ -3,9 +3,8 @@ import type { AgentEvent, AgentInput, RunnerContext } from '../../src/index'
 import { stepCountAtLeast } from '@xsai/shared-chat'
 import { describe, expect, it } from 'vitest'
 
-import { chat, createAgent, responses, run } from '../../src/index'
+import { chat, createAgent, responses, run, user } from '../../src/index'
 import { createAgentChannel } from '../../src/utils/channel'
-import { user } from '../../src/index'
 import { createMockFetch } from '../_shared'
 
 const createRunnerContext = (

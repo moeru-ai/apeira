@@ -7,7 +7,6 @@ import {
   splitHistory,
 } from '../src/index'
 
-
 describe('splitHistory', () => {
   it('splits before the requested user turn from the end', () => {
     const input = [
