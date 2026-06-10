@@ -11,18 +11,17 @@ pnpm add @apeira/plugin-hitl
 ## Usage
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { commonTools } from '@apeira/plugin-common-tools'
 import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [
     humanInTheLoop({
       autoReview: autoReviewByPattern({

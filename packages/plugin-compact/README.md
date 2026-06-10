@@ -13,24 +13,24 @@ pnpm add @apeira/plugin-compact
 ## Usage
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { compact } from '@apeira/plugin-compact'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [
     compact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: process.env.OPENAI_API_KEY,
           baseURL: 'https://api.openai.com/v1/',
           model: 'gpt-5.5-mini',
-        },
+        }),
       },
       threshold: 0.9,
     }),
@@ -41,7 +41,7 @@ const agent = createAgent({
 })
 ```
 
-`compactAgent.options` should contain the credentials and model used for summarization. It can use a smaller or cheaper model than the main agent.
+`compactAgent.runner` configures the backend used for summarization. It can use a smaller or cheaper model than the main agent.
 
 ## How it works
 
@@ -68,7 +68,7 @@ Creates an Apeira plugin that automatically replaces old agent input with a comp
 interface CompactPluginOptions {
   compactAgent: {
     instructions?: CreateAgentOptions['instructions']
-    options: CreateAgentOptions['options']
+    runner: Runner
   }
   maxRetainedUserTokens?: number
   preserveTurns?: number
@@ -78,7 +78,7 @@ interface CompactPluginOptions {
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `compactAgent` | `{ instructions?, options }` | — | Temporary agent configuration used to generate summaries. `options` is required. |
+| `compactAgent` | `{ instructions?, runner }` | — | Temporary agent configuration used to generate summaries. |
 | `maxRetainedUserTokens` | `number` | `8192` | Approximate token budget for older user messages kept outside the summary. |
 | `preserveTurns` | `number` | `2` | Number of most recent user turns to keep verbatim. |
 | `threshold` | `number` | `0.9` | Compaction threshold as a fraction of `state.contextLength`. |

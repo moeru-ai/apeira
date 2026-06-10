@@ -17,9 +17,9 @@ export type AgentFunctionCallInput = Extract<ItemParam, { type: 'function_call' 
 
 export type AgentFunctionCallOutputInput = Extract<ItemParam, { type: 'function_call_output' }>
 
-export type AgentInput = AgentAssistantMessageInput | AgentCompactionInput | AgentDeveloperMessageInput | AgentFunctionCallInput | AgentFunctionCallOutputInput | AgentItemReferenceInput | AgentReasoningInput | AgentSystemMessageInput | AgentUserMessageInput
+export type AgentInput = AgentAssistantMessageInput | Exclude<ItemParam, { role: 'assistant' }>
 
-export type AgentItemReferenceInput = Extract<ItemParam, { type: 'item_reference' }>
+export type AgentItemReferenceInput = Extract<ItemParam, { id: string }>
 
 export type AgentReasoningInput = Extract<ItemParam, { type: 'reasoning' }>
 

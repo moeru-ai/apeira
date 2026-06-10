@@ -16,15 +16,15 @@ const agent = createAgent({
     },
   ],
   instructions: 'You are a helpful assistant.',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
 })
 ```
 
-Initial `input` seeds the agent's history. When a turn starts, Apeira appends the new input, assembles model input from the accumulated history, and forwards it to `@xsai-ext/responses`. On success, the model output is appended to the history.
+Initial `input` seeds the agent's history. When a turn starts, Apeira appends the new input and passes the accumulated history to the configured runner. On success, the model output is appended to the history.
 
 You can read the current accumulated input at any time:
 
@@ -95,7 +95,11 @@ Agent `state` is a plain object that plugins and instructions can read and write
 ```ts
 const agent = createAgent({
   instructions: state => `You are helping ${state.userId ?? 'a user'}.`,
-  options: {},
+  runner: responses({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
   state: { userId: 'user_123' },
 })
 ```

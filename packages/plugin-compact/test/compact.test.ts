@@ -1,3 +1,4 @@
+import { responses } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
 
 import { executeCompact, hardTruncateInput } from '../src/index'
@@ -15,12 +16,12 @@ describe('executeCompact', () => {
 
     const result = await executeCompact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: 'test',
           baseURL: 'https://test',
           fetch: mock.fetch,
           model: 'compact-model',
-        },
+        }),
       },
       contextLength: 1000,
       input,
@@ -49,12 +50,12 @@ describe('executeCompact', () => {
 
     await expect(executeCompact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: 'test',
           baseURL: 'https://test',
           fetch: mock.fetch,
           model: 'compact-model',
-        },
+        }),
       },
       contextLength: 1000,
       input: [

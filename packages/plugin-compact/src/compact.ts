@@ -1,4 +1,4 @@
-import type { CreateAgentOptions, ItemParam } from '@apeira/core'
+import type { CreateAgentOptions, ItemParam, Runner } from '@apeira/core'
 
 import type { RetainedMessage } from './split'
 
@@ -19,7 +19,7 @@ import {
 
 export interface CompactAgentOptions {
   instructions?: CreateAgentOptions['instructions']
-  options: CreateAgentOptions['options']
+  runner: Runner
 }
 
 export interface CompactHistoryOptions {
@@ -130,8 +130,8 @@ export const executeCompact = async ({
   const tempAgent = createAgent({
     input: compactInput,
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
-    options: compactAgent.options,
     plugins: [],
+    runner: compactAgent.runner,
   })
 
   try {

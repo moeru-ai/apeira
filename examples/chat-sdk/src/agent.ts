@@ -1,6 +1,6 @@
 import { env } from 'node:process'
 
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { commonTools } from '@apeira/plugin-common-tools'
 
 const model = env.APEIRA_MODEL ?? 'qwen3.5:0.8b'
@@ -11,12 +11,12 @@ export const createChatAgent = (input?: Parameters<typeof createAgent>[0]['input
   createAgent({
     input,
     instructions: 'You are a helpful assistant.',
-    options: {
-      apiKey,
-      baseURL,
-      model,
-    },
     plugins: [
       commonTools({ include: ['search', 'fetch'] }),
     ],
+    runner: responses({
+      apiKey,
+      baseURL,
+      model,
+    }),
   })

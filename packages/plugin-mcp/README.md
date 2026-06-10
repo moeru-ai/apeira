@@ -13,17 +13,16 @@ pnpm add @apeira/plugin-mcp
 ### JS config
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { mcp } from '@apeira/plugin-mcp'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [
     mcp({
       mcpServers: {
@@ -48,19 +47,18 @@ const agent = createAgent({
 ### JSON config
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { mcp } from '@apeira/plugin-mcp'
 
 import config from '../.mcp.json'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [
     mcp(config),
   ],

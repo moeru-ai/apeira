@@ -1,5 +1,6 @@
 import type { HITLRequestEvent } from '@apeira/plugin-hitl'
 
+import { responses } from '@apeira/core'
 import { agui } from '@apeira/plugin-ag-ui'
 import { hitl } from '@apeira/plugin-hitl'
 import {
@@ -30,14 +31,6 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
 
   const agent = useMemo(() => new AbstractApeiraAgent({
     instructions: DEFAULT_INSTRUCTIONS,
-    options: {
-      apiKey,
-      baseURL,
-      model,
-      tools: [
-        weatherTool,
-      ],
-    },
     plugins: [
       hitl({
         toolPolicies: {
@@ -48,6 +41,14 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
       }),
       agui({ threadId }),
     ],
+    runner: responses({
+      apiKey,
+      baseURL,
+      model,
+      tools: [
+        weatherTool,
+      ],
+    }),
   }, onThreadUpdated, threadId), [apiKey, baseURL, model, onThreadUpdated, threadId])
 
   useEffect(() => {

@@ -1,12 +1,12 @@
-import type { ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
+import type { AgentInput } from '../types/input'
 import type { Agent } from './agent'
 import type { AgentSendOptions } from './queue'
 
 const isTerminalTurnEvent = (event: AgentEvent) =>
   event.type === 'turn.done' || event.type === 'turn.failed' || event.type === 'turn.aborted'
 
-export const run = (agent: Agent, input: ItemParam, options?: AgentSendOptions) => {
+export const run = (agent: Agent, input: AgentInput, options?: AgentSendOptions) => {
   let turnId: string | undefined
   let unsubscribe: (() => void) | undefined
 

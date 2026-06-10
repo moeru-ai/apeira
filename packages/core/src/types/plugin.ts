@@ -1,8 +1,14 @@
-import type { ResponsesOptions } from '@xsai-ext/responses'
-import type { Tool } from '@xsai/shared-chat'
+import type {
+  CompletionStep,
+  PostToolCall,
+  PrepareStep,
+  PreToolCall,
+  Tool,
+} from '@xsai/shared-chat'
 
 import type { Agent } from '../utils/agent'
 import type { MaybePromise } from './base'
+import type { AgentInput } from './input'
 import type { AgentState } from './state'
 
 export interface AgentPlugin {
@@ -11,11 +17,11 @@ export interface AgentPlugin {
   extendTools?: (options: ExtendOptions) => MaybePromise<Tool[] | void>
   init?: (agent: Agent) => MaybePromise<void>
   name: string
-  onFinish?: ResponsesOptions['onFinish']
-  onStepFinish?: ResponsesOptions['onStepFinish']
-  postToolCall?: ResponsesOptions['postToolCall']
-  prepareStep?: ResponsesOptions['prepareStep']
-  preToolCall?: ResponsesOptions['preToolCall']
+  onFinish?: (step?: CompletionStep) => MaybePromise<unknown>
+  onStepFinish?: (step: CompletionStep) => MaybePromise<unknown>
+  postToolCall?: PostToolCall
+  prepareStep?: PrepareStep<AgentInput[], unknown>
+  preToolCall?: PreToolCall
   stop?: () => MaybePromise<void>
   version?: string
 }

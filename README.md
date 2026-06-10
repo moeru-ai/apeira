@@ -5,19 +5,18 @@ stream-first Agent Runtime.
 ## Usage
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses, run } from '@apeira/core'
 
 const agent = createAgent({
   instructions: 'You are a concise assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
 })
 
-const eventStream = agent.run({
+const eventStream = run(agent, {
   content: 'Say hello.',
   role: 'user',
   type: 'message',

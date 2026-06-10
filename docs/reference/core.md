@@ -3,9 +3,9 @@
 The core API is exported from both `apeira` and `@apeira/core`.
 
 ```ts
-import { createAgent, run } from 'apeira'
+import { chat, createAgent, responses, run } from 'apeira'
 // or
-import { createAgent, run } from '@apeira/core'
+import { chat, createAgent, responses, run } from '@apeira/core'
 ```
 
 ## createAgent()
@@ -13,11 +13,11 @@ import { createAgent, run } from '@apeira/core'
 ```ts
 const agent = createAgent({
   instructions: 'You are a concise assistant.',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
 })
 ```
 
@@ -25,16 +25,27 @@ const agent = createAgent({
 
 ```ts
 interface CreateAgentOptions {
-  input?: ItemParam[]
+  input?: AgentInput[]
   instructions: ((state: AgentState) => Promise<string> | string) | string
-  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
   plugins?: AgentPluginOption[]
+  runner: Runner
   state?: AgentState
 }
 ```
 
-`options` are xsAI response options. Apeira owns the input state, instructions, and abort signal for each turn.
+Use `responses(options)` for the Responses API or `chat(options)` for Chat Completions. Apeira owns the input state, instructions, and abort signal for each turn.
 `input` seeds the agent's history.
+
+```ts
+const agent = createAgent({
+  instructions: 'You are a concise assistant.',
+  runner: chat({
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: 'https://api.openai.com/v1/',
+    model: 'gpt-5.5',
+  }),
+})
+```
 
 ## Agent
 
@@ -190,4 +201,3 @@ interface AgentQueue {
   send: (item: ItemParam, options?: AgentSendOptions) => string
 }
 ```
-

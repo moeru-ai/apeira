@@ -1,6 +1,6 @@
 import type { Agent, AgentEventListener } from '@apeira/core'
 
-import { createAgent, run } from '@apeira/core'
+import { createAgent, responses, run } from '@apeira/core'
 import { describe, expect, it, vi } from 'vitest'
 
 import { compact } from '../src/index'
@@ -10,12 +10,12 @@ describe('compact plugin', () => {
   it('fails fast when prepareStep runs before plugin initialization', async () => {
     const plugin = compact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: 'test',
           baseURL: 'https://test',
           fetch: createMockFetch().fetch,
           model: 'compact-model',
-        },
+        }),
       },
       threshold: 0,
     })
@@ -40,26 +40,26 @@ describe('compact plugin', () => {
         assistantMessage('old answer two'),
       ],
       instructions: 'main',
-      options: {
-        apiKey: 'test',
-        baseURL: 'https://test',
-        fetch: main.fetch,
-        model: 'main-model',
-      },
       plugins: [
         compact({
           compactAgent: {
-            options: {
+            runner: responses({
               apiKey: 'test',
               baseURL: 'https://test',
               fetch: summarizer.fetch,
               model: 'compact-model',
-            },
+            }),
           },
           preserveTurns: 1,
           threshold: 0.9,
         }),
       ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'main-model',
+      }),
       state: { contextLength: 1000 },
     })
 
@@ -103,14 +103,14 @@ describe('compact plugin', () => {
     ]
     const plugin = compact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: 'test',
           baseURL: 'https://test',
           fetch: async () => {
             throw new Error('summarizer down')
           },
           model: 'compact-model',
-        },
+        }),
       },
       preserveTurns: 1,
       threshold: 0.001,
@@ -177,12 +177,12 @@ describe('compact plugin', () => {
     const setInput = vi.fn()
     const plugin = compact({
       compactAgent: {
-        options: {
+        runner: responses({
           apiKey: 'test',
           baseURL: 'https://test',
           fetch: summarizer.fetch,
           model: 'compact-model',
-        },
+        }),
       },
       preserveTurns: 1,
       threshold: 0.001,

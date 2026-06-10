@@ -2,12 +2,18 @@ import type { ItemParam } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, run } from '@apeira/core'
+import { createAgent, responses, run } from '@apeira/core'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
 
 import { roleplay } from '../src'
 import { createMockFetch, createV3Card, userMessage } from './_shared'
+
+const runner = responses({
+  apiKey: 'test',
+  baseURL: 'https://test',
+  model: 'test',
+})
 
 const assistantText = (item: ItemParam | undefined) => {
   if (item?.type !== 'message' || item.role !== 'assistant' || !Array.isArray(item.content))
@@ -20,11 +26,6 @@ describe('roleplay plugin', () => {
   it('initializes the selected greeting', async () => {
     const agent = createAgent({
       instructions: '',
-      options: {
-        apiKey: 'test',
-        baseURL: 'https://test',
-        model: 'test',
-      },
       plugins: [roleplay({
         card: createV3Card({
           alternate_greetings: ['Welcome, {{user}}.'],
@@ -32,6 +33,7 @@ describe('roleplay plugin', () => {
         }),
         greetingIndex: 1,
       })],
+      runner,
       state: { userName: 'Alice' },
     })
     const events: RoleplayEvent[] = []
@@ -53,16 +55,16 @@ describe('roleplay plugin', () => {
     const agent = createAgent({
       input: [restored],
       instructions: '',
-      options: { apiKey: 'test', baseURL: 'https://test', model: 'test' },
       plugins: [roleplay({ card: createV3Card({ first_mes: 'Hello.' }) })],
+      runner,
     })
     await agent.init()
     expect(agent.getInput()).toEqual([restored])
 
     const emptyAgent = createAgent({
       instructions: '',
-      options: { apiKey: 'test', baseURL: 'https://test', model: 'test' },
       plugins: [roleplay({ card: createV3Card({ first_mes: '' }) })],
+      runner,
     })
     await emptyAgent.init()
     expect(emptyAgent.getInput()).toEqual([])
@@ -74,10 +76,10 @@ describe('roleplay plugin', () => {
       .mockReturnValueOnce(0.99)
     const agent = createAgent({
       instructions: '',
-      options: { apiKey: 'test', baseURL: 'https://test', model: 'test' },
       plugins: [roleplay({
         card: createV3Card({ first_mes: '{{pick:first,second}}' }),
       })],
+      runner,
     })
     const events: RoleplayEvent[] = []
     agent.subscribe('roleplay', event => events.push(event))
@@ -96,12 +98,6 @@ describe('roleplay plugin', () => {
     const mock = createMockFetch()
     const agent = createAgent({
       instructions: '',
-      options: {
-        apiKey: 'test',
-        baseURL: 'https://test',
-        fetch: mock.fetch,
-        model: 'test',
-      },
       plugins: [roleplay({
         card: createV3Card({
           creator_notes: 'Shown to the user, not the model.',
@@ -114,6 +110,12 @@ describe('roleplay plugin', () => {
           system_prompt: '{{original}}You are roleplaying as {{char}} for {{user}}.',
         }),
       })],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: mock.fetch,
+        model: 'test',
+      }),
       state: { userName: 'Alice' },
     })
     const events: RoleplayEvent[] = []
@@ -185,8 +187,8 @@ describe('roleplay plugin', () => {
     })
     const agent = createAgent({
       instructions: '',
-      options: { apiKey: 'test', baseURL: 'https://test', model: 'test' },
       plugins: [plugin],
+      runner,
     })
     await agent.init()
 
@@ -241,21 +243,15 @@ describe('roleplay plugin', () => {
         },
       ],
       instructions: '',
-      options: {
-        apiKey: 'test',
-        baseURL: 'https://test',
-        fetch: main.fetch,
-        model: 'test',
-      },
       plugins: [
         compact({
           compactAgent: {
-            options: {
+            runner: responses({
               apiKey: 'test',
               baseURL: 'https://test',
               fetch: summarizer.fetch,
               model: 'summary',
-            },
+            }),
           },
           preserveTurns: 1,
           threshold: 0,
@@ -267,6 +263,12 @@ describe('roleplay plugin', () => {
           }),
         }),
       ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'test',
+      }),
       state: { contextLength: 1_000 },
     })
 

@@ -1,8 +1,6 @@
-import type { ResponsesOptions } from '@xsai-ext/responses'
-
 import type { AgentPlugin, AgentPluginOption } from '../types/plugin'
 
-type PrepareStepHook = NonNullable<ResponsesOptions['prepareStep']>
+type PrepareStepHook = NonNullable<AgentPlugin['prepareStep']>
 
 export const normalizePlugins = (options: AgentPluginOption[]): AgentPlugin[] => {
   const plugins = options.flatMap((option) => {
@@ -39,7 +37,7 @@ export const chain = <H extends (...args: never[]) => unknown>(
 
 export const chainPrepareStep = (
   hooks: (PrepareStepHook | undefined)[],
-): ResponsesOptions['prepareStep'] => {
+): AgentPlugin['prepareStep'] => {
   const list = hooks.filter(Boolean) as PrepareStepHook[]
   if (list.length === 0)
     return undefined

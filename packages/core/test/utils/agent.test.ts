@@ -5,7 +5,7 @@ import type { Agent, AgentEvent, AgentPluginOption, AgentState, ItemParam } from
 import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createAgent, run } from '../../src/index'
+import { createAgent, responses, run } from '../../src/index'
 import { assistantMessage, createMockFetch, message, sleep } from '../_shared'
 
 const createTestAgent = (opts?: {
@@ -19,14 +19,14 @@ const createTestAgent = (opts?: {
   const agent = createAgent({
     input: opts?.input,
     instructions: opts?.instructions ?? 'You are a test assistant.',
-    options: {
+    plugins: opts?.plugins,
+    runner: responses({
       apiKey: 'test',
       baseURL: 'https://test',
       fetch: mock.fetch,
       model: 'test-model',
       stopWhen: stepCountAtLeast(1),
-    },
-    plugins: opts?.plugins,
+    }),
     state: opts?.state,
   })
   return { agent, ...mock }

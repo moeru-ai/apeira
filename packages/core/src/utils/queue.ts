@@ -1,7 +1,7 @@
-import type { ItemParam } from '../types/base'
 import type { AgentEvent } from '../types/event'
+import type { AgentInput } from '../types/input'
+import type { RunnerContext, RunnerResult } from '../types/runner'
 import type { AgentChannel } from './channel'
-import type { RunnerOptions, RunnerResult } from './runner'
 
 import Queue from 'yocto-queue'
 
@@ -11,12 +11,12 @@ export interface AgentQueue {
   getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => string | undefined
   remove: () => Promise<void>
-  send: (item: ItemParam, options?: AgentSendOptions) => string
+  send: (item: AgentInput, options?: AgentSendOptions) => string
 }
 
 export interface AgentQueueTurn {
   id: string
-  input: ItemParam[]
+  input: AgentInput[]
   signal?: AbortSignal
 }
 
@@ -27,12 +27,12 @@ export interface AgentSendOptions {
 export interface CreateAgentQueueOptions {
   channel: AgentChannel
   init?: () => Promise<void>
-  runner: (options: Omit<RunnerOptions, 'instructions' | 'options'>) => Promise<RunnerResult>
+  runner: (options: Pick<RunnerContext, 'abortSignal' | 'channel' | 'input' | 'turnId'>) => Promise<RunnerResult>
 }
 
 export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOptions): AgentQueue => {
   const pendingTurns = new Queue<AgentQueueTurn>()
-  const pendingInput: ItemParam[] = []
+  const pendingInput: AgentInput[] = []
   let activeTurn: undefined | { controller: AbortController, id: string }
   let pumping = false
   let pumpReady = Promise.resolve()

@@ -25,9 +25,18 @@ export type {
   AgentUserMessageInput,
 } from './types/input'
 export type { AgentPlugin, AgentPluginOption, ExtendOptions } from './types/plugin'
+export type {
+  ChatRunnerOptions,
+  ResponsesRunnerOptions,
+  Runner,
+  RunnerContext,
+  RunnerResult,
+} from './types/runner'
 export type { AgentState } from './types/state'
 export type { Agent, CreateAgentOptions } from './utils/agent'
 export { createAgent } from './utils/agent'
 export type { AgentChannel, AgentEventListener } from './utils/channel'
 export { fromChat, fromResponses, toChat, toResponses } from './utils/input'
 export { run } from './utils/run'
+export { chat } from './utils/runner-chat'
+export { responses } from './utils/runner-responses'

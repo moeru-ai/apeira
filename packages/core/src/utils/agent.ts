@@ -1,8 +1,8 @@
-import type { ResponsesOptions } from '@xsai-ext/responses'
 import type { Tool } from '@xsai/shared-chat'
 
-import type { ItemParam } from '../types/base'
+import type { AgentInput } from '../types/input'
 import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
+import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
 import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
@@ -12,22 +12,21 @@ import { merge } from '@moeru/std'
 import { createAgentChannel } from './channel'
 import { chain, chainPrepareStep, normalizePlugins } from './plugins'
 import { createAgentQueue } from './queue'
-import { runner } from './runner'
 
 export interface Agent extends AgentChannel, AgentQueue {
-  getInput: () => ItemParam[]
+  getInput: () => AgentInput[]
   getState: () => AgentState
   init: () => Promise<void>
-  setInput: (input: ItemParam[]) => void
+  setInput: (input: AgentInput[]) => void
   setState: (patch: Partial<AgentState>) => void
   stop: () => Promise<void>
 }
 
 export interface CreateAgentOptions {
-  input?: ItemParam[]
+  input?: AgentInput[]
   instructions: ((state: AgentState) => Promise<string> | string) | string
-  options: Omit<ResponsesOptions, 'abortSignal' | 'input' | 'instructions' | 'onFinish' | 'onStepFinish' | 'postToolCall' | 'prepareStep' | 'preToolCall'>
   plugins?: AgentPluginOption[]
+  runner: Runner
   state?: AgentState
 }
 
@@ -36,8 +35,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   let input = structuredClone(options.input ?? [])
   let state = structuredClone(options.state ?? {})
 
-  const responseOptions = {
-    ...options.options,
+  const hooks = {
     onFinish: chain('every', plugins.map(p => p.onFinish)),
     onStepFinish: chain('every', plugins.map(p => p.onStepFinish)),
     postToolCall: chain('some', plugins.map(p => p.postToolCall)),
@@ -113,14 +111,12 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
-      const result = await runner({
+      const result = await options.runner({
         ...opts,
+        ...hooks,
         input: [...input, ...opts.input],
         instructions,
-        options: {
-          ...responseOptions,
-          tools: [...(options.options.tools ?? []), ...tools],
-        },
+        tools,
       })
 
       input.push(...opts.input, ...result.output)

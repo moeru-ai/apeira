@@ -5,19 +5,19 @@ This page walks through creating an agent, submitting a turn, and consuming the 
 ## Create an agent
 
 ```ts
-import { createAgent } from 'apeira'
+import { createAgent, responses } from 'apeira'
 
 const agent = createAgent({
   instructions: 'You are a concise assistant.',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
 })
 ```
 
-`options` are forwarded to `@xsai-ext/responses` for model configuration. Apeira manages `input`, `instructions`, and `abortSignal` internally — you do not need to set them here.
+`responses()` configures the Responses backend. Use `chat()` instead for Chat Completions. Apeira manages `input`, `instructions`, and `abortSignal` internally.
 
 ## Run a turn
 

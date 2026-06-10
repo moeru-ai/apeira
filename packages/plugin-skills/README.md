@@ -13,7 +13,7 @@ pnpm add @apeira/plugin-skills
 ### Filesystem skill set (built-in, Node.js only)
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { skills } from '@apeira/plugin-skills'
 import { fsSkillSet } from '@apeira/plugin-skills/fs'
 
@@ -21,12 +21,11 @@ const skills = fsSkillSet({ directory: '.agents/skills' })
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [skills({ sets: [skills] })],
 })
 ```

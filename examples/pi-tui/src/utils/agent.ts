@@ -1,4 +1,4 @@
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { commonTools } from '@apeira/plugin-common-tools'
 import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
 import { skills } from '@apeira/plugin-skills'
@@ -14,11 +14,6 @@ export const skillSet = fsSkillSet({
 
 export const agent = createAgent({
   instructions,
-  options: {
-    apiKey,
-    baseURL,
-    model,
-  },
   plugins: [
     humanInTheLoop({
       autoReview: autoReviewByPattern({
@@ -32,4 +27,9 @@ export const agent = createAgent({
       sets: [skillSet],
     }),
   ],
+  runner: responses({
+    apiKey,
+    baseURL,
+    model,
+  }),
 })

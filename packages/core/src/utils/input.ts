@@ -51,7 +51,7 @@ export const toResponses = (inputs: readonly AgentInput[]): ItemParam[] =>
   })
 
 export const fromResponses = (inputs: ItemParam[]): AgentInput[] =>
-  inputs as AgentInput[]
+  inputs
 
 export const toChat = (inputs: readonly AgentInput[]): Message[] => {
   const partToChat = (part: ResponsesContentPart): ChatContentPart[] => {

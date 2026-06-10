@@ -11,17 +11,16 @@ pnpm add @apeira/plugin-ag-ui
 ## Usage
 
 ```ts
-import { createAgent } from '@apeira/core'
+import { createAgent, responses } from '@apeira/core'
 import { agui } from '@apeira/plugin-ag-ui'
 
 const agent = createAgent({
   instructions: 'You are a helpful assistant.',
-  name: 'assistant',
-  options: {
+  runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
-  },
+  }),
   plugins: [agui()],
 })
 ```
