@@ -1,5 +1,6 @@
 {
   "name": "@apeira/plugin-ag-ui",
+  "private": true,
   "type": "module",
   "version": "0.0.4",
   "description": "Bridge Apeira events to the AG-UI protocol for compatible frontends.",

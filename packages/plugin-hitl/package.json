@@ -1,5 +1,6 @@
 {
   "name": "@apeira/plugin-hitl",
+  "private": true,
   "type": "module",
   "version": "0.0.4",
   "description": "Human-in-the-loop tool approval for Apeira.",

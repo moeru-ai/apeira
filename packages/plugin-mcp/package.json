@@ -1,5 +1,6 @@
 {
   "name": "@apeira/plugin-mcp",
+  "private": true,
   "type": "module",
   "version": "0.0.4",
   "description": "Expose Model Context Protocol server tools to Apeira agents.",

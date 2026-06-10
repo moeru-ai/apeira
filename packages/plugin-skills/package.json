@@ -1,5 +1,6 @@
 {
   "name": "@apeira/plugin-skills",
+  "private": true,
   "type": "module",
   "version": "0.0.4",
   "description": "A skill system for Apeira with multi-source support.",

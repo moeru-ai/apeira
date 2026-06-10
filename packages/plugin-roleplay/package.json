@@ -1,5 +1,6 @@
 {
   "name": "@apeira/plugin-roleplay",
+  "private": true,
   "type": "module",
   "version": "0.0.4",
   "description": "Character-card-driven roleplay for Apeira agents.",
