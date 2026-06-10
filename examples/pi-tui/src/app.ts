@@ -507,8 +507,8 @@ export const createPiTuiExampleApp = () => {
 
       case 'reasoning.done': {
         const entry = ensureReasoningEntry(event.turnId)
-        if (event.text.length > 0)
-          entry.text = event.text
+        if (event.content.length > 0)
+          entry.text = event.content
         break
       }
 
@@ -522,8 +522,8 @@ export const createPiTuiExampleApp = () => {
 
       case 'text.done': {
         const entry = ensureAssistantEntry(event.turnId)
-        if (event.text.length > 0)
-          entry.text = event.text
+        if (event.content.length > 0)
+          entry.text = event.content
         break
       }
 
@@ -532,31 +532,31 @@ export const createPiTuiExampleApp = () => {
         break
 
       case 'tool-call.done': {
-        const args = parseToolArguments(event.toolCall.arguments)
-        const entry = pushEntry('tool', formatToolCallSummary(event.toolCall.name, args), {
+        const args = parseToolArguments(event.args)
+        const entry = pushEntry('tool', formatToolCallSummary(event.toolName, args), {
           state: 'running',
-          title: event.toolCall.name,
+          title: event.toolName,
         })
-        toolEntries.set(event.toolCall.id, entry)
-        toolArguments.set(event.toolCall.id, args)
+        toolEntries.set(event.toolCallId, entry)
+        toolArguments.set(event.toolCallId, args)
         break
       }
 
       case 'tool-result.done': {
-        const existing = toolEntries.get(event.toolResult.id)
-        const args = toolArguments.get(event.toolResult.id)
+        const existing = toolEntries.get(event.toolCallId)
+        const args = toolArguments.get(event.toolCallId)
         if (existing != null) {
-          existing.state = isApprovalRejectionResult(event.toolResult.output) ? 'error' : 'success'
-          existing.title = event.toolResult.name
-          existing.text = formatToolResultSummary(event.toolResult.name, args, event.toolResult.output)
+          existing.state = isApprovalRejectionResult(event.result) ? 'error' : 'success'
+          existing.title = event.toolName
+          existing.text = formatToolResultSummary(event.toolName, args, event.result)
         }
         else {
           pushEntry(
             'tool',
-            formatToolResultSummary(event.toolResult.name, undefined, event.toolResult.output),
+            formatToolResultSummary(event.toolName, undefined, event.result),
             {
-              state: isApprovalRejectionResult(event.toolResult.output) ? 'error' : 'success',
-              title: event.toolResult.name,
+              state: isApprovalRejectionResult(event.result) ? 'error' : 'success',
+              title: event.toolName,
             },
           )
         }
