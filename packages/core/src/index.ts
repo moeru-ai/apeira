@@ -1,4 +1,4 @@
-export type { DeepReadonly, ItemParam, MaybePromise } from './types/base'
+export type { ItemParam, MaybePromise } from './types/base'
 export type {
   AgentCustomEvent,
   AgentEvent,

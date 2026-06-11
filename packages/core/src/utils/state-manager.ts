@@ -1,12 +1,10 @@
-import type { DeepReadonly } from '../types/base'
 import type { AgentState } from '../types/state'
 
 import { merge } from '@moeru/std'
 
 export interface AgentStateManager {
-  get: () => DeepReadonly<AgentState>
-  set: (next: ((prev: DeepReadonly<AgentState>) => AgentState) | AgentState) => void
-  // TODO: PartialDeep
+  get: () => Readonly<AgentState>
+  set: (next: ((prev: Readonly<AgentState>) => AgentState) | AgentState) => void
   update: (next: Partial<AgentState>) => void
 }
 

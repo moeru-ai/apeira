@@ -1,6 +1,5 @@
 import type { Tool } from '@xsai/shared-chat'
 
-import type { DeepReadonly } from '../types/base'
 import type { AgentInput } from '../types/input'
 import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
@@ -25,7 +24,7 @@ export interface Agent extends AgentChannel, AgentQueue {
 
 export interface CreateAgentOptions {
   input?: readonly AgentInput[]
-  instructions: ((state: DeepReadonly<AgentState>) => Promise<string> | string) | string
+  instructions: ((state: Readonly<AgentState>) => Promise<string> | string) | string
   plugins?: AgentPluginOption[]
   runner: Runner
   state?: AgentState

@@ -7,7 +7,7 @@ import type {
 } from '@xsai/shared-chat'
 
 import type { Agent } from '../utils/agent'
-import type { DeepReadonly, MaybePromise } from './base'
+import type { MaybePromise } from './base'
 import type { AgentInput } from './input'
 import type { AgentState } from './state'
 
@@ -35,6 +35,6 @@ export type AgentPluginOption
 
 export interface ExtendOptions {
   signal?: AbortSignal
-  state: DeepReadonly<AgentState>
+  state: Readonly<AgentState>
   turnId: string
 }

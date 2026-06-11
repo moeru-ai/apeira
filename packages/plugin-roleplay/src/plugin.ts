@@ -1,4 +1,4 @@
-import type { Agent, AgentPlugin, AgentState, DeepReadonly, ItemParam } from '@apeira/core'
+import type { Agent, AgentPlugin, AgentState, ItemParam } from '@apeira/core'
 import type { CharacterCardV3 } from '@risuai/ccardlib'
 
 import type {
@@ -47,7 +47,7 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
 
   const createCBSContext = (
     pickCache = turnPickCache,
-    state: DeepReadonly<AgentState> = getAgent().state.get(),
+    state: Readonly<AgentState> = getAgent().state.get(),
   ): CBSContext => ({
     charName: getCard().data.nickname ?? getCard().data.name,
     pickCache,
