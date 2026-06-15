@@ -22,6 +22,19 @@ describe('kv', () => {
     expect(await store.read()).toEqual(['a', 'b', 'c'])
   })
 
+  it('serializes concurrent appends with the same storage and prefix', async () => {
+    const storage = createMemoryStorage()
+    const first = kv<string>({ storage })
+    const second = kv<string>({ storage })
+
+    await Promise.all([
+      first.append('a'),
+      second.append('b'),
+    ])
+
+    expect(await first.read()).toEqual(['a', 'b'])
+  })
+
   it('splits items into segments', async () => {
     const storage = createMemoryStorage()
     const store = kv<number>({ segmentSize: 2, storage })

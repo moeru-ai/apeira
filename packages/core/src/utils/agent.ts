@@ -66,7 +66,14 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   }
 
   let initPromise: Promise<void> | undefined
+  let storeReady = Promise.resolve()
   let agent: Agent
+
+  const mutateStore = async (operation: () => Promise<void>) => {
+    const result = storeReady.then(operation, operation)
+    storeReady = result.catch(() => {})
+    return result
+  }
 
   const init = async () => {
     if (initPromise)
@@ -117,7 +124,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       })
 
       if (!opts.abortSignal?.aborted)
-        await store.append(...opts.input, ...result.output)
+        await mutateStore(async () => store.append(...opts.input, ...result.output))
 
       return result
     },
@@ -127,11 +134,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     const turnId = queue.interrupt(reason)
 
     if (turnId != null) {
-      await store.append(developer([
+      await mutateStore(async () => store.append(developer([
         '<turn_aborted>',
         'The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.',
         '</turn_aborted>',
-      ].join('\n')))
+      ].join('\n'))))
     }
 
     return turnId
@@ -139,7 +146,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const clear: Agent['clear'] = async () => {
     await queue.clear()
-    await store.reset()
+    await mutateStore(async () => store.reset())
     state.set(options.state ?? {})
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.cleared' })
   }

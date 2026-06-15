@@ -219,7 +219,9 @@ describe('channel', () => {
   it('emits and subscribes to events', async () => {
     const { agent } = createTestAgent()
     const received: unknown[] = []
-    const unsubscribe = agent.subscribe('test', event => received.push(event))
+    const unsubscribe = agent.subscribe('test', (event) => {
+      received.push(event)
+    })
     await agent.emit('test', { ok: true })
     unsubscribe()
     expect(received).toEqual([{ ok: true }])
@@ -228,7 +230,9 @@ describe('channel', () => {
   it('does not receive events after unsubscribe', async () => {
     const { agent } = createTestAgent()
     const received: unknown[] = []
-    const unsubscribe = agent.subscribe('test', event => received.push(event))
+    const unsubscribe = agent.subscribe('test', (event) => {
+      received.push(event)
+    })
     unsubscribe()
     await agent.emit('test', { ok: true })
     expect(received).toEqual([])
@@ -263,7 +267,9 @@ describe('turn lifecycle', () => {
   it('aborts turn when send signal is already aborted', async () => {
     const { agent } = createTestAgent()
     const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
     const controller = new AbortController()
     controller.abort('already aborted')
 
@@ -312,7 +318,9 @@ describe('queue', () => {
   it('drains input into active turn instead of queueing new turn', async () => {
     const { agent } = createTestAgent({ delayMs: 10 })
     const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
 
     const turnId = agent.send(user('Initial turn.'))
 
@@ -333,7 +341,9 @@ describe('queue', () => {
   it('aborts active turn', async () => {
     const { agent } = createTestAgent({ delayMs: 100 })
     const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
 
     const turnId = agent.send(user('hi'))
     await sleep(10)
@@ -373,7 +383,9 @@ describe('queue', () => {
   it('clears pending input and aborts active turn', async () => {
     const { agent } = createTestAgent({ delayMs: 100 })
     const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
 
     agent.send(user('first'))
     await sleep(10)
@@ -386,13 +398,46 @@ describe('queue', () => {
     expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'cleared')).toBe(true)
   })
 
+  it('waits for an active append before resetting the store', async () => {
+    let releaseAppend!: () => void
+    let signalAppend!: () => void
+    const appendBlocked = new Promise<void>(resolve => releaseAppend = resolve)
+    const appendStarted = new Promise<void>(resolve => signalAppend = resolve)
+    const items: AgentInput[] = []
+    const store = {
+      append: async (...next: AgentInput[]) => {
+        signalAppend()
+        await appendBlocked
+        items.push(...next)
+      },
+      clear: () => { items.length = 0 },
+      read: () => items,
+      reset: () => { items.length = 0 },
+    }
+    const agent = createAgent({
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      store,
+    })
+
+    agent.send(user('old'))
+    await appendStarted
+    const clearing = agent.clear()
+    releaseAppend()
+    await clearing
+
+    expect(await agent.store.read()).toEqual([])
+  })
+
   it('restores initial input and state and emits one cleared event', async () => {
     const { agent } = createTestAgent({
       input: [user('initial')],
       state: { contextLength: 8_000 },
     })
     const events: AgentEvent[] = []
-    agent.subscribe('apeira', event => events.push(event))
+    agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
 
     await agent.store.clear()
     await agent.store.append(user('changed'))
@@ -438,7 +483,9 @@ describe('queue', () => {
   it('aborts turn when send signal is aborted', async () => {
     const { agent } = createTestAgent({ delayMs: 100 })
     const events: AgentEvent[] = []
-    const unsubscribe = agent.subscribe('apeira', event => events.push(event))
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      events.push(event)
+    })
 
     const controller = new AbortController()
     const turnId = agent.send(user('hi'), { signal: controller.signal })

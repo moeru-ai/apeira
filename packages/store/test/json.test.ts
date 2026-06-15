@@ -28,6 +28,19 @@ describe('json', () => {
     expect(await store.read()).toEqual(['a', 'b', 'c'])
   })
 
+  it('serializes concurrent appends to the same path', async () => {
+    const first = json<number>({ path })
+    const second = json<number>({ path })
+
+    await Promise.all(
+      Array.from({ length: 20 }, async (_, index) =>
+        (index % 2 === 0 ? first : second).append(index)),
+    )
+
+    expect([...(await first.read())].sort((a, b) => a - b))
+      .toEqual(Array.from({ length: 20 }, (_, index) => index))
+  })
+
   it('writes a formatted json array', async () => {
     const store = json<number>({ path })
 

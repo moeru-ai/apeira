@@ -3,6 +3,9 @@ import type { AgentStore } from '@apeira/core'
 import type { FileStoreOptions } from './types'
 
 import { readFileSafe, writeFileSafe } from './fs'
+import { createKeyedQueue } from './keyed-queue'
+
+const enqueue = createKeyedQueue<string>()
 
 export interface FileStoreCodec<T> {
   decode: (raw: string) => T[]
@@ -27,22 +30,22 @@ export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStor
   }
 
   return {
-    append: async (...items) => {
+    append: async (...items) => enqueue(path, async () => {
       if (items.length === 0)
         return
 
       await ensureInitialized()
       const existing = await readItems()
       await writeItems([...existing, ...items])
-    },
+    }),
 
-    clear: async () => writeItems([]),
+    clear: async () => enqueue(path, async () => writeItems([])),
 
-    read: async () => {
+    read: async () => enqueue(path, async () => {
       await ensureInitialized()
       return Object.freeze(await readItems())
-    },
+    }),
 
-    reset: async () => writeItems(options.initial ?? []),
+    reset: async () => enqueue(path, async () => writeItems(options.initial ?? [])),
   }
 }

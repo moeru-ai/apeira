@@ -1,5 +1,7 @@
 import type { AgentInput, AgentStore, MaybePromise } from '@apeira/core'
 
+import { createKeyedQueue } from './utils/keyed-queue'
+
 export interface KVStoreOptions<T> {
   initial?: readonly T[]
   /** @default `apeira` */
@@ -18,6 +20,20 @@ export interface StorageLike {
 const headKeyOf = (prefix: string) => `${prefix}:head`
 const segmentKeyOf = (prefix: string, seg: number) =>
   `${prefix}:seg:${String(seg).padStart(7, '0')}`
+
+type Enqueue = ReturnType<typeof createKeyedQueue<string>>
+
+const queues = new WeakMap<StorageLike, Enqueue>()
+
+const queueOf = (storage: StorageLike): Enqueue => {
+  let queue = queues.get(storage)
+  if (queue != null)
+    return queue
+
+  queue = createKeyedQueue<string>()
+  queues.set(storage, queue)
+  return queue
+}
 
 const encode = <T>(items: readonly T[]) => JSON.stringify(items)
 
@@ -106,7 +122,7 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStore<T> =>
   }
 
   return {
-    append: async (...items) => {
+    append: async (...items) => queueOf(options.storage)(prefix, async () => {
       if (items.length === 0)
         return
 
@@ -137,11 +153,11 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStore<T> =>
 
       await writeSegment(head, current)
       await setHead(head)
-    },
+    }),
 
-    clear: clearSegments,
+    clear: async () => queueOf(options.storage)(prefix, clearSegments),
 
-    read: async () => {
+    read: async () => queueOf(options.storage)(prefix, async () => {
       await ensureInitialized()
 
       const head = await getHead()
@@ -154,11 +170,11 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStore<T> =>
       )
 
       return Object.freeze(segments.flat())
-    },
+    }),
 
-    reset: async () => {
+    reset: async () => queueOf(options.storage)(prefix, async () => {
       await clearSegments()
       await writeItems(options.initial ?? [])
-    },
+    }),
   }
 }
