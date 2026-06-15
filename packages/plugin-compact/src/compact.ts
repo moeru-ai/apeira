@@ -19,7 +19,7 @@ import {
 
 export interface CompactAgentOptions {
   instructions?: CreateAgentOptions['instructions']
-  runner: Runner
+  runner?: Runner
 }
 
 export interface CompactHistoryOptions {
@@ -115,11 +115,15 @@ export const executeCompact = async ({
   const retainedUserMessages = selectRetainedUserMessages(compressible, maxRetainedUserTokens)
   const compactInput = buildCompactInput(compressible, retainedUserMessages)
 
+  const runner = compactAgent.runner
+  if (!runner)
+    throw new Error('[@apeira/plugin-compact] compactAgent.runner is required when not using the parent agent runner.')
+
   const tempAgent = createAgent({
     input: compactInput,
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
-    runner: compactAgent.runner,
+    runner,
   })
 
   try {

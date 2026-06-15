@@ -166,6 +166,54 @@ describe('compact plugin', () => {
     warn.mockRestore()
   })
 
+  it('reuses the parent agent runner when compactAgent.runner is omitted', async () => {
+    const main = createMockFetch({ responseText: ['first', 'checkpoint summary', 'second'], totalTokens: [950, 2, 2] })
+
+    const agent = createAgent({
+      input: [
+        user('old one'),
+        assistant('old answer one'),
+        user('old two'),
+        assistant('old answer two'),
+      ],
+      instructions: 'main',
+      plugins: [
+        compact({
+          compactAgent: {},
+          preserveTurns: 1,
+          threshold: 0.9,
+        }),
+      ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'main-model',
+      }),
+      state: { contextLength: 1000 },
+    })
+
+    for await (const event of run(agent, user('trigger compact')))
+      void event
+
+    expect(main.bodies).toHaveLength(1)
+
+    for await (const event of run(agent, user('after compact')))
+      void event
+
+    expect(main.bodies).toHaveLength(3)
+    expect(main.bodies[1]?.input).toContainEqual(assistant('old answer one'))
+    expect(main.bodies[1]?.input).toContainEqual(user('Summarize the conversation.'))
+    expect(main.bodies[2]?.input).toEqual([
+      user('old one'),
+      user('old two'),
+      developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
+      user('trigger compact'),
+      assistant('first'),
+      user('after compact'),
+    ])
+  })
+
   it('keeps all live input items out of the compacted historical region', async () => {
     const summarizer = createMockFetch({ responseText: 'multi-live summary' })
     const historicalInput = [

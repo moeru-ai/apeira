@@ -1,4 +1,4 @@
-import type { Agent, AgentPlugin, ItemParam } from '@apeira/core'
+import type { Agent, AgentInput, AgentPlugin } from '@apeira/core'
 
 import type { CompactAgentOptions } from './compact'
 
@@ -43,12 +43,15 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
 
   const getContextLength = () => getAgent().state.get().contextLength ?? DEFAULT_CONTEXT_LENGTH
 
-  const compactHistoricalInput = async (historicalInput: ItemParam[]) => {
+  const compactHistoricalInput = async (historicalInput: readonly AgentInput[]) => {
     const contextLength = getContextLength()
 
     try {
       const result = await executeCompact({
-        compactAgent: options.compactAgent,
+        compactAgent: {
+          instructions: options.compactAgent.instructions,
+          runner: options.compactAgent.runner ?? getAgent().runner,
+        },
         contextLength,
         input: historicalInput,
         maxRetainedUserTokens,

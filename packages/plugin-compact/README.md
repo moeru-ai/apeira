@@ -42,7 +42,7 @@ const agent = createAgent({
 })
 ```
 
-`compactAgent.runner` configures the backend used for summarization. It can use a smaller or cheaper model than the main agent.
+`compactAgent.runner` optionally configures the backend used for summarization. It can use a smaller or cheaper model than the main agent. When omitted, the plugin reuses the parent agent's runner.
 
 ## How it works
 
@@ -69,7 +69,7 @@ Creates an Apeira plugin that automatically replaces old agent input with a comp
 interface CompactPluginOptions {
   compactAgent: {
     instructions?: CreateAgentOptions['instructions']
-    runner: Runner
+    runner?: Runner
   }
   maxRetainedUserTokens?: number
   preserveTurns?: number
