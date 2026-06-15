@@ -32,9 +32,11 @@ export type {
   RunnerResult,
 } from './types/runner'
 export type { AgentState } from './types/state'
+export type { AgentStore } from './types/store'
 export type { Agent, CreateAgentOptions } from './utils/agent'
 export { createAgent } from './utils/agent'
 export type { AgentChannel, AgentEventListener } from './utils/channel'
 export { assistant, developer, system, user } from './utils/input'
 export * from './utils/re-export'
 export { run } from './utils/run'
+export { memory, noop } from './utils/store'

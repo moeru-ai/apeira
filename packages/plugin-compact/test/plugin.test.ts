@@ -1,6 +1,6 @@
 import type { Agent, AgentEventListener } from '@apeira/core'
 
-import { assistant, createAgent, developer, run, user } from '@apeira/core'
+import { assistant, createAgent, developer, memory, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -34,12 +34,6 @@ describe('compact plugin', () => {
     const summarizer = createMockFetch({ responseText: 'checkpoint summary' })
 
     const agent = createAgent({
-      input: [
-        user('old one'),
-        assistant('old answer one'),
-        user('old two'),
-        assistant('old answer two'),
-      ],
       instructions: 'main',
       plugins: [
         compact({
@@ -62,6 +56,12 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
+      store: memory([
+        user('old one'),
+        assistant('old answer one'),
+        user('old two'),
+        assistant('old answer two'),
+      ]),
     })
 
     for await (const event of run(agent, user('trigger compact')))
@@ -81,7 +81,7 @@ describe('compact plugin', () => {
       assistant('first'),
       user('after compact'),
     ])
-    expect(agent.getInput()).toEqual([
+    expect(await agent.store.read()).toEqual([
       user('old one'),
       user('old two'),
       developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
@@ -95,7 +95,8 @@ describe('compact plugin', () => {
   it('falls back to hard truncation after three compact failures', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let listener: AgentEventListener | undefined
-    const setInput = vi.fn()
+    const storeAppend = vi.fn()
+    const storeClear = vi.fn()
     const historicalInput = [
       user('old'),
       assistant('old answer'),
@@ -122,13 +123,17 @@ describe('compact plugin', () => {
       clear: () => {},
       emit: () => {},
       getActiveTurnId: () => undefined,
-      getInput: () => historicalInput,
       init: async () => {},
       interrupt: () => undefined,
       send: () => 'turn-test',
-      setInput,
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
+      store: {
+        append: storeAppend,
+        clear: storeClear,
+        read: () => historicalInput,
+        reset: () => {},
+      },
       // @ts-expect-error wrong types
       subscribe: (_channel: string, nextListener: AgentEventListener) => {
         listener = nextListener
@@ -140,7 +145,7 @@ describe('compact plugin', () => {
 
     let result
     for (let i = 0; i < 3; i++) {
-      listener?.({ turnId: `turn-${i}`, type: 'turn.start' })
+      await listener?.({ turnId: `turn-${i}`, type: 'turn.start' })
       result = await plugin.prepareStep?.({
         input: [...historicalInput, user('live')],
         model: 'main-model',
@@ -154,7 +159,8 @@ describe('compact plugin', () => {
       role: 'developer',
       type: 'message',
     })
-    expect(setInput).toHaveBeenLastCalledWith([
+    expect(storeClear).toHaveBeenCalled()
+    expect(storeAppend).toHaveBeenLastCalledWith(
       {
         content: '(Earlier conversation omitted due to length)',
         role: 'developer',
@@ -162,7 +168,7 @@ describe('compact plugin', () => {
       },
       user('recent'),
       assistant('recent answer'),
-    ])
+    )
     warn.mockRestore()
   })
 
@@ -170,12 +176,6 @@ describe('compact plugin', () => {
     const main = createMockFetch({ responseText: ['first', 'checkpoint summary', 'second'], totalTokens: [950, 2, 2] })
 
     const agent = createAgent({
-      input: [
-        user('old one'),
-        assistant('old answer one'),
-        user('old two'),
-        assistant('old answer two'),
-      ],
       instructions: 'main',
       plugins: [
         compact({
@@ -191,6 +191,12 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
+      store: memory([
+        user('old one'),
+        assistant('old answer one'),
+        user('old two'),
+        assistant('old answer two'),
+      ]),
     })
 
     for await (const event of run(agent, user('trigger compact')))
@@ -222,7 +228,8 @@ describe('compact plugin', () => {
       user('old two'),
       assistant('old answer two'),
     ]
-    const setInput = vi.fn()
+    const storeAppend = vi.fn()
+    const storeClear = vi.fn()
     const plugin = compact({
       compactAgent: {
         runner: responses({
@@ -241,13 +248,17 @@ describe('compact plugin', () => {
       clear: () => {},
       emit: () => {},
       getActiveTurnId: () => undefined,
-      getInput: () => historicalInput,
       init: async () => {},
       interrupt: () => undefined,
       send: () => 'turn-test',
-      setInput,
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
+      store: {
+        append: storeAppend,
+        clear: storeClear,
+        read: () => historicalInput,
+        reset: () => {},
+      },
       subscribe: () => () => {},
     }
 
@@ -270,11 +281,12 @@ describe('compact plugin', () => {
       user('live one'),
       user('live two'),
     ])
-    expect(setInput).toHaveBeenCalledWith([
+    expect(storeClear).toHaveBeenCalled()
+    expect(storeAppend).toHaveBeenCalledWith(
       user('old one'),
       developer('<context_summary>\nmulti-live summary\n</context_summary>'),
       user('old two'),
       assistant('old answer two'),
-    ])
+    )
   })
 })

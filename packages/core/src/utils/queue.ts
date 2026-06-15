@@ -1,3 +1,4 @@
+import type { MaybePromise } from '../types/base'
 import type { AgentEvent } from '../types/event'
 import type { AgentInput } from '../types/input'
 import type { RunnerContext, RunnerResult } from '../types/runner'
@@ -7,9 +8,9 @@ import Queue from 'yocto-queue'
 
 export interface AgentQueue {
   abort: (reason?: unknown) => void
-  clear: () => void
+  clear: () => Promise<void>
   getActiveTurnId: () => string | undefined
-  interrupt: (reason?: unknown) => string | undefined
+  interrupt: (reason?: unknown) => MaybePromise<string | undefined>
   send: (item: AgentInput, options?: AgentSendOptions) => string
 }
 
@@ -36,7 +37,9 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
   let pumping = false
   let pumpReady = Promise.resolve()
 
-  const emit = (turnId: string, event: AgentEvent) => channel.emit('apeira', { ...event, turnId })
+  const emit = async (turnId: string, event: AgentEvent) => {
+    await channel.emit('apeira', { ...event, turnId })
+  }
 
   // eslint-disable-next-line sonarjs/cognitive-complexity
   const runTurn = async (turn: AgentQueueTurn) => {
@@ -56,19 +59,19 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
     try {
       if (controller.signal.aborted) {
-        emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
+        await emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
         return
       }
 
       await init?.()
-      emit(turn.id, { turnId: turn.id, type: 'turn.start' })
+      await emit(turn.id, { turnId: turn.id, type: 'turn.start' })
 
       while (!controller.signal.aborted) {
         await runner({ abortSignal: controller.signal, channel, input, turnId: turn.id })
 
         if (pendingInput.length > 0) {
           const drained = pendingInput.splice(0)
-          emit(turn.id, { count: drained.length, turnId: turn.id, type: 'turn.input_drained' })
+          await emit(turn.id, { count: drained.length, turnId: turn.id, type: 'turn.input_drained' })
           input = drained
           continue
         }
@@ -80,18 +83,18 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
         activeTurn = undefined
 
       if (controller.signal.aborted)
-        emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
+        await emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
       else
-        emit(turn.id, { turnId: turn.id, type: 'turn.done' })
+        await emit(turn.id, { turnId: turn.id, type: 'turn.done' })
     }
     catch (error) {
       if (activeTurn?.id === turn.id)
         activeTurn = undefined
 
       if (controller.signal.aborted)
-        emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
+        await emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
       else
-        emit(turn.id, { error, turnId: turn.id, type: 'turn.failed' })
+        await emit(turn.id, { error, turnId: turn.id, type: 'turn.failed' })
     }
     finally {
       if (turn.signal != null)
@@ -127,7 +130,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
   const abort: AgentQueue['abort'] = reason => activeTurn?.controller.abort(reason)
 
-  const clear: AgentQueue['clear'] = () => {
+  const clear: AgentQueue['clear'] = async () => {
     activeTurn?.controller.abort('cleared')
     pendingInput.length = 0
     pendingTurns.clear()
@@ -144,13 +147,13 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
     if (active) {
       pendingInput.push(item)
-      emit(active.id, { turnId: active.id, type: 'turn.input_queued' })
+      void emit(active.id, { turnId: active.id, type: 'turn.input_queued' })
       return active.id
     }
 
     const id = crypto.randomUUID()
     pendingTurns.enqueue({ id, input: [item], signal: options?.signal })
-    emit(id, { turnId: id, type: 'turn.queued' })
+    void emit(id, { turnId: id, type: 'turn.queued' })
     void pump()
     return id
   }

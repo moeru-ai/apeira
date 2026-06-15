@@ -1,9 +1,10 @@
-/* eslint-disable @masknet/browser-no-persistent-storage */
 import type { Agent, AgentInput, CreateAgentOptions } from '@apeira/core'
 import type { AGUIEvent } from '@apeira/plugin-ag-ui'
 import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
 import type { Subscriber } from 'rxjs'
+
+import type { SyncAgentStore } from './store'
 
 import { createAgent, run } from '@apeira/core'
 import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
@@ -14,12 +15,9 @@ import {
 import { Observable } from 'rxjs'
 
 import { AGENT_ID, AGENT_NAME } from './const'
+import { createLocalStorageStore } from './store'
 
 type PersistedMessageItem = Extract<AgentInput, { type: 'message' }>
-
-interface PersistedThreadState {
-  input?: AgentInput[]
-}
 
 type PersistedUserMessageItem = Extract<PersistedMessageItem, { role: 'user' }>
 type UserContentPart = Exclude<Extract<Message, { role: 'user' }>['content'], string>[number]
@@ -217,28 +215,8 @@ const toUserMessageContent = (value: PersistedUserMessageItem['content']): Extra
   return content.length > 0 ? content : toMessageText(value)
 }
 
-const readPersistedInput = (threadId: string): AgentInput[] => {
-  try {
-    const raw = localStorage.getItem(getStorageKey(threadId))
-    if (raw == null)
-      return []
-
-    const state = JSON.parse(raw) as PersistedThreadState
-    return state.input ?? []
-  }
-  catch {
-    return []
-  }
-}
-
-const persistInput = (threadId: string, input: readonly AgentInput[]) => {
-  localStorage.setItem(getStorageKey(threadId), JSON.stringify({ input }))
-}
-
-const readPersistedMessages = (threadId: string): Message[] => {
-  const items = readPersistedInput(threadId)
-
-  return items.flatMap((item): Message[] => {
+const toMessages = (items: readonly AgentInput[]): Message[] =>
+  items.flatMap((item): Message[] => {
     // TODO
     // eslint-disable-next-line ts/switch-exhaustiveness-check
     switch (item.type) {
@@ -288,28 +266,31 @@ const readPersistedMessages = (threadId: string): Message[] => {
         return []
     }
   })
-}
 
 export class AbstractApeiraAgent extends AbstractAgent {
   private readonly agent: Agent
   private readonly agentOptions: CreateAgentOptions
   private readonly onThreadUpdated?: (threadId: string) => void
+  private readonly store: SyncAgentStore<AgentInput>
 
   constructor(
     agentOptions: CreateAgentOptions,
     onThreadUpdated?: (threadId: string) => void,
     threadId = 'default',
   ) {
+    const store = createLocalStorageStore<AgentInput>(getStorageKey(threadId))
+
     super({
       agentId: AGENT_ID,
       description: 'Apeira browser agent',
-      initialMessages: readPersistedMessages(threadId),
+      initialMessages: toMessages(store.read()),
       threadId,
     })
     this.agentOptions = agentOptions
+    this.store = store
     this.agent = createAgent({
       ...agentOptions,
-      input: readPersistedInput(threadId),
+      store,
     })
     this.onThreadUpdated = onThreadUpdated
   }
@@ -377,7 +358,6 @@ export class AbstractApeiraAgent extends AbstractAgent {
               break
           }
 
-          persistInput(this.threadId, this.agent.getInput())
           this.onThreadUpdated?.(this.threadId)
 
           if (!subscriber.closed)
@@ -417,7 +397,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
         type: EventType.RUN_STARTED,
       })
 
-      const messages = readPersistedMessages(this.threadId)
+      const messages = toMessages(this.store.read())
 
       if (messages.length > 0) {
         subscriber.next({

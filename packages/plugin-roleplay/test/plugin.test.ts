@@ -2,7 +2,7 @@ import type { AgentInput } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, developer, run, user } from '@apeira/core'
+import { createAgent, developer, memory, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
@@ -43,7 +43,7 @@ describe('roleplay plugin', () => {
     await agent.init()
 
     expect(agent.state.get()).toEqual({ userName: 'Alice' })
-    expect(assistantText(agent.getInput()[0])).toBe('Welcome, Alice.')
+    expect(assistantText((await agent.store.read())[0])).toBe('Welcome, Alice.')
     expect(events).toContainEqual({
       greetingIndex: 1,
       hadContent: true,
@@ -54,13 +54,13 @@ describe('roleplay plugin', () => {
   it('does not add a greeting to restored history or for empty content', async () => {
     const restored = user('existing')
     const agent = createAgent({
-      input: [restored],
       instructions: '',
       plugins: [roleplay({ card: createV3Card({ first_mes: 'Hello.' }) })],
       runner,
+      store: memory([restored]),
     })
     await agent.init()
-    expect(agent.getInput()).toEqual([restored])
+    expect(await agent.store.read()).toEqual([restored])
 
     const emptyAgent = createAgent({
       instructions: '',
@@ -68,7 +68,7 @@ describe('roleplay plugin', () => {
       runner,
     })
     await emptyAgent.init()
-    expect(emptyAgent.getInput()).toEqual([])
+    expect(await emptyAgent.store.read()).toEqual([])
   })
 
   it('restores and reevaluates the greeting after clear', async () => {
@@ -86,11 +86,11 @@ describe('roleplay plugin', () => {
     agent.subscribe('roleplay', event => events.push(event))
 
     await agent.init()
-    expect(assistantText(agent.getInput()[0])).toBe('first')
+    expect(assistantText((await agent.store.read())[0])).toBe('first')
 
-    agent.clear()
+    await agent.clear()
 
-    expect(assistantText(agent.getInput()[0])).toBe('second')
+    expect(assistantText((await agent.store.read())[0])).toBe('second')
     expect(events.at(-1)).toEqual({ greetingIndex: 0, type: 'session.reset' })
     random.mockRestore()
   })
@@ -156,7 +156,7 @@ describe('roleplay plugin', () => {
       type: 'message',
     })
     expect(JSON.stringify(mock.bodies[0])).not.toContain('Shown to the user, not the model.')
-    expect(agent.getInput().some(item =>
+    expect((await agent.store.read()).some(item =>
       item.type === 'message' && item.role === 'system')).toBe(false)
     const assembled = events.find(event => event.type === 'prompt.assembled')
     expect(assembled?.type).toBe('prompt.assembled')
@@ -193,7 +193,7 @@ describe('roleplay plugin', () => {
     })
     await agent.init()
 
-    agent.emit('apeira', { turnId: 'one', type: 'turn.start' })
+    await agent.emit('apeira', { turnId: 'one', type: 'turn.start' })
     expect(await plugin.extendInstructions?.({
       state: agent.state.get(),
       turnId: 'one',
@@ -217,7 +217,7 @@ describe('roleplay plugin', () => {
       expect(firstItem.content).toContain('first')
     expect(first?.input?.at(-1)).toMatchObject({ content: 'first' })
 
-    agent.emit('apeira', { turnId: 'two', type: 'turn.start' })
+    await agent.emit('apeira', { turnId: 'two', type: 'turn.start' })
     expect(await plugin.extendInstructions?.({
       state: agent.state.get(),
       turnId: 'two',
@@ -229,20 +229,6 @@ describe('roleplay plugin', () => {
     const main = createMockFetch()
     const summarizer = createMockFetch('summary')
     const agent = createAgent({
-      input: [
-        user('old one'),
-        {
-          content: [{ text: 'old answer one', type: 'output_text' }],
-          role: 'assistant',
-          type: 'message',
-        },
-        user('old two'),
-        {
-          content: [{ text: 'old answer two', type: 'output_text' }],
-          role: 'assistant',
-          type: 'message',
-        },
-      ],
       instructions: '',
       plugins: [
         compact({
@@ -271,6 +257,20 @@ describe('roleplay plugin', () => {
         model: 'test',
       }),
       state: { contextLength: 1_000 },
+      store: memory([
+        user('old one'),
+        {
+          content: [{ text: 'old answer one', type: 'output_text' }],
+          role: 'assistant',
+          type: 'message',
+        },
+        user('old two'),
+        {
+          content: [{ text: 'old answer two', type: 'output_text' }],
+          role: 'assistant',
+          type: 'message',
+        },
+      ]),
     })
 
     for await (const event of run(agent, user('live')))
@@ -283,7 +283,7 @@ describe('roleplay plugin', () => {
       expect(temporary.content).toContain('Temporary definition.')
     }
     expect(main.bodies[0]?.input).toContainEqual(developer('<context_summary>\nsummary\n</context_summary>'))
-    expect(agent.getInput().some(item =>
+    expect((await agent.store.read()).some(item =>
       item.type === 'message' && item.role === 'system')).toBe(false)
   })
 })

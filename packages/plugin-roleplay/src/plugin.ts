@@ -43,7 +43,7 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
     return agent
   }
 
-  const emit = (event: RoleplayEvent) => getAgent().emit('roleplay', event)
+  const emit = async (event: RoleplayEvent) => getAgent().emit('roleplay', event)
 
   const createCBSContext = (
     pickCache = turnPickCache,
@@ -54,13 +54,14 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
     userName: typeof state.userName === 'string' ? state.userName : undefined,
   })
 
-  const restoreGreeting = () => {
+  const restoreGreeting = async () => {
     const activeAgent = getAgent()
     const selected = selectGreeting(getCard(), greetingIndex)
     const rendered = renderCBS(selected.greeting, createCBSContext(new Map())).text
 
-    if (activeAgent.getInput().length === 0 && rendered.length > 0)
-      activeAgent.setInput([assistant(rendered)])
+    const history = await activeAgent.store.read()
+    if (history.length === 0 && rendered.length > 0)
+      await activeAgent.store.append(assistant(rendered))
 
     return rendered.length > 0
   }
@@ -74,12 +75,12 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
       )
       return instructionExtension.length > 0 ? instructionExtension : undefined
     },
-    init: (nextAgent) => {
+    init: async (nextAgent) => {
       agent = nextAgent
       card = normalizeCard(options.card)
       greetingIndex = selectGreeting(card, options.greetingIndex).index
 
-      unsubscribe = nextAgent.subscribe('apeira', (event) => {
+      unsubscribe = nextAgent.subscribe('apeira', async (event) => {
         if (event.type === 'turn.start') {
           activeTurnId = event.turnId
           turnPickCache.clear()
@@ -89,13 +90,13 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
           activeTurnId = undefined
           turnPickCache.clear()
           instructionExtension = ''
-          restoreGreeting()
-          emit({ greetingIndex, type: 'session.reset' })
+          await restoreGreeting()
+          await emit({ greetingIndex, type: 'session.reset' })
         }
       })
 
-      const hadContent = restoreGreeting()
-      emit({ greetingIndex, hadContent, type: 'greeting.selected' })
+      const hadContent = await restoreGreeting()
+      await emit({ greetingIndex, hadContent, type: 'greeting.selected' })
     },
     name,
     prepareStep: (stepOptions) => {
@@ -119,7 +120,7 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
       if (postHistoryInput.length > 0)
         categories.push('post_history_instructions')
 
-      emit({
+      void emit({
         categories,
         instructionExtension,
         temporaryInput,

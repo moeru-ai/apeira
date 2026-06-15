@@ -1,26 +1,27 @@
+import type { MaybePromise } from '../types/base'
 import type { AgentCustomEvent } from '../types/event'
 
 export interface AgentChannel {
-  emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown) => void
+  emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown) => MaybePromise<void>
   subscribe: <K extends string>(channel: K, listener: K extends keyof AgentCustomEvent ? AgentEventListener<AgentCustomEvent[K]> : AgentEventListener) => () => void
 }
 
-export type AgentEventListener<T = unknown> = (event: T) => void
+export type AgentEventListener<T = unknown> = (event: T) => MaybePromise<void>
 
 export const createAgentChannel = (): AgentChannel => {
   const channels = new Map<string, Set<AgentEventListener>>()
 
-  const emit: AgentChannel['emit'] = (channel, event) => {
+  const emit: AgentChannel['emit'] = async (channel, event) => {
     const listeners = channels.get(channel)
     if (!listeners)
       return
 
-    listeners.forEach((listener) => {
+    await Promise.all(Array.from(listeners).map(async (listener) => {
       try {
-        listener(event)
+        await listener(event)
       }
       catch {}
-    })
+    }))
   }
 
   const subscribe: AgentChannel['subscribe'] = (channel, listener) => {

@@ -69,7 +69,7 @@ export const responses = (options: ResponsesRunnerOptions): Runner =>
       void promise.catch(() => undefined)
 
     for await (const event of result.eventStream)
-      context.channel.emit('apeira', { ...event, turnId: context.turnId })
+      await context.channel.emit('apeira', { ...event, turnId: context.turnId })
 
     return {
       output: fromResponses((await result.input).slice(input.length)),

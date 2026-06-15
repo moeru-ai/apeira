@@ -5,7 +5,7 @@ import type { Agent, AgentEvent, AgentInput, AgentPluginOption, AgentState } fro
 import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createAgent, developer, run, user } from '../../src/index'
+import { createAgent, developer, memory, run, user } from '../../src/index'
 import { responses } from '../../src/responses'
 import { createMockFetch, sleep } from '../_shared'
 
@@ -18,7 +18,6 @@ const createTestAgent = (opts?: {
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
-    input: opts?.input,
     instructions: opts?.instructions ?? 'You are a test assistant.',
     plugins: opts?.plugins,
     runner: responses({
@@ -29,19 +28,20 @@ const createTestAgent = (opts?: {
       stopWhen: stepCountAtLeast(1),
     }),
     state: opts?.state,
+    store: memory(opts?.input),
   })
   return { agent, ...mock }
 }
 
 describe('createAgent', () => {
-  it('creates an agent with initial input', () => {
+  it('creates an agent with initial input', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    expect(agent.getInput()).toEqual([user('hello')])
+    expect(await agent.store.read()).toEqual([user('hello')])
   })
 
-  it('returns empty input when none provided', () => {
+  it('returns empty input when none provided', async () => {
     const { agent } = createTestAgent()
-    expect(agent.getInput()).toEqual([])
+    expect(await agent.store.read()).toEqual([])
   })
 
   it('returns the current agent state', () => {
@@ -50,17 +50,18 @@ describe('createAgent', () => {
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
   })
 
-  it('replaces input with a cloned value', () => {
+  it('replaces input with a cloned value', async () => {
     const { agent } = createTestAgent({ input: [user('old')] })
     const nextInput = [user('new')]
 
-    agent.setInput(nextInput)
+    await agent.store.clear()
+    await agent.store.append(...nextInput)
     nextInput[0] = user('mutated')
 
-    expect(agent.getInput()).toEqual([user('new')])
+    expect(await agent.store.read()).toEqual([user('new')])
   })
 
-  it('deep-merges cloned state patches', () => {
+  it('replaces nested state patches with cloned values', () => {
     const { agent } = createTestAgent({
       state: {
         nested: { first: true },
@@ -75,7 +76,7 @@ describe('createAgent', () => {
     mutablePatch.nested.second = false
 
     expect(agent.state.get()).toEqual({
-      nested: { first: true, second: true },
+      nested: { second: true },
     })
   })
 
@@ -219,7 +220,7 @@ describe('channel', () => {
     const { agent } = createTestAgent()
     const received: unknown[] = []
     const unsubscribe = agent.subscribe('test', event => received.push(event))
-    agent.emit('test', { ok: true })
+    await agent.emit('test', { ok: true })
     unsubscribe()
     expect(received).toEqual([{ ok: true }])
   })
@@ -229,7 +230,7 @@ describe('channel', () => {
     const received: unknown[] = []
     const unsubscribe = agent.subscribe('test', event => received.push(event))
     unsubscribe()
-    agent.emit('test', { ok: true })
+    await agent.emit('test', { ok: true })
     expect(received).toEqual([])
   })
 })
@@ -356,12 +357,12 @@ describe('queue', () => {
     const id = agent.send(user('hi'))
     await sleep(10)
 
-    expect(agent.interrupt('test')).toBe(id)
-    expect(agent.interrupt('test again')).toBeUndefined()
+    expect(await agent.interrupt('test')).toBe(id)
+    expect(await agent.interrupt('test again')).toBeUndefined()
 
     await sleep(20)
 
-    expect(agent.getInput()).toEqual([boundary])
+    expect(await agent.store.read()).toEqual([boundary])
 
     agent.send(user('next'))
     await sleep(150)
@@ -377,7 +378,7 @@ describe('queue', () => {
     agent.send(user('first'))
     await sleep(10)
     agent.send(user('second'))
-    agent.clear()
+    await agent.clear()
 
     await sleep(150)
     unsubscribe()
@@ -385,7 +386,7 @@ describe('queue', () => {
     expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'cleared')).toBe(true)
   })
 
-  it('restores initial input and state and emits one cleared event', () => {
+  it('restores initial input and state and emits one cleared event', async () => {
     const { agent } = createTestAgent({
       input: [user('initial')],
       state: { contextLength: 8_000 },
@@ -393,11 +394,12 @@ describe('queue', () => {
     const events: AgentEvent[] = []
     agent.subscribe('apeira', event => events.push(event))
 
-    agent.setInput([user('changed')])
+    await agent.store.clear()
+    await agent.store.append(user('changed'))
     agent.state.update({ contextLength: 16_000 })
-    agent.clear()
+    await agent.clear()
 
-    expect(agent.getInput()).toEqual([user('initial')])
+    expect(await agent.store.read()).toEqual([user('initial')])
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
     expect(events.filter(event => event.type === 'agent.cleared')).toHaveLength(1)
     expect(events.find(event => event.type === 'agent.cleared')?.turnId).toBeTruthy()
@@ -406,11 +408,11 @@ describe('queue', () => {
   it('clears turns queued from a completed-turn listener', async () => {
     const { agent, inputs } = createTestAgent()
 
-    agent.subscribe('apeira', (event) => {
+    agent.subscribe('apeira', async (event) => {
       if (event.type !== 'turn.done')
         return
       agent.send(user('queued'))
-      agent.clear()
+      await agent.clear()
     })
 
     agent.send(user('first'))
@@ -426,7 +428,7 @@ describe('queue', () => {
     })
 
     agent.state.update({ contextLength: 16_000 })
-    agent.clear()
+    await agent.clear()
     agent.send(user('after clear'))
     await sleep(50)
 
@@ -458,13 +460,13 @@ describe('queue', () => {
       clear: vi.fn(),
       emit: vi.fn(),
       getActiveTurnId: vi.fn(),
-      getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
       send: vi.fn(() => {
         throw error
       }),
       stop: vi.fn(),
+      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn(() => unsubscribe),
     } as unknown as Agent
 
@@ -483,7 +485,6 @@ describe('queue', () => {
       clear: vi.fn(),
       emit: vi.fn(),
       getActiveTurnId: vi.fn(() => undefined),
-      getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
       send: vi.fn(() => {
@@ -496,6 +497,7 @@ describe('queue', () => {
         return 'target-turn'
       }),
       stop: vi.fn(),
+      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe
@@ -524,7 +526,6 @@ describe('queue', () => {
       clear: vi.fn(),
       emit: vi.fn(),
       getActiveTurnId: vi.fn(() => activeTurnId),
-      getInput: vi.fn(() => []),
       init: vi.fn(),
       interrupt: vi.fn(),
       send: vi.fn(() => {
@@ -536,6 +537,7 @@ describe('queue', () => {
         return 'new-turn'
       }),
       stop: vi.fn(),
+      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe

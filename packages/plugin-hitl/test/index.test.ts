@@ -15,20 +15,19 @@ const createMockAgent = (): MockAgent => {
 
   return {
     abort: () => {},
-    clear: () => {},
-    emit: (channel: string, event: unknown) => {
+    clear: async () => {},
+    emit: async (channel: string, event: unknown) => {
       emitted.push({ channel, event })
-      listeners.get(channel)?.forEach(l => l(event))
+      await Promise.all(Array.from(listeners.get(channel) ?? []).map(async l => l(event)))
     },
     emitted,
     getActiveTurnId: () => undefined,
-    getInput: () => [],
     init: async () => {},
-    interrupt: () => undefined,
+    interrupt: async () => undefined,
     send: () => 'turn-mock',
-    setInput: () => {},
     state: { get: () => ({}), set: () => {}, update: () => {} },
     stop: async () => {},
+    store: { append: () => {}, clear: () => {}, read: () => [], reset: () => {} },
     subscribe: ((channel: string, listener: AgentEventListener) => {
       if (!listeners.has(channel))
         listeners.set(channel, new Set())
@@ -100,7 +99,7 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall({ toolName: 'read' })
     const result = await plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
@@ -119,7 +118,7 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
 
@@ -155,13 +154,13 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall()
     const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
     expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
-    mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
+    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
     await expect(pending).resolves.toEqual(toolCall)
 
     const resolved = mockAgent.emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')
@@ -179,10 +178,10 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
-    mockAgent.emit('hitl', { reason: 'No write access', toolCallId: 'call-1', type: 'control.reject' })
+    await mockAgent.emit('hitl', { reason: 'No write access', toolCallId: 'call-1', type: 'control.reject' })
 
     await expect(pending).resolves.toMatchObject({
       result: 'Denied.',
@@ -202,13 +201,13 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall()
     const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
-    mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
-    mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
+    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
+    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
     await expect(pending).resolves.toEqual(toolCall)
     expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(1)
   })
@@ -219,15 +218,15 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const pending = plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal))
     controller.abort('stop')
 
     await expect(pending).rejects.toBe('stop')
     const resolvedCount = mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length
-    mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
-    mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.reject' })
+    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
+    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.reject' })
     expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length).toBe(resolvedCount)
   })
 
@@ -237,7 +236,7 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     controller.abort('already-aborted')
 
@@ -245,7 +244,7 @@ describe('humanInTheLoop', () => {
       plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal)),
     ).rejects.toBe('already-aborted')
     const resolvedCount = mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length
-    mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
+    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
     expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length).toBe(resolvedCount)
   })
 
@@ -254,7 +253,7 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall({ toolCallId: 'call-sugar' })
     const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
@@ -270,7 +269,7 @@ describe('humanInTheLoop', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
 
     const toolCall = createToolCall({ toolCallId: 'call-sugar-reject' })
     const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))

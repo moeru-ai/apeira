@@ -2,7 +2,7 @@ import type { AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
 
 import type { RetainedMessage } from './split'
 
-import { createAgent, developer, run, user } from '@apeira/core'
+import { createAgent, developer, memory, run, user } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
@@ -120,10 +120,10 @@ export const executeCompact = async ({
     throw new Error('[@apeira/plugin-compact] compactAgent.runner is required when not using the parent agent runner.')
 
   const tempAgent = createAgent({
-    input: compactInput,
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
     runner,
+    store: memory(compactInput),
   })
 
   try {
@@ -139,7 +139,7 @@ export const executeCompact = async ({
     await tempAgent.stop()
   }
 
-  const summary = extractAssistantSummary(tempAgent.getInput())
+  const summary = extractAssistantSummary(await tempAgent.store.read())
   if (summary.length === 0)
     throw new Error('Compaction produced an empty summary.')
 

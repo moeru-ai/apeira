@@ -245,7 +245,7 @@ export const chat = (options: ChatRunnerOptions): Runner =>
       void promise.catch(() => undefined)
 
     for await (const event of result.eventStream)
-      context.channel.emit('apeira', { ...event, turnId: context.turnId })
+      await context.channel.emit('apeira', { ...event, turnId: context.turnId })
 
     return {
       output: fromChat((await result.messages).slice(messages.length)),
