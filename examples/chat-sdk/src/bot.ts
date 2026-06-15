@@ -3,27 +3,19 @@ import type { AgentInput } from '@apeira/core'
 import { env, exit } from 'node:process'
 
 import { run } from '@apeira/core'
+import { jsonl } from '@apeira/store'
 import { createTelegramAdapter } from '@chat-adapter/telegram'
 import { Chat } from 'chat'
 
 import { createChatAgent } from './agent'
 import { createMemoryState } from './state'
-import { readJSON, threadFilePath, writeJSON } from './storage'
+import { ensureStorageDir, threadFilePath } from './storage'
 
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
-const threadInputs = new Map<string, readonly AgentInput[]>()
-
-const getThreadInput = async (threadId: string) => {
-  const cached = threadInputs.get(threadId)
-  if (cached != null)
-    return cached
-
-  const items = await readJSON<AgentInput>(threadFilePath(threadId))
-  threadInputs.set(threadId, items)
-  return items
-}
+const createThreadStore = (threadId: string) =>
+  jsonl<AgentInput>({ path: threadFilePath(threadId) })
 
 export const startBot = async () => {
   if (TELEGRAM_USER_ID == null) {
@@ -35,6 +27,8 @@ export const startBot = async () => {
     console.error('Please set the TELEGRAM_BOT_TOKEN environment variable.')
     exit(1)
   }
+
+  await ensureStorageDir()
 
   const bot = new Chat({
     adapters: {
@@ -56,9 +50,9 @@ export const startBot = async () => {
       return
     }
 
-    const input = await getThreadInput(thread.id)
+    const store = createThreadStore(thread.id)
+    const agent = createChatAgent(store)
 
-    const agent = createChatAgent(input)
     const stream = run(agent, {
       content: text,
       role: 'user',
@@ -74,10 +68,6 @@ export const startBot = async () => {
     }))
 
     await thread.post(textStream)
-
-    const updatedInput = agent.getInput()
-    threadInputs.set(thread.id, updatedInput)
-    await writeJSON(threadFilePath(thread.id), updatedInput)
   }
 
   /**

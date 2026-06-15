@@ -261,6 +261,9 @@ importers:
       '@apeira/plugin-skills':
         specifier: 'workspace:'
         version: link:../../packages/plugin-skills
+      '@apeira/store':
+        specifier: 'workspace:'
+        version: link:../../packages/store
       '@chat-adapter/telegram':
         specifier: 'catalog:'
         version: 4.30.0(zod@4.4.3)
