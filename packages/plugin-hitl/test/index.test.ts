@@ -260,7 +260,7 @@ describe('humanInTheLoop', () => {
 
     expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
 
-    approveToolCall(mockAgent, { toolCallId: 'call-sugar' })
+    await approveToolCall(mockAgent, { toolCallId: 'call-sugar' })
     await expect(pending).resolves.toEqual(toolCall)
   })
 
@@ -274,7 +274,7 @@ describe('humanInTheLoop', () => {
     const toolCall = createToolCall({ toolCallId: 'call-sugar-reject' })
     const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
 
-    rejectToolCall(mockAgent, { reason: 'Too sweet', toolCallId: 'call-sugar-reject' })
+    await rejectToolCall(mockAgent, { reason: 'Too sweet', toolCallId: 'call-sugar-reject' })
     await expect(pending).resolves.toMatchObject({
       result: 'Sugar denied.',
       toolCallId: 'call-sugar-reject',

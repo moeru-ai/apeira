@@ -40,13 +40,13 @@ describe('agui', () => {
 
     await plugin.init?.(mockAgent)
 
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'step.start' })
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'text.start' })
-    mockAgent.emit('apeira', { delta: 'Hello', turnId: 'turn-1', type: 'text.delta' })
-    mockAgent.emit('apeira', { content: 'Hello', turnId: 'turn-1', type: 'text.done' })
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'step.done' })
-    mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.done' })
+    void mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    void mockAgent.emit('apeira', { turnId: 'turn-1', type: 'step.start' })
+    void mockAgent.emit('apeira', { turnId: 'turn-1', type: 'text.start' })
+    void mockAgent.emit('apeira', { delta: 'Hello', turnId: 'turn-1', type: 'text.delta' })
+    void mockAgent.emit('apeira', { content: 'Hello', turnId: 'turn-1', type: 'text.done' })
+    void mockAgent.emit('apeira', { turnId: 'turn-1', type: 'step.done' })
+    void mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.done' })
 
     const aguiEvents = mockAgent.emitted.filter(entry => entry.channel === 'ag-ui')
     expect(aguiEvents.map(entry => (entry.event as { type: string }).type)).toEqual([
@@ -67,16 +67,16 @@ describe('agui', () => {
 
     await plugin.init?.(mockAgent)
 
-    mockAgent.emit('apeira', { turnId: 'turn-2', type: 'turn.start' })
-    mockAgent.emit('apeira', { turnId: 'turn-2', type: 'text.start' })
-    mockAgent.emit('apeira', {
+    void mockAgent.emit('apeira', { turnId: 'turn-2', type: 'turn.start' })
+    void mockAgent.emit('apeira', { turnId: 'turn-2', type: 'text.start' })
+    void mockAgent.emit('apeira', {
       toolCallId: 'call_1',
       toolName: 'weather',
       turnId: 'turn-2',
       type: 'tool-call.start',
     })
-    mockAgent.emit('apeira', { delta: '{"city":"Taipei"}', turnId: 'turn-2', type: 'tool-call.delta' })
-    mockAgent.emit('apeira', {
+    void mockAgent.emit('apeira', { delta: '{"city":"Taipei"}', turnId: 'turn-2', type: 'tool-call.delta' })
+    void mockAgent.emit('apeira', {
       args: '{"city":"Taipei"}',
       toolCallId: 'call_1',
       toolCallType: 'function',
@@ -84,7 +84,7 @@ describe('agui', () => {
       turnId: 'turn-2',
       type: 'tool-call.done',
     })
-    mockAgent.emit('apeira', {
+    void mockAgent.emit('apeira', {
       args: { city: 'Taipei' },
       result: { forecast: 'sunny' },
       toolCallId: 'call_1',
@@ -92,10 +92,10 @@ describe('agui', () => {
       turnId: 'turn-2',
       type: 'tool-result.done',
     })
-    mockAgent.emit('apeira', { turnId: 'turn-2', type: 'reasoning.start' })
-    mockAgent.emit('apeira', { delta: 'Thinking', turnId: 'turn-2', type: 'reasoning.delta' })
-    mockAgent.emit('apeira', { content: 'Thinking', turnId: 'turn-2', type: 'reasoning.done' })
-    mockAgent.emit('apeira', { error: new Error('boom'), turnId: 'turn-2', type: 'turn.failed' })
+    void mockAgent.emit('apeira', { turnId: 'turn-2', type: 'reasoning.start' })
+    void mockAgent.emit('apeira', { delta: 'Thinking', turnId: 'turn-2', type: 'reasoning.delta' })
+    void mockAgent.emit('apeira', { content: 'Thinking', turnId: 'turn-2', type: 'reasoning.done' })
+    void mockAgent.emit('apeira', { error: new Error('boom'), turnId: 'turn-2', type: 'turn.failed' })
 
     const events = mockAgent.emitted
       .filter(entry => entry.channel === 'ag-ui')
@@ -140,7 +140,7 @@ describe('agui', () => {
     const mockAgent = createMockAgent()
 
     await plugin.init?.(mockAgent)
-    mockAgent.emit('apeira', {
+    void mockAgent.emit('apeira', {
       cause: new Error('cause'),
       message: 'request failed',
       turnId: 'turn-3',

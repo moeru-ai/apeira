@@ -360,7 +360,7 @@ export const agui = (options: AGUIPluginOptions): AgentPlugin => {
   return ({
     init: (agent) => {
       const emit = (event: AGUIEvent) => {
-        agent.emit('ag-ui', event)
+        void agent.emit('ag-ui', event)
       }
       unsubscribe = agent.subscribe('apeira', (event) => {
         handleEvent(emit, event)

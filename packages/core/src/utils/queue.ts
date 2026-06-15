@@ -37,9 +37,8 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
   let pumping = false
   let pumpReady = Promise.resolve()
 
-  const emit = async (turnId: string, event: AgentEvent) => {
-    await channel.emit('apeira', { ...event, turnId })
-  }
+  const emit = async (turnId: string, event: AgentEvent) =>
+    channel.emit('apeira', { ...event, turnId })
 
   // eslint-disable-next-line sonarjs/cognitive-complexity
   const runTurn = async (turn: AgentQueueTurn) => {

@@ -45,13 +45,11 @@ interface PendingResolution {
 
 type ResolvePending = (toolCallId: string, resolution: ApprovalDecision) => boolean
 
-export const approveToolCall = (agent: Agent, params: { toolCallId: string }) => {
+export const approveToolCall = async (agent: Agent, params: { toolCallId: string }) =>
   agent.emit('hitl', { toolCallId: params.toolCallId, type: 'control.approve' })
-}
 
-export const rejectToolCall = (agent: Agent, params: { reason?: string, toolCallId: string }) => {
+export const rejectToolCall = async (agent: Agent, params: { reason?: string, toolCallId: string }) =>
   agent.emit('hitl', { reason: params.reason, toolCallId: params.toolCallId, type: 'control.reject' })
-}
 
 export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin => {
   const pendingByKey = new Map<string, PendingResolution>()
@@ -107,7 +105,8 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
   return {
     enforce: 'pre',
     init: (agent) => {
-      emit = event => agent.emit('hitl', event)
+      // eslint-disable-next-line ts/no-misused-promises
+      emit = async event => agent.emit('hitl', event)
       unsubscribeApeira = agent.subscribe('apeira', (event) => {
         if (event.type === 'turn.start') {
           currentTurnId = event.turnId

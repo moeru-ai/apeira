@@ -290,11 +290,11 @@ export const createPiTuiExampleApp = () => {
   const approvalDialog = new ApprovalDialog({
     borderColor: c.cyan,
     onApprove: (request) => {
-      approveToolCall(agent, { toolCallId: request.toolCallId })
+      void approveToolCall(agent, { toolCallId: request.toolCallId })
       tui.requestRender()
     },
     onReject: (request) => {
-      rejectToolCall(agent, { reason: 'Rejected by user', toolCallId: request.toolCallId })
+      void rejectToolCall(agent, { reason: 'Rejected by user', toolCallId: request.toolCallId })
       tui.requestRender()
     },
     selectListTheme: {
@@ -647,7 +647,7 @@ export const createPiTuiExampleApp = () => {
   }
 
   const handleClearCommand = () => {
-    agent.clear()
+    void agent.clear()
     entries.length = 0
     assistantEntries.clear()
     reasoningEntries.clear()

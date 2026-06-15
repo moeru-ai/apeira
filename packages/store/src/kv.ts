@@ -50,9 +50,8 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStore<T> =>
     return Number.isNaN(num) || num < 0 ? 0 : num
   }
 
-  const setHead = async (seg: number) => {
-    await options.storage.setItem(headKey, String(seg))
-  }
+  const setHead = async (seg: number) =>
+    options.storage.setItem(headKey, String(seg))
 
   const readSegment = async (seg: number): Promise<T[]> => {
     const raw = await options.storage.getItem(segmentKey(seg))
@@ -63,13 +62,11 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStore<T> =>
     return decode<T>(raw)
   }
 
-  const writeSegment = async (seg: number, items: readonly T[]) => {
-    await options.storage.setItem(segmentKey(seg), encode(items))
-  }
+  const writeSegment = async (seg: number, items: readonly T[]) =>
+    options.storage.setItem(segmentKey(seg), encode(items))
 
-  const removeSegment = async (seg: number) => {
-    await options.storage.removeItem(segmentKey(seg))
-  }
+  const removeSegment = async (seg: number) =>
+    options.storage.removeItem(segmentKey(seg))
 
   const clearSegments = async () => {
     const head = await getHead()

@@ -17,9 +17,8 @@ export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStor
     return raw == null ? [] : codec.decode(raw)
   }
 
-  const writeItems = async (items: readonly T[]) => {
-    await writeFileSafe(path, codec.encode(items))
-  }
+  const writeItems = async (items: readonly T[]) =>
+    writeFileSafe(path, codec.encode(items))
 
   const ensureInitialized = async () => {
     const items = await readItems()
@@ -37,17 +36,13 @@ export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStor
       await writeItems([...existing, ...items])
     },
 
-    clear: async () => {
-      await writeItems([])
-    },
+    clear: async () => writeItems([]),
 
     read: async () => {
       await ensureInitialized()
       return Object.freeze(await readItems())
     },
 
-    reset: async () => {
-      await writeItems(options.initial ?? [])
-    },
+    reset: async () => writeItems(options.initial ?? []),
   }
 }

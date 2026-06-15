@@ -296,7 +296,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
   }
 
   approve(toolCallId: string) {
-    approveToolCall(this.agent, { toolCallId })
+    void approveToolCall(this.agent, { toolCallId })
   }
 
   override clone(): this {
@@ -306,7 +306,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
   }
 
   reject(toolCallId: string, reason?: string) {
-    rejectToolCall(this.agent, { reason, toolCallId })
+    void rejectToolCall(this.agent, { reason, toolCallId })
   }
 
   override run(input: RunAgentInput) {
