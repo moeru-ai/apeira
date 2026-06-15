@@ -291,6 +291,9 @@ importers:
       '@apeira/plugin-hitl':
         specifier: 'workspace:'
         version: link:../../packages/plugin-hitl
+      '@apeira/store':
+        specifier: workspace:*
+        version: link:../../packages/store
       '@copilotkit/react-core':
         specifier: 'catalog:'
         version: 1.59.5(@types/mdast@4.0.4)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(graphql@16.14.0)(micromark-util-types@2.0.2)(micromark@4.0.2)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3)

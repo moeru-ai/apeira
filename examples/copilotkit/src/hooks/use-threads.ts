@@ -1,10 +1,11 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { AgentInput } from '@apeira/core'
 
+import { kv } from '@apeira/store/kv'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
 
-import { AGENT_NAME } from '../utils/const'
+import { getThreadStorePrefix } from '../utils/store'
 
 const THREADS_KEY = 'apeira:copilotkit:threads'
 const ACTIVE_THREAD_KEY = 'apeira:copilotkit:active-thread-id'
@@ -17,36 +18,17 @@ export interface LocalThread {
   updatedAt: number
 }
 
-interface PersistedThreadState {
-  input?: AgentInput[]
-}
-
 const now = () => Date.now()
 const byUpdatedAt = (left: LocalThread, right: LocalThread) =>
   right.updatedAt - left.updatedAt
-
-const getThreadStorageKey = (threadId: string) =>
-  JSON.stringify([AGENT_NAME, threadId])
-
-const readThreadState = (threadId: string) => {
-  try {
-    return JSON.parse(localStorage.getItem(getThreadStorageKey(threadId)) ?? '{}') as PersistedThreadState
-  }
-  catch {
-    return {}
-  }
-}
-
-const readThreadItems = (threadId: string): AgentInput[] =>
-  readThreadState(threadId).input ?? []
 
 const getText = (content: Extract<AgentInput, { type: 'message' }>['content']) =>
   typeof content === 'string'
     ? content
     : content.flatMap(part => 'text' in part ? [part.text] : []).join(' ')
 
-const getThreadName = (threadId: string) => {
-  const message = readThreadItems(threadId).find((item): item is Extract<AgentInput, { role: 'user', type: 'message' }> =>
+const getThreadNameFromItems = (items: readonly AgentInput[]) => {
+  const message = items.find((item): item is Extract<AgentInput, { role: 'user', type: 'message' }> =>
     item.type === 'message' && item.role === 'user',
   )
   const text = message == null ? '' : getText(message.content).trim()
@@ -99,26 +81,38 @@ export const useThreads = () => {
   }, [updateThread])
 
   const touchThread = useCallback((threadId: string) => {
-    if (readThreadItems(threadId).length === 0)
-      return
+    const update = async () => {
+      const store = kv<AgentInput>({
+        prefix: getThreadStorePrefix(threadId),
+        storage: localStorage,
+      })
+      const items = await store.read()
 
-    setThreads((current) => {
-      const threads = current ?? []
-      const existing = threads.find(thread => thread.id === threadId)
-      const updatedAt = now()
-      const thread: LocalThread = {
-        archived: existing?.archived,
-        createdAt: existing?.createdAt ?? updatedAt,
-        id: threadId,
-        name: existing?.name ?? getThreadName(threadId),
-        updatedAt,
-      }
+      if (items.length === 0)
+        return
 
-      return [
-        thread,
-        ...threads.filter(thread => thread.id !== threadId),
-      ].sort(byUpdatedAt)
-    })
+      const name = getThreadNameFromItems(items)
+
+      setThreads((current) => {
+        const threads = current ?? []
+        const existing = threads.find(thread => thread.id === threadId)
+        const updatedAt = now()
+        const thread: LocalThread = {
+          archived: existing?.archived,
+          createdAt: existing?.createdAt ?? updatedAt,
+          id: threadId,
+          name: existing?.name ?? name,
+          updatedAt,
+        }
+
+        return [
+          thread,
+          ...threads.filter(thread => thread.id !== threadId),
+        ].sort(byUpdatedAt)
+      })
+    }
+
+    void update()
   }, [setThreads])
 
   return {

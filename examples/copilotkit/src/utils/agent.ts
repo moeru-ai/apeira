@@ -4,8 +4,6 @@ import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
 import type { Subscriber } from 'rxjs'
 
-import type { SyncAgentStore } from './store'
-
 import { createAgent, run } from '@apeira/core'
 import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 import {
@@ -14,17 +12,13 @@ import {
 } from '@copilotkit/react-core/v2'
 import { Observable } from 'rxjs'
 
-import { AGENT_ID, AGENT_NAME } from './const'
-import { createLocalStorageStore } from './store'
+import { AGENT_ID } from './const'
 
 type PersistedMessageItem = Extract<AgentInput, { type: 'message' }>
 
 type PersistedUserMessageItem = Extract<PersistedMessageItem, { role: 'user' }>
 type UserContentPart = Exclude<Extract<Message, { role: 'user' }>['content'], string>[number]
 type UserMediaContentPart = Extract<UserContentPart, { type: 'audio' | 'document' | 'image' | 'video' }>
-
-const getStorageKey = (threadId: string) =>
-  JSON.stringify([AGENT_NAME, threadId])
 
 const toDataUrl = (mimeType: string, value: string) =>
   `data:${mimeType};base64,${value}`
@@ -271,27 +265,19 @@ export class AbstractApeiraAgent extends AbstractAgent {
   private readonly agent: Agent
   private readonly agentOptions: CreateAgentOptions
   private readonly onThreadUpdated?: (threadId: string) => void
-  private readonly store: SyncAgentStore<AgentInput>
 
   constructor(
     agentOptions: CreateAgentOptions,
     onThreadUpdated?: (threadId: string) => void,
     threadId = 'default',
   ) {
-    const store = createLocalStorageStore<AgentInput>(getStorageKey(threadId))
-
     super({
       agentId: AGENT_ID,
       description: 'Apeira browser agent',
-      initialMessages: toMessages(store.read()),
       threadId,
     })
     this.agentOptions = agentOptions
-    this.store = store
-    this.agent = createAgent({
-      ...agentOptions,
-      store,
-    })
+    this.agent = createAgent(agentOptions)
     this.onThreadUpdated = onThreadUpdated
   }
 
@@ -392,27 +378,32 @@ export class AbstractApeiraAgent extends AbstractAgent {
 
   protected override connect(_input: RunAgentInput) {
     return new Observable<BaseEvent>((subscriber: Subscriber<BaseEvent>) => {
-      subscriber.next({
-        timestamp: Date.now(),
-        type: EventType.RUN_STARTED,
-      })
-
-      const messages = toMessages(this.store.read())
-
-      if (messages.length > 0) {
+      void (async () => {
         subscriber.next({
-          messages,
           timestamp: Date.now(),
-          type: EventType.MESSAGES_SNAPSHOT,
+          type: EventType.RUN_STARTED,
         })
-      }
 
-      subscriber.next({
-        timestamp: Date.now(),
-        type: EventType.RUN_FINISHED,
+        const messages = toMessages(await this.agent.store.read())
+
+        if (messages.length > 0) {
+          this.setMessages(messages)
+          subscriber.next({
+            messages,
+            timestamp: Date.now(),
+            type: EventType.MESSAGES_SNAPSHOT,
+          })
+        }
+
+        subscriber.next({
+          timestamp: Date.now(),
+          type: EventType.RUN_FINISHED,
+        })
+
+        subscriber.complete()
+      })().catch((error) => {
+        subscriber.error(error instanceof Error ? error : new Error(String(error)))
       })
-
-      subscriber.complete()
     })
   }
 }
