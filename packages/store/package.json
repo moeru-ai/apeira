@@ -1,0 +1,65 @@
+{
+  "name": "@apeira/store",
+  "type": "module",
+  "version": "0.0.5",
+  "private": true,
+  "description": "stream-first Agent Runtime.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/store"
+  },
+  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "keywords": [
+    "agent",
+    "ai",
+    "xsai"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./json": "./src/json.ts",
+    "./jsonl": "./src/jsonl.ts",
+    "./kv": "./src/kv.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./json": {
+        "types": "./dist/json.d.ts",
+        "default": "./dist/json.js"
+      },
+      "./jsonl": {
+        "types": "./dist/jsonl.d.ts",
+        "default": "./dist/jsonl.js"
+      },
+      "./kv": {
+        "types": "./dist/kv.d.ts",
+        "default": "./dist/kv.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@apeira/core": "workspace:"
+  },
+  "devDependencies": {
+    "@apeira/core": "workspace:"
+  }
+}
