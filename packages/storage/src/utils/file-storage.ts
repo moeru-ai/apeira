@@ -15,6 +15,9 @@ export interface FileStorageCodec<T> {
 export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: FileStorageCodec<T>): AgentStorage<T> => {
   const path = options.path
 
+  const writeItems = async (items: readonly T[]) =>
+    writeFileSafe(path, codec.encode(items))
+
   const readItems = async (): Promise<T[]> => {
     const raw = await readFileSafe(path)
 
@@ -27,9 +30,6 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
 
     return codec.decode(raw)
   }
-
-  const writeItems = async (items: readonly T[]) =>
-    writeFileSafe(path, codec.encode(items))
 
   return {
     append: async (...items) => enqueue(path, async () => {
