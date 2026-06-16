@@ -82,11 +82,11 @@ export const useThreads = () => {
 
   const touchThread = useCallback((threadId: string) => {
     const update = async () => {
-      const store = kv<AgentInput>({
+      const storage = kv<AgentInput>({
         prefix: getThreadStorePrefix(threadId),
         storage: localStorage,
       })
-      const items = await store.read()
+      const items = await storage.read()
 
       if (items.length === 0)
         return

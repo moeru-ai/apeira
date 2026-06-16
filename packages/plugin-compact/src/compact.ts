@@ -123,7 +123,7 @@ export const executeCompact = async ({
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
     runner,
-    store: mem(compactInput),
+    storage: mem(compactInput),
   })
 
   try {
@@ -139,7 +139,7 @@ export const executeCompact = async ({
     await tempAgent.stop()
   }
 
-  const summary = extractAssistantSummary(await tempAgent.store.read())
+  const summary = extractAssistantSummary(await tempAgent.storage.read())
   if (summary.length === 0)
     throw new Error('Compaction produced an empty summary.')
 

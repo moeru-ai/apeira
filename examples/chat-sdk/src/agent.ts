@@ -10,7 +10,7 @@ const model = env.APEIRA_MODEL ?? 'qwen3.5:0.8b'
 const baseURL = env.APEIRA_BASE_URL ?? 'http://localhost:11434/v1'
 const apiKey = env.OPENAI_API_KEY ?? env.APEIRA_API_KEY ?? 'ollama'
 
-export const createChatAgent = (store: AgentStorage<AgentInput>) =>
+export const createChatAgent = (storage: AgentStorage<AgentInput>) =>
   createAgent({
     instructions: 'You are a helpful assistant.',
     plugins: [
@@ -21,5 +21,5 @@ export const createChatAgent = (store: AgentStorage<AgentInput>) =>
       baseURL,
       model,
     }),
-    store,
+    storage,
   })

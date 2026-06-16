@@ -59,9 +59,9 @@ export const roleplay = (options: RoleplayPluginOptions): AgentPlugin => {
     const selected = selectGreeting(getCard(), greetingIndex)
     const rendered = renderCBS(selected.greeting, createCBSContext(new Map())).text
 
-    const history = await activeAgent.store.read()
+    const history = await activeAgent.storage.read()
     if (history.length === 0 && rendered.length > 0)
-      await activeAgent.store.append(assistant(rendered))
+      await activeAgent.storage.append(assistant(rendered))
 
     return rendered.length > 0
   }

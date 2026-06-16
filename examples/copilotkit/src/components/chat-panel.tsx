@@ -33,7 +33,7 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
   const { apiKey, baseURL, model } = useLLMSettings()
   const [approvalRequests, setApprovalRequests] = useState<HITLRequestEvent[]>([])
 
-  const store = useMemo(() =>
+  const storage = useMemo(() =>
     kv<AgentInput>({
       prefix: getThreadStorePrefix(threadId),
       storage: localStorage,
@@ -59,8 +59,8 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
         weatherTool,
       ],
     }),
-    store,
-  }, onThreadUpdated, threadId), [apiKey, baseURL, model, onThreadUpdated, store, threadId])
+    storage,
+  }, onThreadUpdated, threadId), [apiKey, baseURL, model, onThreadUpdated, storage, threadId])
 
   useEffect(() => {
     const unsubscribe = agent.subscribeHitl(threadId, (event) => {

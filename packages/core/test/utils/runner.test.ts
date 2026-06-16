@@ -102,7 +102,7 @@ describe('chat', () => {
     for await (const event of run(agent, user('hi')))
       void event
 
-    expect(await agent.store.read()).toEqual([
+    expect(await agent.storage.read()).toEqual([
       user('hi'),
       expect.objectContaining({
         content: 'hello',

@@ -20,75 +20,75 @@ describe('jsonl', () => {
   })
 
   it('append and read', async () => {
-    const store = jsonl<string>({ path })
+    const storage = jsonl<string>({ path })
 
-    await store.append('a', 'b')
-    await store.append('c')
+    await storage.append('a', 'b')
+    await storage.append('c')
 
-    expect(await store.read()).toEqual(['a', 'b', 'c'])
+    expect(await storage.read()).toEqual(['a', 'b', 'c'])
   })
 
   it('writes newline-delimited json', async () => {
-    const store = jsonl<number>({ path })
+    const storage = jsonl<number>({ path })
 
-    await store.append(1, 2, 3)
+    await storage.append(1, 2, 3)
 
     const raw = await readFile(path, 'utf-8')
     expect(raw).toBe('1\n2\n3\n')
   })
 
   it('clears the file', async () => {
-    const store = jsonl<string>({ path })
+    const storage = jsonl<string>({ path })
 
-    await store.append('a')
-    await store.clear()
+    await storage.append('a')
+    await storage.clear()
 
-    expect(await store.read()).toEqual([])
+    expect(await storage.read()).toEqual([])
     expect(await readFile(path, 'utf-8')).toBe('')
   })
 
   it('resets to initial', async () => {
-    const store = jsonl<number>({ initial: [1, 2], path })
+    const storage = jsonl<number>({ initial: [1, 2], path })
 
-    await store.append(3, 4, 5)
-    await store.reset()
+    await storage.append(3, 4, 5)
+    await storage.reset()
 
-    expect(await store.read()).toEqual([1, 2])
+    expect(await storage.read()).toEqual([1, 2])
   })
 
   it('returns initial before any append', async () => {
-    const store = jsonl<string>({ initial: ['x', 'y'], path })
+    const storage = jsonl<string>({ initial: ['x', 'y'], path })
 
-    expect(await store.read()).toEqual(['x', 'y'])
+    expect(await storage.read()).toEqual(['x', 'y'])
   })
 
   it('append preserves initial', async () => {
-    const store = jsonl<string>({ initial: ['x', 'y'], path })
+    const storage = jsonl<string>({ initial: ['x', 'y'], path })
 
-    await store.append('z')
+    await storage.append('z')
 
-    expect(await store.read()).toEqual(['x', 'y', 'z'])
+    expect(await storage.read()).toEqual(['x', 'y', 'z'])
   })
 
   it('does not re-initialize after clear', async () => {
-    const store = jsonl<string>({ initial: ['x', 'y'], path })
+    const storage = jsonl<string>({ initial: ['x', 'y'], path })
 
-    await store.append('z')
-    await store.clear()
-    await store.append('a')
+    await storage.append('z')
+    await storage.clear()
+    await storage.append('a')
 
-    expect(await store.read()).toEqual(['a'])
+    expect(await storage.read()).toEqual(['a'])
   })
 
   it('ignores corrupt lines', async () => {
-    const store = jsonl<string>({ path })
+    const storage = jsonl<string>({ path })
 
-    await store.append('a', 'b')
-    await store.append('c')
+    await storage.append('a', 'b')
+    await storage.append('c')
 
     const raw = await readFile(path, 'utf-8')
     await writeFile(path, `${raw}{broken line\n`, 'utf-8')
 
-    expect(await store.read()).toEqual(['a', 'b', 'c'])
+    expect(await storage.read()).toEqual(['a', 'b', 'c'])
   })
 })

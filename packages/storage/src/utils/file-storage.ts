@@ -1,18 +1,18 @@
 import type { AgentStorage } from '@apeira/core'
 
-import type { FileStoreOptions } from './types'
+import type { FileStorageOptions } from './types'
 
 import { readFileSafe, writeFileSafe } from './fs'
 import { createKeyedQueue } from './keyed-queue'
 
 const enqueue = createKeyedQueue<string>()
 
-export interface FileStoreCodec<T> {
+export interface FileStorageCodec<T> {
   decode: (raw: string) => T[]
   encode: (items: readonly T[]) => string
 }
 
-export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStoreCodec<T>): AgentStorage<T> => {
+export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: FileStorageCodec<T>): AgentStorage<T> => {
   const path = options.path
 
   const readItems = async (): Promise<T[]> => {

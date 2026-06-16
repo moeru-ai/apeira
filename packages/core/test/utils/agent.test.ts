@@ -28,7 +28,7 @@ const createTestAgent = (opts?: {
       stopWhen: stepCountAtLeast(1),
     }),
     state: opts?.state,
-    store: mem(opts?.input),
+    storage: mem(opts?.input),
   })
   return { agent, ...mock }
 }
@@ -36,12 +36,12 @@ const createTestAgent = (opts?: {
 describe('createAgent', () => {
   it('creates an agent with initial input', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    expect(await agent.store.read()).toEqual([user('hello')])
+    expect(await agent.storage.read()).toEqual([user('hello')])
   })
 
   it('returns empty input when none provided', async () => {
     const { agent } = createTestAgent()
-    expect(await agent.store.read()).toEqual([])
+    expect(await agent.storage.read()).toEqual([])
   })
 
   it('returns the current agent state', () => {
@@ -54,11 +54,11 @@ describe('createAgent', () => {
     const { agent } = createTestAgent({ input: [user('old')] })
     const nextInput = [user('new')]
 
-    await agent.store.clear()
-    await agent.store.append(...nextInput)
+    await agent.storage.clear()
+    await agent.storage.append(...nextInput)
     nextInput[0] = user('mutated')
 
-    expect(await agent.store.read()).toEqual([user('new')])
+    expect(await agent.storage.read()).toEqual([user('new')])
   })
 
   it('replaces nested state patches with cloned values', () => {
@@ -372,7 +372,7 @@ describe('queue', () => {
 
     await sleep(20)
 
-    expect(await agent.store.read()).toEqual([boundary])
+    expect(await agent.storage.read()).toEqual([boundary])
 
     agent.send(user('next'))
     await sleep(150)
@@ -398,13 +398,13 @@ describe('queue', () => {
     expect(events.some(e => e.type === 'turn.aborted' && e.reason === 'cleared')).toBe(true)
   })
 
-  it('waits for an active append before resetting the store', async () => {
+  it('waits for an active append before resetting the storage', async () => {
     let releaseAppend!: () => void
     let signalAppend!: () => void
     const appendBlocked = new Promise<void>(resolve => releaseAppend = resolve)
     const appendStarted = new Promise<void>(resolve => signalAppend = resolve)
     const items: AgentInput[] = []
-    const store = {
+    const storage = {
       append: async (...next: AgentInput[]) => {
         signalAppend()
         await appendBlocked
@@ -417,7 +417,7 @@ describe('queue', () => {
     const agent = createAgent({
       instructions: 'test',
       runner: async () => ({ output: [] }),
-      store,
+      storage,
     })
 
     agent.send(user('old'))
@@ -426,7 +426,7 @@ describe('queue', () => {
     releaseAppend()
     await clearing
 
-    expect(await agent.store.read()).toEqual([])
+    expect(await agent.storage.read()).toEqual([])
   })
 
   it('restores initial input and state and emits one cleared event', async () => {
@@ -439,12 +439,12 @@ describe('queue', () => {
       events.push(event)
     })
 
-    await agent.store.clear()
-    await agent.store.append(user('changed'))
+    await agent.storage.clear()
+    await agent.storage.append(user('changed'))
     agent.state.update({ contextLength: 16_000 })
     await agent.clear()
 
-    expect(await agent.store.read()).toEqual([user('initial')])
+    expect(await agent.storage.read()).toEqual([user('initial')])
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
     expect(events.filter(event => event.type === 'agent.cleared')).toHaveLength(1)
     expect(events.find(event => event.type === 'agent.cleared')?.turnId).toBeTruthy()
@@ -513,7 +513,7 @@ describe('queue', () => {
         throw error
       }),
       stop: vi.fn(),
-      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn(() => unsubscribe),
     } as unknown as Agent
 
@@ -544,7 +544,7 @@ describe('queue', () => {
         return 'target-turn'
       }),
       stop: vi.fn(),
-      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe
@@ -584,7 +584,7 @@ describe('queue', () => {
         return 'new-turn'
       }),
       stop: vi.fn(),
-      store: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe

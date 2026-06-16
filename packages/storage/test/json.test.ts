@@ -20,12 +20,12 @@ describe('json', () => {
   })
 
   it('append and read', async () => {
-    const store = json<string>({ path })
+    const storage = json<string>({ path })
 
-    await store.append('a', 'b')
-    await store.append('c')
+    await storage.append('a', 'b')
+    await storage.append('c')
 
-    expect(await store.read()).toEqual(['a', 'b', 'c'])
+    expect(await storage.read()).toEqual(['a', 'b', 'c'])
   })
 
   it('serializes concurrent appends to the same path', async () => {
@@ -42,63 +42,63 @@ describe('json', () => {
   })
 
   it('writes a formatted json array', async () => {
-    const store = json<number>({ path })
+    const storage = json<number>({ path })
 
-    await store.append(1, 2, 3)
+    await storage.append(1, 2, 3)
 
     const raw = await readFile(path, 'utf-8')
     expect(raw).toBe('[\n  1,\n  2,\n  3\n]')
   })
 
   it('clears the file', async () => {
-    const store = json<string>({ path })
+    const storage = json<string>({ path })
 
-    await store.append('a')
-    await store.clear()
+    await storage.append('a')
+    await storage.clear()
 
-    expect(await store.read()).toEqual([])
+    expect(await storage.read()).toEqual([])
     expect(await readFile(path, 'utf-8')).toBe('[]')
   })
 
   it('resets to initial', async () => {
-    const store = json<number>({ initial: [1, 2], path })
+    const storage = json<number>({ initial: [1, 2], path })
 
-    await store.append(3, 4, 5)
-    await store.reset()
+    await storage.append(3, 4, 5)
+    await storage.reset()
 
-    expect(await store.read()).toEqual([1, 2])
+    expect(await storage.read()).toEqual([1, 2])
   })
 
   it('returns initial before any append', async () => {
-    const store = json<string>({ initial: ['x', 'y'], path })
+    const storage = json<string>({ initial: ['x', 'y'], path })
 
-    expect(await store.read()).toEqual(['x', 'y'])
+    expect(await storage.read()).toEqual(['x', 'y'])
   })
 
   it('append preserves initial', async () => {
-    const store = json<string>({ initial: ['x', 'y'], path })
+    const storage = json<string>({ initial: ['x', 'y'], path })
 
-    await store.append('z')
+    await storage.append('z')
 
-    expect(await store.read()).toEqual(['x', 'y', 'z'])
+    expect(await storage.read()).toEqual(['x', 'y', 'z'])
   })
 
   it('does not re-initialize after clear', async () => {
-    const store = json<string>({ initial: ['x', 'y'], path })
+    const storage = json<string>({ initial: ['x', 'y'], path })
 
-    await store.append('z')
-    await store.clear()
-    await store.append('a')
+    await storage.append('z')
+    await storage.clear()
+    await storage.append('a')
 
-    expect(await store.read()).toEqual(['a'])
+    expect(await storage.read()).toEqual(['a'])
   })
 
   it('ignores corrupt content', async () => {
-    const store = json<string>({ path })
+    const storage = json<string>({ path })
 
-    await store.append('a', 'b')
+    await storage.append('a', 'b')
     await writeFile(path, '{broken json', 'utf-8')
 
-    expect(await store.read()).toEqual([])
+    expect(await storage.read()).toEqual([])
   })
 })

@@ -22,7 +22,7 @@ export interface Agent extends AgentChannel, AgentQueue {
   runner: Runner
   readonly state: Readonly<AgentStateManager>
   stop: () => Promise<void>
-  readonly store: AgentStorage
+  readonly storage: AgentStorage
 }
 
 export interface CreateAgentOptions {
@@ -31,12 +31,12 @@ export interface CreateAgentOptions {
   runner: Runner
   state?: AgentState
   /** @default `mem()` */
-  store?: AgentStorage
+  storage?: AgentStorage
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
   const plugins = normalizePlugins(options.plugins ?? [])
-  const store = options.store ?? mem()
+  const storage = options.storage ?? mem()
 
   const hooks = {
     onFinish: chain('every', plugins.map(p => p.onFinish)),
@@ -66,12 +66,12 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   }
 
   let initPromise: Promise<void> | undefined
-  let storeReady = Promise.resolve()
+  let storageReady = Promise.resolve()
   let agent: Agent
 
-  const mutateStore = async (operation: () => Promise<void>) => {
-    const result = storeReady.then(operation, operation)
-    storeReady = result.catch(() => {})
+  const mutateStorage = async (operation: () => Promise<void>) => {
+    const result = storageReady.then(operation, operation)
+    storageReady = result.catch(() => {})
     return result
   }
 
@@ -113,7 +113,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
-      const history = await store.read()
+      const history = await storage.read()
 
       const result = await options.runner({
         ...opts,
@@ -124,7 +124,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       })
 
       if (!opts.abortSignal?.aborted)
-        await mutateStore(async () => store.append(...opts.input, ...result.output))
+        await mutateStorage(async () => storage.append(...opts.input, ...result.output))
 
       return result
     },
@@ -134,7 +134,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     const turnId = queue.interrupt(reason)
 
     if (turnId != null) {
-      await mutateStore(async () => store.append(developer([
+      await mutateStorage(async () => storage.append(developer([
         '<turn_aborted>',
         'The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.',
         '</turn_aborted>',
@@ -146,7 +146,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const clear: Agent['clear'] = async () => {
     await queue.clear()
-    await mutateStore(async () => store.reset())
+    await mutateStorage(async () => storage.reset())
     state.set(options.state ?? {})
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.cleared' })
   }
@@ -160,7 +160,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     runner: options.runner,
     state,
     stop,
-    store,
+    storage,
   }
 
   return agent

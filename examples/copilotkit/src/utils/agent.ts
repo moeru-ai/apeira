@@ -384,7 +384,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
           type: EventType.RUN_STARTED,
         })
 
-        const messages = toMessages(await this.agent.store.read())
+        const messages = toMessages(await this.agent.storage.read())
 
         if (messages.length > 0) {
           this.setMessages(messages)

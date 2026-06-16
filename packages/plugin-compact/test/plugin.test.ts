@@ -56,7 +56,7 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
-      store: mem([
+      storage: mem([
         user('old one'),
         assistant('old answer one'),
         user('old two'),
@@ -81,7 +81,7 @@ describe('compact plugin', () => {
       assistant('first'),
       user('after compact'),
     ])
-    expect(await agent.store.read()).toEqual([
+    expect(await agent.storage.read()).toEqual([
       user('old one'),
       user('old two'),
       developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
@@ -128,7 +128,7 @@ describe('compact plugin', () => {
       send: () => 'turn-test',
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
-      store: {
+      storage: {
         append: storeAppend,
         clear: storeClear,
         read: () => historicalInput,
@@ -191,7 +191,7 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
-      store: mem([
+      storage: mem([
         user('old one'),
         assistant('old answer one'),
         user('old two'),
@@ -253,7 +253,7 @@ describe('compact plugin', () => {
       send: () => 'turn-test',
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
-      store: {
+      storage: {
         append: storeAppend,
         clear: storeClear,
         read: () => historicalInput,

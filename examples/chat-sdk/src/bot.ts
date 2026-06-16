@@ -14,7 +14,7 @@ import { ensureStorageDir, threadFilePath } from './storage'
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
-const createThreadStore = (threadId: string) =>
+const createThreadStorage = (threadId: string) =>
   jsonl<AgentInput>({ path: threadFilePath(threadId) })
 
 export const startBot = async () => {
@@ -50,8 +50,8 @@ export const startBot = async () => {
       return
     }
 
-    const store = createThreadStore(thread.id)
-    const agent = createChatAgent(store)
+    const storage = createThreadStorage(thread.id)
+    const agent = createChatAgent(storage)
 
     const stream = run(agent, {
       content: text,
