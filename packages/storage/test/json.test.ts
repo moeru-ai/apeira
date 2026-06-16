@@ -47,7 +47,7 @@ describe('json', () => {
     await storage.append(1, 2, 3)
 
     const raw = await readFile(path, 'utf-8')
-    expect(raw).toBe('[\n  1,\n  2,\n  3\n]')
+    expect(raw).toBe('[\n  1,\n  2,\n  3\n]\n')
   })
 
   it('clears the file', async () => {
@@ -57,7 +57,7 @@ describe('json', () => {
     await storage.clear()
 
     expect(await storage.read()).toEqual([])
-    expect(await readFile(path, 'utf-8')).toBe('[]')
+    expect(await readFile(path, 'utf-8')).toBe('[]\n')
   })
 
   it('resets to initial', async () => {

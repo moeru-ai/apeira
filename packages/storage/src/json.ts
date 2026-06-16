@@ -7,7 +7,7 @@ import { createFileStorage } from './utils/file-storage'
 export interface JSONStorageOptions<T> extends FileStorageOptions<T> {}
 
 const encode = <T>(items: readonly T[]): string =>
-  JSON.stringify(items, null, 2)
+  `${JSON.stringify(items, null, 2)}\n`
 
 const decode = <T>(raw: string): T[] => {
   try {

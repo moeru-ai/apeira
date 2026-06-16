@@ -17,34 +17,32 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
 
   const readItems = async (): Promise<T[]> => {
     const raw = await readFileSafe(path)
-    return raw == null ? [] : codec.decode(raw)
+
+    if (raw == null) {
+      const initial = options.initial ?? []
+      if (initial.length > 0)
+        await writeItems(initial)
+      return [...initial]
+    }
+
+    return codec.decode(raw)
   }
 
   const writeItems = async (items: readonly T[]) =>
     writeFileSafe(path, codec.encode(items))
-
-  const ensureInitialized = async () => {
-    const raw = await readFileSafe(path)
-    if (raw == null)
-      await writeItems(options.initial ?? [])
-  }
 
   return {
     append: async (...items) => enqueue(path, async () => {
       if (items.length === 0)
         return
 
-      await ensureInitialized()
       const existing = await readItems()
       await writeItems([...existing, ...items])
     }),
 
     clear: async () => enqueue(path, async () => writeItems([])),
 
-    read: async () => enqueue(path, async () => {
-      await ensureInitialized()
-      return Object.freeze(await readItems())
-    }),
+    read: async () => enqueue(path, async () => Object.freeze(await readItems())),
 
     reset: async () => enqueue(path, async () => writeItems(options.initial ?? [])),
   }

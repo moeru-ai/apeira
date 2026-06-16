@@ -112,13 +112,13 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStorage<T> 
     await setHead(head - 1)
   }
 
-  const ensureInitialized = async () => {
+  const getAndInitializeHead = async (): Promise<number> => {
     const head = await getHead()
-
-    if (head != null)
-      return
+    if (head !== null)
+      return head
 
     await writeItems(options.initial ?? [])
+    return (await getHead()) ?? 0
   }
 
   return {
@@ -126,11 +126,9 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStorage<T> 
       if (items.length === 0)
         return
 
-      await ensureInitialized()
+      let head = await getAndInitializeHead()
 
-      let head = await getHead()
-
-      if (head == null || head === 0)
+      if (head === 0)
         head = 1
 
       let current = await readSegment(head)
@@ -158,11 +156,9 @@ export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStorage<T> 
     clear: async () => queueOf(options.storage)(prefix, clearSegments),
 
     read: async () => queueOf(options.storage)(prefix, async () => {
-      await ensureInitialized()
+      const head = await getAndInitializeHead()
 
-      const head = await getHead()
-
-      if (head == null || head === 0)
+      if (head === 0)
         return Object.freeze([])
 
       const segments = await Promise.all(
