@@ -1,7 +1,7 @@
 import type { AgentInput } from '../types/input'
-import type { AgentStore } from '../types/store'
+import type { AgentStorage } from '../types/storage'
 
-export const memory = <T = AgentInput>(initial?: readonly T[]): AgentStore<T> => {
+export const mem = <T = AgentInput>(initial?: readonly T[]): AgentStorage<T> => {
   const initialItems = initial ?? []
   let items = [...initialItems]
 
@@ -19,7 +19,7 @@ export const memory = <T = AgentInput>(initial?: readonly T[]): AgentStore<T> =>
   }
 }
 
-export const noop = <T = AgentInput>(): AgentStore<T> => ({
+export const none = <T = AgentInput>(): AgentStorage<T> => ({
   append: () => {},
   clear: () => {},
   read: () => [],

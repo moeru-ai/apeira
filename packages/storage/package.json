@@ -1,5 +1,5 @@
 {
-  "name": "@apeira/store",
+  "name": "@apeira/storage",
   "type": "module",
   "version": "0.0.5",
   "private": true,
@@ -10,7 +10,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moeru-ai/apeira.git",
-    "directory": "packages/store"
+    "directory": "packages/storage"
   },
   "bugs": "https://github.com/moeru-ai/apeira/issues",
   "keywords": [

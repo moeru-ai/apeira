@@ -5,7 +5,7 @@ import type { HITLRequestEvent } from '@apeira/plugin-hitl'
 import { responses } from '@apeira/core/responses'
 import { agui } from '@apeira/plugin-ag-ui'
 import { hitl } from '@apeira/plugin-hitl'
-import { kv } from '@apeira/store/kv'
+import { kv } from '@apeira/storage/kv'
 import {
   CopilotChat,
   CopilotChatConfigurationProvider,
@@ -17,7 +17,7 @@ import { useLLMSettings } from '../hooks/use-llm-settings'
 import { cn } from '../lib/utils'
 import { AbstractApeiraAgent } from '../utils/agent'
 import { AGENT_ID, DEFAULT_INSTRUCTIONS } from '../utils/const'
-import { getThreadStorePrefix } from '../utils/store'
+import { getThreadStorePrefix } from '../utils/storage'
 import { weatherTool } from '../utils/tools/weather'
 import { ApprovalPanel } from './approval-panel'
 

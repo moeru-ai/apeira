@@ -1,6 +1,6 @@
 import type { Agent, AgentEventListener } from '@apeira/core'
 
-import { assistant, createAgent, developer, memory, run, user } from '@apeira/core'
+import { assistant, createAgent, developer, mem, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -56,7 +56,7 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
-      store: memory([
+      store: mem([
         user('old one'),
         assistant('old answer one'),
         user('old two'),
@@ -191,7 +191,7 @@ describe('compact plugin', () => {
         model: 'main-model',
       }),
       state: { contextLength: 1000 },
-      store: memory([
+      store: mem([
         user('old one'),
         assistant('old answer one'),
         user('old two'),

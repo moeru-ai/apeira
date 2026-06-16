@@ -5,7 +5,7 @@ import type { Agent, AgentEvent, AgentInput, AgentPluginOption, AgentState } fro
 import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createAgent, developer, memory, run, user } from '../../src/index'
+import { createAgent, developer, mem, run, user } from '../../src/index'
 import { responses } from '../../src/responses'
 import { createMockFetch, sleep } from '../_shared'
 
@@ -28,7 +28,7 @@ const createTestAgent = (opts?: {
       stopWhen: stepCountAtLeast(1),
     }),
     state: opts?.state,
-    store: memory(opts?.input),
+    store: mem(opts?.input),
   })
   return { agent, ...mock }
 }

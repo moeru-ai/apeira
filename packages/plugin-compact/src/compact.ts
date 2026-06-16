@@ -2,7 +2,7 @@ import type { AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
 
 import type { RetainedMessage } from './split'
 
-import { createAgent, developer, memory, run, user } from '@apeira/core'
+import { createAgent, developer, mem, run, user } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
@@ -123,7 +123,7 @@ export const executeCompact = async ({
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
     runner,
-    store: memory(compactInput),
+    store: mem(compactInput),
   })
 
   try {

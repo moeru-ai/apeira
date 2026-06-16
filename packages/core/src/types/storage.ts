@@ -1,7 +1,7 @@
 import type { MaybePromise } from './base'
 import type { AgentInput } from './input'
 
-export interface AgentStore<T = AgentInput> {
+export interface AgentStorage<T = AgentInput> {
   append: (...items: T[]) => MaybePromise<void>
   clear: () => MaybePromise<void>
   read: () => MaybePromise<Readonly<T[]>>

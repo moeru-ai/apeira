@@ -1,11 +1,11 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { AgentInput } from '@apeira/core'
 
-import { kv } from '@apeira/store/kv'
+import { kv } from '@apeira/storage/kv'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
 
-import { getThreadStorePrefix } from '../utils/store'
+import { getThreadStorePrefix } from '../utils/storage'
 
 const THREADS_KEY = 'apeira:copilotkit:threads'
 const ACTIVE_THREAD_KEY = 'apeira:copilotkit:active-thread-id'

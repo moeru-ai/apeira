@@ -3,7 +3,7 @@ import type { AgentInput } from '@apeira/core'
 import { env, exit } from 'node:process'
 
 import { run } from '@apeira/core'
-import { jsonl } from '@apeira/store'
+import { jsonl } from '@apeira/storage'
 import { createTelegramAdapter } from '@chat-adapter/telegram'
 import { Chat } from 'chat'
 

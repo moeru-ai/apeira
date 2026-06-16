@@ -3,7 +3,7 @@ import type { Tool } from '@xsai/shared-chat'
 import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
-import type { AgentStore } from '../types/store'
+import type { AgentStorage } from '../types/storage'
 import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
 import type { AgentStateManager } from './state-manager'
@@ -13,7 +13,7 @@ import { developer } from './input'
 import { chain, chainPrepareStep, normalizePlugins } from './plugin'
 import { createAgentQueue } from './queue'
 import { createAgentStateManager } from './state-manager'
-import { memory } from './store'
+import { mem } from './storage'
 
 export interface Agent extends AgentChannel, AgentQueue {
   clear: () => Promise<void>
@@ -22,7 +22,7 @@ export interface Agent extends AgentChannel, AgentQueue {
   runner: Runner
   readonly state: Readonly<AgentStateManager>
   stop: () => Promise<void>
-  readonly store: AgentStore
+  readonly store: AgentStorage
 }
 
 export interface CreateAgentOptions {
@@ -30,13 +30,13 @@ export interface CreateAgentOptions {
   plugins?: AgentPluginOption[]
   runner: Runner
   state?: AgentState
-  /** @default `memory()` */
-  store?: AgentStore
+  /** @default `mem()` */
+  store?: AgentStorage
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
   const plugins = normalizePlugins(options.plugins ?? [])
-  const store = options.store ?? memory()
+  const store = options.store ?? mem()
 
   const hooks = {
     onFinish: chain('every', plugins.map(p => p.onFinish)),

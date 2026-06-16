@@ -10,7 +10,7 @@
     "@apeira/core": "workspace:",
     "@apeira/plugin-common-tools": "workspace:",
     "@apeira/plugin-skills": "workspace:",
-    "@apeira/store": "workspace:",
+    "@apeira/storage": "workspace:",
     "@chat-adapter/telegram": "catalog:",
     "@pnpm/find-workspace-dir": "catalog:",
     "@xsai/tool": "catalog:xsai",

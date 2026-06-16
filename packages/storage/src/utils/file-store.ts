@@ -1,4 +1,4 @@
-import type { AgentStore } from '@apeira/core'
+import type { AgentStorage } from '@apeira/core'
 
 import type { FileStoreOptions } from './types'
 
@@ -12,7 +12,7 @@ export interface FileStoreCodec<T> {
   encode: (items: readonly T[]) => string
 }
 
-export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStoreCodec<T>): AgentStore<T> => {
+export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStoreCodec<T>): AgentStorage<T> => {
   const path = options.path
 
   const readItems = async (): Promise<T[]> => {

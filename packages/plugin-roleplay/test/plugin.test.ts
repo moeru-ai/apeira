@@ -2,7 +2,7 @@ import type { AgentInput } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, developer, memory, run, user } from '@apeira/core'
+import { createAgent, developer, mem, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
@@ -57,7 +57,7 @@ describe('roleplay plugin', () => {
       instructions: '',
       plugins: [roleplay({ card: createV3Card({ first_mes: 'Hello.' }) })],
       runner,
-      store: memory([restored]),
+      store: mem([restored]),
     })
     await agent.init()
     expect(await agent.store.read()).toEqual([restored])
@@ -257,7 +257,7 @@ describe('roleplay plugin', () => {
         model: 'test',
       }),
       state: { contextLength: 1_000 },
-      store: memory([
+      store: mem([
         user('old one'),
         {
           content: [{ text: 'old answer one', type: 'output_text' }],
