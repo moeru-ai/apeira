@@ -72,9 +72,7 @@ describe('fork', () => {
 
   it('inherits instructions, runner, and plugins by default', async () => {
     const plugin = { name: 'test-plugin' }
-    const { agent } = createTestAgent({ instructions: 'parent instructions' })
-    // eslint-disable-next-line ts/no-unsafe-member-access
-    ;(agent as any).plugins = [plugin]
+    const { agent } = createTestAgent({ instructions: 'parent instructions', plugins: [plugin] })
 
     const child = await fork(agent)
 
@@ -85,7 +83,7 @@ describe('fork', () => {
 
   it('applies overrides', async () => {
     const { agent } = createTestAgent({ instructions: 'parent' })
-    const customStorage = mem([developer('custom')])
+    const customStorage = mem<AgentInput>([developer('custom')])
 
     const child = await fork(agent, {
       instructions: 'child',
@@ -105,7 +103,7 @@ describe('fork', () => {
     const child = await fork(agent, {
       storage: async (snapshot) => {
         factoryInput.push(...snapshot)
-        return mem([developer('factory')])
+        return mem<AgentInput>([developer('factory')])
       },
     })
 
@@ -146,10 +144,14 @@ describe('fork', () => {
     const parentEvents: string[] = []
     const childEvents: string[] = []
 
-    agent.subscribe('apeira', event => parentEvents.push(event.type))
+    agent.subscribe('apeira', (event) => {
+      parentEvents.push(event.type)
+    })
 
     const child = await fork(agent)
-    child.subscribe('apeira', event => childEvents.push(event.type))
+    child.subscribe('apeira', (event) => {
+      childEvents.push(event.type)
+    })
 
     // Trigger a turn on the child only.
     const stream = run(child, user('hi'))
