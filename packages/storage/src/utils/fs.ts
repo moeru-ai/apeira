@@ -1,13 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises'
 
-export const readFileSafe = async (path: string): Promise<null | string> => {
+export const readFileSafe = async (path: string): Promise<string | undefined> => {
   try {
     return await readFile(path, 'utf-8')
   }
   catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOENT')
-      return null
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      return
 
     throw error
   }
