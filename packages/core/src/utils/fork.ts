@@ -9,37 +9,30 @@ import { mem } from './storage'
 
 export interface ForkOptions {
   init?: boolean
-  input?: readonly AgentInput[]
   instructions?: CreateAgentOptions['instructions']
   plugins?: CreateAgentOptions['plugins']
   runner?: CreateAgentOptions['runner']
-  state?: ((parent: Readonly<AgentState>) => AgentState) | AgentState
-  storage?: ((snapshot: readonly AgentInput[]) => MaybePromise<AgentStorage>) | AgentStorage
+  state?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
+  /** @default mem(await agent.storage.read()) */
+  storage?: ((parentInput: readonly AgentInput[]) => MaybePromise<AgentStorage>) | AgentStorage
 }
 
-export const fork = async (parent: Agent, options: ForkOptions = {}): Promise<Agent> => {
-  const snapshot = await parent.storage.read()
-  const input = options.input != null
-    ? structuredClone(options.input)
-    : structuredClone(snapshot)
-
-  const nextStorage = options.storage != null
-    ? (typeof options.storage === 'function'
-        ? await options.storage(input)
-        : options.storage)
-    : mem(input)
-
-  const parentState = parent.state.get()
-  const nextState = typeof options.state === 'function'
-    ? options.state(parentState)
-    : (options.state ?? structuredClone(parentState))
+export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
+  const parentInput = await agent.storage.read()
+  const parentState = agent.state.get()
 
   const child = createAgent({
-    instructions: options.instructions ?? parent.instructions,
-    plugins: options.plugins ?? parent.plugins,
-    runner: options.runner ?? parent.runner,
-    state: nextState,
-    storage: nextStorage,
+    instructions: options.instructions ?? agent.instructions,
+    plugins: options.plugins ?? agent.plugins,
+    runner: options.runner ?? agent.runner,
+    state: typeof options.state === 'function'
+      ? options.state(parentState)
+      : (options.state ?? parentState),
+    storage: options.storage != null
+      ? (typeof options.storage === 'function'
+          ? await options.storage(parentInput)
+          : options.storage)
+      : mem(parentInput),
   })
 
   if (options.init)

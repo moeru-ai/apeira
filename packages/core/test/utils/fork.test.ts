@@ -36,16 +36,16 @@ describe('fork', () => {
     expect(await child.storage.read()).toEqual([user('hello')])
   })
 
-  it('starts with empty storage when input is empty', async () => {
+  it('starts with empty storage when storage is empty', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { input: [] })
+    const child = await fork(agent, { storage: mem<AgentInput>([]) })
 
     expect(await child.storage.read()).toEqual([])
   })
 
-  it('starts with explicit input history', async () => {
+  it('starts with explicit storage history', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { input: [user('custom')] })
+    const child = await fork(agent, { storage: mem<AgentInput>([user('custom')]) })
 
     expect(await child.storage.read()).toEqual([user('custom')])
   })
@@ -96,7 +96,7 @@ describe('fork', () => {
     expect(child.state.get()).toEqual({ agentName: 'child' })
   })
 
-  it('uses a custom storage factory that receives the cloned input', async () => {
+  it('uses a custom storage factory that receives the cloned parent history', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
     const factoryInput: AgentInput[] = []
 
