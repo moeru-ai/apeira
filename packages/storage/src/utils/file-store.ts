@@ -24,8 +24,8 @@ export const createFileStore = <T>(options: FileStoreOptions<T>, codec: FileStor
     writeFileSafe(path, codec.encode(items))
 
   const ensureInitialized = async () => {
-    const items = await readItems()
-    if (items.length === 0 && (options.initial?.length ?? 0) > 0)
+    const raw = await readFileSafe(path)
+    if (raw == null)
       await writeItems(options.initial ?? [])
   }
 

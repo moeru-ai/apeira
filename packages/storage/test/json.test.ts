@@ -83,6 +83,16 @@ describe('json', () => {
     expect(await store.read()).toEqual(['x', 'y', 'z'])
   })
 
+  it('does not re-initialize after clear', async () => {
+    const store = json<string>({ initial: ['x', 'y'], path })
+
+    await store.append('z')
+    await store.clear()
+    await store.append('a')
+
+    expect(await store.read()).toEqual(['a'])
+  })
+
   it('ignores corrupt content', async () => {
     const store = json<string>({ path })
 
