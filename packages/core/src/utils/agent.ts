@@ -17,9 +17,11 @@ import { mem } from './storage'
 
 export interface Agent extends AgentChannel, AgentQueue {
   init: () => Promise<void>
+  readonly instructions: CreateAgentOptions['instructions']
   interrupt: (reason?: unknown) => Promise<string | undefined>
+  readonly plugins: AgentPluginOption[]
   reset: () => Promise<void>
-  runner: Runner
+  readonly runner: Runner
   readonly state: Readonly<AgentStateManager>
   stop: () => Promise<void>
   readonly storage: AgentStorage
@@ -155,7 +157,9 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     ...channel,
     ...queue,
     init,
+    instructions: options.instructions,
     interrupt,
+    plugins: options.plugins ?? [],
     reset,
     runner: options.runner,
     state,
