@@ -609,3 +609,111 @@ describe('queue', () => {
     expect(second.value?.turnId).toBe('new-turn')
   })
 })
+
+describe('wait and isIdle', () => {
+  it('reports idle for a fresh agent', () => {
+    const { agent } = createTestAgent()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('reports not idle while a turn is active', async () => {
+    const { agent } = createTestAgent({ delayMs: 100 })
+    agent.send(user('hi'))
+    await sleep(10)
+
+    expect(agent.isIdle()).toBe(false)
+
+    await agent.wait()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('resolves immediately when already idle', async () => {
+    const { agent } = createTestAgent()
+    await expect(agent.wait()).resolves.toBeUndefined()
+  })
+
+  it('waits for a single turn to finish', async () => {
+    const { agent } = createTestAgent({ delayMs: 50 })
+    agent.send(user('hi'))
+    await expect(agent.wait()).resolves.toBeUndefined()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('waits for multiple queued turns to finish', async () => {
+    const { agent } = createTestAgent({ delayMs: 30 })
+    agent.send(user('first'))
+    agent.send(user('second'))
+    agent.send(user('third'))
+
+    await expect(agent.wait()).resolves.toBeUndefined()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('waits for pending input to drain', async () => {
+    const { agent } = createTestAgent({ delayMs: 20 })
+    agent.send(user('first'))
+    await sleep(25)
+    agent.send(user('second'))
+
+    expect(agent.isIdle()).toBe(false)
+    await expect(agent.wait()).resolves.toBeUndefined()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('rejects when signal is already aborted', async () => {
+    const { agent } = createTestAgent()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(agent.wait({ signal: controller.signal })).rejects.toThrow(DOMException)
+  })
+
+  it('rejects when signal is aborted while waiting', async () => {
+    const { agent } = createTestAgent({ delayMs: 200 })
+    agent.send(user('hi'))
+    await sleep(10)
+
+    const controller = new AbortController()
+    const waiting = agent.wait({ signal: controller.signal })
+    controller.abort()
+
+    await expect(waiting).rejects.toThrow(DOMException)
+  })
+
+  it('resolves after reset clears the queue', async () => {
+    const { agent } = createTestAgent({ delayMs: 200 })
+    agent.send(user('hi'))
+    await sleep(10)
+
+    const waiting = agent.wait()
+    await agent.reset()
+
+    await expect(waiting).resolves.toBeUndefined()
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('supports multiple concurrent waiters', async () => {
+    const { agent } = createTestAgent({ delayMs: 50 })
+    agent.send(user('hi'))
+    await sleep(10)
+
+    const waiting1 = agent.wait()
+    const waiting2 = agent.wait()
+
+    await expect(Promise.all([waiting1, waiting2])).resolves.toEqual([undefined, undefined])
+    expect(agent.isIdle()).toBe(true)
+  })
+
+  it('resolves even when a turn fails', async () => {
+    const agent = createAgent({
+      instructions: 'test',
+      runner: async () => {
+        throw new Error('runner failed')
+      },
+    })
+
+    agent.send(user('hi'))
+    await expect(agent.wait()).resolves.toBeUndefined()
+    expect(agent.isIdle()).toBe(true)
+  })
+})

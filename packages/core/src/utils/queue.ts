@@ -11,7 +11,9 @@ export interface AgentQueue {
   clear: () => Promise<void>
   getActiveTurnId: () => string | undefined
   interrupt: (reason?: unknown) => MaybePromise<string | undefined>
-  send: (item: AgentInput, options?: AgentSendOptions) => string
+  isIdle: () => boolean
+  send: (item: AgentInput, options?: AgentSignalOptions) => string
+  wait: (options?: AgentSignalOptions) => Promise<void>
 }
 
 export interface AgentQueueTurn {
@@ -20,7 +22,7 @@ export interface AgentQueueTurn {
   signal?: AbortSignal
 }
 
-export interface AgentSendOptions {
+export interface AgentSignalOptions {
   signal?: AbortSignal
 }
 
@@ -36,6 +38,55 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
   let activeTurn: undefined | { controller: AbortController, id: string }
   let pumping = false
   let pumpReady = Promise.resolve()
+
+  const waiters: Array<() => void> = []
+
+  const isIdle: AgentQueue['isIdle'] = () =>
+    activeTurn === undefined && pendingInput.length === 0 && pendingTurns.size === 0
+
+  const notifyWaiters = () => {
+    if (!isIdle())
+      return
+    for (const resolve of waiters.splice(0))
+      resolve()
+  }
+
+  const wait: AgentQueue['wait'] = async (options) => {
+    const { signal } = options ?? {}
+
+    if (signal?.aborted)
+      throw new DOMException('The operation was aborted.', 'AbortError')
+
+    if (isIdle())
+      return
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false
+      let onAbort: () => void
+
+      const resolver = () => {
+        if (settled)
+          return
+        settled = true
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }
+
+      onAbort = () => {
+        const index = waiters.indexOf(resolver)
+        if (index > -1)
+          waiters.splice(index, 1)
+        if (settled)
+          return
+        settled = true
+        signal?.removeEventListener('abort', onAbort)
+        reject(new DOMException('The operation was aborted.', 'AbortError'))
+      }
+
+      waiters.push(resolver)
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
 
   const emit = async (turnId: string, event: AgentEvent) =>
     channel.emit('apeira', { ...event, turnId })
@@ -103,6 +154,8 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
       if (activeTurn?.id === turn.id)
         activeTurn = undefined
+
+      notifyWaiters()
     }
   }
 
@@ -133,6 +186,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     activeTurn?.controller.abort('reset')
     pendingInput.length = 0
     pendingTurns.clear()
+    notifyWaiters()
   }
 
   const interrupt: AgentQueue['interrupt'] = (reason) => {
@@ -162,6 +216,8 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     clear,
     getActiveTurnId,
     interrupt,
+    isIdle,
     send,
+    wait,
   }
 }
