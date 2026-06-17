@@ -716,4 +716,24 @@ describe('wait and isIdle', () => {
     await expect(agent.wait()).resolves.toBeUndefined()
     expect(agent.isIdle()).toBe(true)
   })
+
+  it('does not resolve before the terminal event is emitted', async () => {
+    const { agent } = createTestAgent({ delayMs: 30 })
+    let resolved = false
+
+    const unsubscribe = agent.subscribe('apeira', (event) => {
+      if (event.type !== 'turn.done')
+        return
+      expect(resolved).toBe(false)
+    })
+
+    agent.send(user('hi'))
+    const waiting = agent.wait().then(() => {
+      resolved = true
+    })
+    await waiting
+    unsubscribe()
+
+    expect(agent.isIdle()).toBe(true)
+  })
 })

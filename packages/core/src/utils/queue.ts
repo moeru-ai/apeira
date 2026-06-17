@@ -42,7 +42,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
   const waiters: Array<() => void> = []
 
   const isIdle: AgentQueue['isIdle'] = () =>
-    activeTurn === undefined && pendingInput.length === 0 && pendingTurns.size === 0
+    activeTurn === undefined && pendingInput.length === 0 && pendingTurns.size === 0 && !pumping
 
   const notifyWaiters = () => {
     if (!isIdle())
@@ -154,8 +154,6 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
 
       if (activeTurn?.id === turn.id)
         activeTurn = undefined
-
-      notifyWaiters()
     }
   }
 
@@ -172,6 +170,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
       }
       finally {
         pumping = false
+        notifyWaiters()
       }
     })()
 
