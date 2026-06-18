@@ -1,10 +1,18 @@
 import type { AgentEntry } from '@apeira/core'
 
-import { assistant, createAgent, entry, mem, run, user } from '@apeira/core'
+import { assistant, createAgent, developer, entry, mem, run, user } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
 
-import { isCompaction } from '../../plugin-compact/src'
+import { compact } from '../../plugin-compact/src'
 import { createSession, SessionError } from '../src'
+
+declare module '@apeira/core' {
+  interface AgentCustomEntry {
+    'test/checkpoint': {
+      label: string
+    }
+  }
+}
 
 const ids = () => {
   let value = 0
@@ -121,6 +129,7 @@ describe('session operations', () => {
     await session.fork('feature')
     await session.storage.append(
       entry('input', user('feature one')),
+      entry('test/checkpoint', { label: 'feature checkpoint' }),
       entry('state', { agentDescription: 'feature' }),
     )
     const oldFeature = await session.buildInput('feature')
@@ -129,7 +138,7 @@ describe('session operations', () => {
     await session.storage.append(entry('input', user('main one')))
     const result = await session.rebase('feature', 'main')
 
-    expect(result.entries).toHaveLength(2)
+    expect(result.entries).toHaveLength(3)
     expect(result.oldBaseId).toBeDefined()
     expect(result.newBaseId).toBe((await session.refs()).get('main'))
     expect(await session.buildInput('feature')).toEqual([
@@ -142,18 +151,21 @@ describe('session operations', () => {
       .filter(entry => entry.type === 'input')
       .map(entry => entry.data))
       .toContainEqual(user('feature one'))
+    expect(await session.path('feature')).toContainEqual(expect.objectContaining({
+      data: { label: 'feature checkpoint' },
+      type: 'test/checkpoint',
+    }))
   })
 
   it('clones the active ref into separate storage', async () => {
     const source = createSession({
       defaultRef: 'main',
       id: ids(),
-      isCompaction,
       sessionStorage: mem(),
     })
     await source.storage.append(
       entry('input', user('old')),
-      entry('compact/boundary', { preTokens: 100, trigger: 'auto' }),
+      entry('test/checkpoint', { label: 'checkpoint' }),
       entry('input', user('source')),
     )
 
@@ -161,11 +173,15 @@ describe('session operations', () => {
     const cloned = await source.clone({ sessionStorage: destination })
 
     expect(await cloned.head()).toEqual({ name: 'main', type: 'ref' })
-    expect(await cloned.buildInput()).toEqual([user('source')])
+    expect(await cloned.buildInput()).toEqual([user('old'), user('source')])
     expect(inputText(await cloned.path())).toEqual([user('old'), user('source')])
+    expect(await cloned.path()).toContainEqual(expect.objectContaining({
+      data: { label: 'checkpoint' },
+      type: 'test/checkpoint',
+    }))
 
     await cloned.storage.append(entry('input', user('clone')))
-    expect(await source.buildInput()).toEqual([user('source')])
+    expect(await source.buildInput()).toEqual([user('old'), user('source')])
   })
 
   it('clones all selected refs', async () => {
@@ -194,28 +210,33 @@ describe('session operations', () => {
     ])
   })
 
-  it('uses the latest compaction boundary for model-facing storage', async () => {
+  it('treats arbitrary custom entries as semantic branch nodes', async () => {
     const session = createSession({
       defaultRef: 'main',
       id: ids(),
-      isCompaction,
       sessionStorage: mem(),
     })
 
     await session.storage.append(
       entry('input', user('old')),
-      entry('compact/boundary', { preTokens: 100, trigger: 'auto' }),
-      entry('input', user('summary')),
-      entry('state', { userDescription: 'compacted' }),
+      entry('test/checkpoint', { label: 'checkpoint' }),
+      entry('state', { userDescription: 'current' }),
     )
 
-    expect(await session.buildInput()).toEqual([user('summary')])
-    expect(inputText(await session.path())).toEqual([
-      user('old'),
-      user('summary'),
+    const path = await session.path()
+    const checkpoint = path.find(entry => entry.type === 'test/checkpoint')
+    const state = path.find(entry => entry.type === 'state')
+
+    expect(path.map(entry => entry.type)).toEqual([
+      'input',
+      'test/checkpoint',
+      'state',
     ])
-    expect(inputText(await session.storage.read())).toEqual([user('summary')])
-    expect(await session.buildState()).toEqual({ userDescription: 'compacted' })
+    expect(checkpoint?.parentId).toBe(path.find(entry => entry.type === 'input')?.id)
+    expect(state?.parentId).toBe(checkpoint?.id)
+    expect((await session.refs()).get('main')).toBe(state?.id)
+    expect(await session.buildInput()).toEqual([user('old')])
+    expect(await session.buildState()).toEqual({ userDescription: 'current' })
   })
 
   it('blocks branch movement between turn.start and its terminal event', async () => {
@@ -296,5 +317,61 @@ describe('session operations', () => {
       .map(entry => entry.data.type)
     expect(eventTypes).toContain('turn.start')
     expect(eventTypes).toContain('turn.done')
+  })
+
+  it('uses compact identically with plain and session storage', async () => {
+    const runWithStorage = async (storage: ReturnType<typeof mem>) => {
+      const inputs: unknown[][] = []
+      const agent = createAgent({
+        initialState: { contextLength: 1000 },
+        instructions: '',
+        plugins: [
+          compact({
+            compactAgent: {
+              runner: async () => ({
+                output: [assistant('summary')],
+                usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+              }),
+            },
+            threshold: 0,
+          }),
+        ],
+        runner: async (context) => {
+          inputs.push([...context.input])
+          return {
+            output: [assistant('answer')],
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          }
+        },
+        storage,
+      })
+
+      for await (const event of run(agent, user('first')))
+        void event
+      await agent.wait()
+      for await (const event of run(agent, user('second')))
+        void event
+      await agent.wait()
+
+      return inputs[1]
+    }
+
+    const plainInput = await runWithStorage(mem())
+    const session = createSession({
+      defaultRef: 'main',
+      id: ids(),
+      sessionStorage: mem(),
+    })
+    const sessionInput = await runWithStorage(session.storage)
+
+    expect(plainInput).toEqual([
+      developer('<context_summary>\nsummary\n</context_summary>'),
+      user('second'),
+    ])
+    expect(sessionInput).toEqual(plainInput)
+    expect(await session.path()).toContainEqual(expect.objectContaining({
+      data: { summary: 'summary' },
+      type: 'compact',
+    }))
   })
 })

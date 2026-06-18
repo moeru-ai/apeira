@@ -29,7 +29,13 @@ export type {
   AgentSystemMessageInput,
   AgentUserMessageInput,
 } from './types/input'
-export type { AgentPlugin, AgentPluginOption, ExtendOptions } from './types/plugin'
+export type {
+  AgentPlugin,
+  AgentPluginOption,
+  ExtendOptions,
+  TransformEntriesOptions,
+  TurnFinishOptions,
+} from './types/plugin'
 export type * from './types/re-export'
 export type {
   Runner,

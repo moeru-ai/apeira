@@ -1,6 +1,8 @@
+import type { AgentEntry } from '../types/entry'
 import type { AgentPlugin, AgentPluginOption } from '../types/plugin'
 
 type PrepareStepHook = NonNullable<AgentPlugin['prepareStep']>
+type TransformEntriesHook = NonNullable<AgentPlugin['transformEntries']>
 
 export const normalizePlugins = (options: AgentPluginOption[]): AgentPlugin[] => {
   const plugins = options.flatMap((option) => {
@@ -55,5 +57,22 @@ export const chainPrepareStep = (
     }
 
     return prepared ?? {}
+  }
+}
+
+export const chainTransformEntries = (
+  hooks: (TransformEntriesHook | undefined)[],
+): AgentPlugin['transformEntries'] => {
+  const list = hooks.filter(Boolean) as TransformEntriesHook[]
+  if (list.length === 0)
+    return undefined
+
+  return async (entries, options) => {
+    let current: readonly AgentEntry[] = entries
+
+    for (const hook of list)
+      current = await hook(current, options)
+
+    return current
   }
 }

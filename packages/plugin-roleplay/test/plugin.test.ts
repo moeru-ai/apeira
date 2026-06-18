@@ -255,7 +255,6 @@ describe('roleplay plugin', () => {
               model: 'summary',
             }),
           },
-          preserveTurns: 1,
           threshold: 0,
         }),
         roleplay({
@@ -289,14 +288,18 @@ describe('roleplay plugin', () => {
 
     for await (const event of run(agent, user('live')))
       void event
+    await agent.wait()
 
-    const temporary = main.bodies[0]?.input[0]
+    for await (const event of run(agent, user('after compact')))
+      void event
+
+    const temporary = main.bodies[1]?.input[0]
     expect(temporary?.type).toBe('message')
     if (temporary?.type === 'message') {
       expect(temporary.role).toBe('system')
       expect(temporary.content).toContain('Temporary definition.')
     }
-    expect(main.bodies[0]?.input).toContainEqual(developer('<context_summary>\nsummary\n</context_summary>'))
+    expect(main.bodies[1]?.input).toContainEqual(developer('<context_summary>\nsummary\n</context_summary>'))
     expect((await agent.storage.read()).some((item) => {
       if (item.type !== 'input')
         return false

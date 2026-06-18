@@ -15,7 +15,6 @@ export interface CloneOptions {
 export interface CreateSessionOptions {
   defaultRef?: RefName
   id?: () => string
-  isCompaction?: (entry: AgentEntry) => boolean
   now?: () => number
   sessionStorage: AgentStorage<AgentEntry>
 }

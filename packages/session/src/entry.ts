@@ -15,4 +15,6 @@ export const createEntry = <T extends keyof AgentCustomEntry>(
 })
 
 export const isSemanticEntry = (entry: AgentEntry) =>
-  entry.type === 'input' || entry.type === 'state'
+  entry.type !== 'event'
+  && entry.type !== 'session/checkout'
+  && entry.type !== 'session/ref'

@@ -1,7 +1,7 @@
 export type { CompactAgentOptions, CompactHistoryOptions } from './compact'
 export { assembleCompactedInput, executeCompact, hardTruncateInput } from './compact'
-export type { CompactBoundary, CompactPluginOptions } from './plugin'
-export { compact, isCompaction } from './plugin'
+export type { CompactEntry, CompactPluginOptions } from './plugin'
+export { compact, transformCompactEntries } from './plugin'
 export {
   buildCompactInput,
   estimateTokens,

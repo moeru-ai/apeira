@@ -142,35 +142,6 @@ export const createSession = (options: CreateSessionOptions): Session => {
     return branchPath(snapshot, resolveTarget(snapshot, target, target == null))
   }
 
-  const contextEntries = async (target?: string) => {
-    const snapshot = await read()
-    const entries = branchPath(
-      snapshot,
-      resolveTarget(snapshot, target, target == null),
-    )
-    if (options.isCompaction == null)
-      return entries
-
-    const ids = new Set(entries.map(entry => entry.id))
-    const boundary = snapshot.entries.findLast((entry, index) => {
-      if (!options.isCompaction?.(entry))
-        return false
-      const next = snapshot.entries
-        .slice(index + 1)
-        .find(isSemanticEntry)
-      return next != null && ids.has(next.id)
-    })
-
-    if (boundary == null)
-      return entries
-
-    const first = snapshot.entries
-      .slice(snapshot.entries.indexOf(boundary) + 1)
-      .find(isSemanticEntry)!
-    const firstIndex = entries.findIndex(entry => entry.id === first.id)
-    return [boundary, ...entries.slice(firstIndex)]
-  }
-
   const storage: AgentStorage<AgentEntry> = {
     append: async (...entries) => mutate(async () => {
       if (entries.length === 0)
@@ -210,7 +181,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
     clear: async () => mutate(async () => {
       await appendControl(makeEntry('session/checkout', { target: { type: 'empty' } }))
     }),
-    read: async () => contextEntries(),
+    read: async () => path(),
     reset: async () => mutate(async () => {
       const snapshot = replay(await options.sessionStorage.read())
       if (snapshot.head.type === 'ref') {
@@ -281,11 +252,12 @@ export const createSession = (options: CreateSessionOptions): Session => {
     let parentId = newBaseId
     const mapping: Array<{ newId: string, oldId: string }> = []
     const entries = copied.map((entry) => {
-      const next = makeEntry(
-        entry.type as 'input' | 'state',
-        entry.data as AgentCustomEntry['input'] | AgentCustomEntry['state'],
+      const next: AgentEntry = {
+        ...entry,
+        id: id(),
         parentId,
-      ) as AgentEntry
+        timestamp: now(),
+      }
       mapping.push({ newId: next.id, oldId: entry.id })
       parentId = next.id
       return next
@@ -317,16 +289,12 @@ export const createSession = (options: CreateSessionOptions): Session => {
     const semanticIds = new Set(targetIds.flatMap(target =>
       semanticPath(snapshot, target).map(entry => entry.id),
     ))
-    const copied = snapshot.entries.filter((entry, index) => {
-      if (semanticIds.has(entry.id))
-        return true
-      if (entry.type === 'event')
-        return entry.parentId != null && semanticIds.has(entry.parentId)
-      if (!options.isCompaction?.(entry))
-        return false
-      const next = snapshot.entries.slice(index + 1).find(isSemanticEntry)
-      return next != null && semanticIds.has(next.id)
-    })
+    const copied = snapshot.entries.filter(entry =>
+      semanticIds.has(entry.id)
+      || (entry.type === 'event'
+        && entry.parentId != null
+        && semanticIds.has(entry.parentId)),
+    )
     const controls = selectedRefs.map(name =>
       makeEntry('session/ref', { name, targetId: snapshot.refs.get(name) }),
     )
@@ -347,7 +315,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
   })
 
   const buildInput: Session['buildInput'] = async (target) => {
-    return (await contextEntries(target))
+    return (await path(target))
       .filter((entry): entry is AgentEntry<'input'> => entry.type === 'input')
       .map(entry => entry.data)
   }

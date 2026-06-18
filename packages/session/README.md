@@ -36,20 +36,22 @@ const state = await session.buildState('experiment')
 Strings resolve as refs first, then entry ids. `checkout()` without a target
 creates a detached empty context.
 
-## Compaction
+## Custom semantic entries
 
-Compaction is an optional boundary supplied by another package:
+Every entry except lifecycle events and session control entries is a semantic
+branch node. Plugin-defined entries receive `parentId`, advance the active
+branch, and are preserved by path, rebase, and clone operations without
+session-specific configuration.
+
+For example, `@apeira/plugin-compact` works directly with session storage:
 
 ```ts
-import { isCompaction } from '@apeira/plugin-compact'
-
-const session = createSession({
-  defaultRef: 'main',
-  isCompaction,
-  sessionStorage: mem(),
+const agent = createAgent({
+  // ...
+  plugins: [compact({ compactAgent: { runner: summaryRunner } })],
+  storage: session.storage,
 })
 ```
 
-The raw branch remains intact. Model-facing reads start at the latest applicable
-boundary and include the compact summary and preserved recent input appended
-after it.
+Session stores the compact entry as an ordinary semantic node. The plugin owns
+how that entry is projected into model context.
