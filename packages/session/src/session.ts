@@ -1,7 +1,8 @@
 import type {
   AgentCustomEntry,
-  AgentCustomEvent,
   AgentEntry,
+  AgentEvent,
+  AgentPlugin,
   AgentStorage,
 } from '@apeira/core'
 
@@ -10,6 +11,9 @@ import type {
   CreateSessionOptions,
   Head,
   Session,
+  SessionCheckoutEvent,
+  SessionForkEvent,
+  SessionRebaseEvent,
   SessionSnapshot,
 } from './types'
 
@@ -53,6 +57,7 @@ const resolveCloneRefs = (
 export const createSession = (options: CreateSessionOptions): Session => {
   const queue = createMutationQueue()
   let initialized = false
+  let branchChangeHandler: ((payload: SessionCheckoutEvent | SessionForkEvent | SessionRebaseEvent) => Promise<void>) | undefined
 
   const makeEntry = <T extends keyof AgentCustomEntry>(
     type: T,
@@ -66,15 +71,18 @@ export const createSession = (options: CreateSessionOptions): Session => {
   const initialize = async () => {
     if (initialized)
       return
-    initialized = true
 
-    if (options.defaultRef == null)
+    if (options.defaultRef == null) {
+      initialized = true
       return
+    }
 
     validateRef(options.defaultRef)
     const entries = await options.sessionStorage.read()
-    if (entries.length > 0)
+    if (entries.length > 0) {
+      initialized = true
       return
+    }
 
     await options.sessionStorage.append(
       makeEntry('session/ref', { name: options.defaultRef }),
@@ -82,6 +90,8 @@ export const createSession = (options: CreateSessionOptions): Session => {
         target: { name: options.defaultRef, type: 'ref' },
       }),
     )
+
+    initialized = true
   }
 
   const read = async (): Promise<SessionSnapshot> => {
@@ -109,9 +119,10 @@ export const createSession = (options: CreateSessionOptions): Session => {
     for (const entry of entries) {
       if (entry.type !== 'event')
         continue
-      const event = entry.data as AgentCustomEvent[keyof AgentCustomEvent]
-      if (!('turnId' in event))
+      const data = entry.data as unknown
+      if (typeof data !== 'object' || data === null || !('turnId' in data))
         continue
+      const event = data as AgentEvent
       if (event.type === 'turn.start')
         active.add(event.turnId)
       else if (event.type === 'turn.done' || event.type === 'turn.failed' || event.type === 'turn.aborted')
@@ -206,6 +217,15 @@ export const createSession = (options: CreateSessionOptions): Session => {
     else {
       throw new SessionError('not_found', `Session target not found: ${target}`)
     }
+
+    const newSnapshot = replay(await options.sessionStorage.read())
+    const payload: SessionCheckoutEvent = {
+      ref: newSnapshot.head.type === 'ref' ? newSnapshot.head.name : undefined,
+      state: buildState(branchPath(newSnapshot, newSnapshot.headTargetId)),
+      targetId: newSnapshot.headTargetId,
+      type: 'checkout',
+    }
+    await branchChangeHandler?.(payload)
   })
 
   const fork: Session['fork'] = async (name, forkOptions) => mutate(async () => {
@@ -222,6 +242,17 @@ export const createSession = (options: CreateSessionOptions): Session => {
     }
 
     await appendControl(...entries)
+
+    if (forkOptions?.checkout !== false) {
+      const newSnapshot = replay(await options.sessionStorage.read())
+      const payload: SessionForkEvent = {
+        ref: name,
+        state: buildState(branchPath(newSnapshot, newSnapshot.headTargetId)),
+        targetId: newSnapshot.headTargetId,
+        type: 'fork',
+      }
+      await branchChangeHandler?.(payload)
+    }
   })
 
   const rebase: Session['rebase'] = async (name, onto) => mutate(async () => {
@@ -250,6 +281,17 @@ export const createSession = (options: CreateSessionOptions): Session => {
       ...entries,
       makeEntry('session/ref', { name, targetId: parentId }),
     )
+
+    const newSnapshot = replay(await options.sessionStorage.read())
+    if (newSnapshot.head.type === 'ref' && newSnapshot.head.name === name) {
+      const payload: SessionRebaseEvent = {
+        ref: name,
+        state: buildState(branchPath(newSnapshot, newSnapshot.headTargetId)),
+        targetId: newSnapshot.headTargetId,
+        type: 'rebase',
+      }
+      await branchChangeHandler?.(payload)
+    }
 
     return {
       entries: mapping,
@@ -303,6 +345,19 @@ export const createSession = (options: CreateSessionOptions): Session => {
       .map(entry => entry.data)
   }
 
+  const plugin: AgentPlugin = {
+    init: (agent) => {
+      branchChangeHandler = async (payload) => {
+        agent.state.restore(payload.state)
+        await agent.emit(`session.${payload.type}`, payload, { save: false })
+      }
+    },
+    name: 'apeira.session',
+    stop: () => {
+      branchChangeHandler = undefined
+    },
+  }
+
   return {
     buildInput,
     buildState: async target => buildState(await path(target)),
@@ -321,6 +376,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
     fork,
     head: async (): Promise<Head> => (await read()).head,
     path,
+    plugin,
     read,
     rebase,
     refs: async () => (await read()).refs,

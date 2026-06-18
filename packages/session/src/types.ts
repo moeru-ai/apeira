@@ -2,15 +2,36 @@ import type {
   AgentEntry,
   AgentEvent,
   AgentInput,
+  AgentPlugin,
   AgentState,
   AgentStorage,
 } from '@apeira/core'
+
+export interface SessionBranchChangeEvent {
+  state: Readonly<AgentState>
+  targetId?: EntryId
+}
 
 export interface SessionCheckoutEntryData {
   target:
     | { id: string, type: 'id' }
     | { name: string, type: 'ref' }
     | { type: 'empty' }
+}
+
+export interface SessionCheckoutEvent extends SessionBranchChangeEvent {
+  ref?: RefName
+  type: 'checkout'
+}
+
+export interface SessionForkEvent extends SessionBranchChangeEvent {
+  ref: RefName
+  type: 'fork'
+}
+
+export interface SessionRebaseEvent extends SessionBranchChangeEvent {
+  ref: RefName
+  type: 'rebase'
 }
 
 export interface SessionRefEntryData {
@@ -22,6 +43,16 @@ declare module '@apeira/core' {
   interface AgentCustomEntry {
     'session/checkout': SessionCheckoutEntryData
     'session/ref': SessionRefEntryData
+  }
+
+  interface AgentCustomEvent {
+    'session.checkout': SessionCheckoutEvent
+    'session.fork': SessionForkEvent
+    'session.rebase': SessionRebaseEvent
+  }
+
+  interface AgentCustomState {
+    branch?: string
   }
 }
 
@@ -74,6 +105,8 @@ export interface Session {
   fork: (name: RefName, options?: ForkOptions) => Promise<void>
   head: () => Promise<Head>
   path: (target?: EntryId | RefName) => Promise<readonly AgentEntry[]>
+
+  readonly plugin: AgentPlugin
 
   read: () => Promise<SessionSnapshot>
   rebase: (name: RefName, onto?: EntryId | RefName) => Promise<RebaseResult>

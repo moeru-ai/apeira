@@ -88,4 +88,4 @@ export const branchPath = (
 export const buildState = (
   entries: readonly AgentEntry[],
 ): Readonly<AgentState> =>
-  entries.findLast(entry => entry.type === 'state')?.data ?? {}
+  entries.findLast((entry): entry is AgentEntry<'state'> => entry.type === 'state')?.data ?? {}

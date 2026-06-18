@@ -22,6 +22,30 @@ const agent = createAgent({
 `session.sessionStorage` contains the complete append-only log.
 `session.storage` is the active branch view used by core.
 
+## Agent state synchronization
+
+Register `session.plugin` with an agent to keep `agent.state` in sync with the
+active branch whenever `checkout()`, `fork()` (with checkout), or `rebase()`
+changes the current head:
+
+```ts
+const agent = createAgent({
+  // ...
+  plugins: [session.plugin],
+  storage: session.storage,
+})
+```
+
+The plugin also broadcasts branch changes on the agent channel as
+`session.checkout`, `session.fork`, and `session.rebase` events with
+`save: false`, so other subscribers can react without persisting extra entries.
+
+```ts
+agent.subscribe('session.checkout', ({ ref, state, targetId }) => {
+  // ...
+})
+```
+
 ## Branches
 
 ```ts

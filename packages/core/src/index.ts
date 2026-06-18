@@ -42,7 +42,7 @@ export type {
   RunnerContext,
   RunnerResult,
 } from './types/runner'
-export type { AgentState } from './types/state'
+export type { AgentCustomState, AgentState } from './types/state'
 export type { AgentStorage } from './types/storage'
 export type { Agent, CreateAgentOptions } from './utils/agent'
 export { createAgent } from './utils/agent'
@@ -54,4 +54,5 @@ export { assistant, developer, system, user } from './utils/input'
 export type { AgentQueue, AgentSignalOptions } from './utils/queue'
 export * from './utils/re-export'
 export { run } from './utils/run'
+export type { AgentStateManager } from './utils/state-manager'
 export { mem, none } from './utils/storage'

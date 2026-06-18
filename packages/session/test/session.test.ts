@@ -1,4 +1,4 @@
-import type { AgentEntry } from '@apeira/core'
+import type { AgentEntry, AgentStateManager } from '@apeira/core'
 
 import { assistant, createAgent, developer, entry, mem, run, user } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
@@ -298,7 +298,7 @@ describe('session operations', () => {
 
     const eventTypes = (await session.sessionStorage.read())
       .filter((entry): entry is AgentEntry<'event'> => entry.type === 'event')
-      .map(entry => entry.data.type)
+      .map(entry => (entry.data as { type: string }).type)
     expect(eventTypes).toContain('turn.start')
     expect(eventTypes).toContain('turn.done')
   })
@@ -359,5 +359,225 @@ describe('session operations', () => {
       && 'summary' in entry.data
       && (entry.data as { summary: unknown }).summary === 'summary',
     )).toBe(true)
+  })
+})
+
+describe('session plugin state sync', () => {
+  it('syncs agent state on checkout', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(
+      entry('state', { branch: 'main' }),
+      entry('input', user('main')),
+    )
+    await session.fork('feature')
+    await session.storage.append(
+      entry('state', { branch: 'feature' }),
+      entry('input', user('feature')),
+    )
+    await session.checkout('main')
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+
+    await session.checkout('feature')
+    expect(agent.state.get()).toEqual({ branch: 'feature' })
+
+    await session.checkout('main')
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+  })
+
+  it('syncs agent state on fork with checkout', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('state', { branch: 'main' }))
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+
+    await session.storage.append(entry('state', { branch: 'feature' }))
+    await session.fork('feature')
+    expect(agent.state.get()).toEqual({ branch: 'feature' })
+  })
+
+  it('does not sync state on fork without checkout', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('state', { branch: 'main' }))
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+
+    await session.fork('feature', { checkout: false })
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+    expect(await session.head()).toEqual({ name: 'main', type: 'ref' })
+  })
+
+  it('syncs agent state on rebase of the active ref', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('input', user('root')))
+    await session.fork('feature')
+    await session.storage.append(
+      entry('state', { branch: 'feature' }),
+      entry('input', user('feature')),
+    )
+    await session.checkout('main')
+    await session.storage.append(
+      entry('state', { branch: 'main' }),
+      entry('input', user('main')),
+    )
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+
+    await session.checkout('feature')
+    expect(agent.state.get()).toEqual({ branch: 'feature' })
+
+    await session.rebase('feature', 'main')
+    expect(agent.state.get()).toEqual({ branch: 'feature' })
+  })
+
+  it('does not sync state when rebase does not change the active ref', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('input', user('root')))
+    await session.fork('feature')
+    await session.storage.append(entry('state', { branch: 'feature' }))
+    await session.checkout('main')
+    await session.storage.append(entry('state', { branch: 'main' }))
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+
+    await session.rebase('feature', 'main')
+    expect(agent.state.get()).toEqual({ branch: 'main' })
+  })
+
+  it('forwards branch change events to agent channel without persisting', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('state', { branch: 'main' }))
+
+    const events: unknown[] = []
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+
+    agent.subscribe('session.checkout', (event) => {
+      events.push(event)
+    })
+
+    await agent.init()
+    await session.checkout()
+
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({ ref: undefined, targetId: undefined })
+
+    const persisted = (await session.sessionStorage.read())
+      .filter(entry => entry.type === 'event')
+      .map(entry => entry.data)
+    expect(persisted).not.toContainEqual(expect.objectContaining({ type: 'session.checkout' }))
+  })
+
+  it('rejects branch operation when state sync fails', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.fork('feature')
+    await session.storage.append(entry('state', { branch: 'feature' }))
+
+    const agent = createAgent({
+      instructions: '',
+      plugins: [session.plugin],
+      runner: async () => ({ output: [] }),
+      storage: session.storage,
+    })
+    await agent.init()
+
+    const state = agent.state as AgentStateManager
+    const originalRestore = state.restore
+    state.restore = () => {
+      throw new Error('sync failed')
+    }
+
+    try {
+      await expect(session.checkout('main')).rejects.toBeInstanceOf(SessionError)
+      expect(await session.head()).toEqual({ name: 'main', type: 'ref' })
+    }
+    finally {
+      state.restore = originalRestore
+    }
+  })
+})
+
+describe('session defensive checks', () => {
+  it('assertIdle ignores malformed event data', async () => {
+    const session = createSession({
+      defaultRef: 'main',
+      sessionStorage: mem(),
+    })
+
+    await session.storage.append(entry('event', null as unknown as { turnId: string, type: 'turn.start' }))
+    await session.storage.append(entry('event', 'not-an-object' as unknown as { turnId: string, type: 'turn.start' }))
+    await session.storage.append(entry('event', { type: 'turn.start' } as unknown as { turnId: string, type: 'turn.start' }))
+    await session.storage.append(entry('event', { turnId: 'turn-1', type: 'turn.done' }))
+
+    await expect(session.fork('safe')).resolves.toBeUndefined()
   })
 })

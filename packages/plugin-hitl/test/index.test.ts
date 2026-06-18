@@ -30,7 +30,7 @@ const createMockAgent = (): MockAgent => {
     reset: async () => {},
     runner: async () => ({ output: [] }),
     send: () => 'turn-mock',
-    state: { get: () => ({}), set: () => {}, update: () => {} },
+    state: { get: () => ({}), restore: () => {}, set: () => {}, update: () => {} },
     stop: async () => {},
     storage: { append: () => {}, clear: () => {}, read: () => [], reset: () => {} },
     subscribe: ((channel: string, listener: AgentEventListener) => {
