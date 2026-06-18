@@ -1,5 +1,5 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
-import type { AgentInput } from '@apeira/core'
+import type { AgentEntry, AgentInput } from '@apeira/core'
 
 import { kv } from '@apeira/storage/kv'
 import { useLocalStorage } from 'foxact/use-local-storage'
@@ -82,7 +82,7 @@ export const useThreads = () => {
 
   const touchThread = useCallback((threadId: string) => {
     const update = async () => {
-      const storage = kv<AgentInput>({
+      const storage = kv<AgentEntry>({
         prefix: getThreadStorePrefix(threadId),
         storage: localStorage,
       })
@@ -91,7 +91,7 @@ export const useThreads = () => {
       if (items.length === 0)
         return
 
-      const name = getThreadNameFromItems(items)
+      const name = getThreadNameFromItems(items.filter(e => e.type === 'input').map(e => (e as AgentEntry<'input'>).data))
 
       setThreads((current) => {
         const threads = current ?? []

@@ -7,8 +7,6 @@ An Apeira agent keeps an append-only input log and runs submitted turns one at a
 The agent starts with the optional initial history passed to `storage`.
 
 ```ts twoslash
-import type { AgentInput } from 'apeira'
-
 import { createAgent, mem } from 'apeira'
 import { responses } from 'apeira/responses'
 
@@ -19,7 +17,7 @@ const agent = createAgent({
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  storage: mem<AgentInput>([
+  storage: mem([
     {
       content: 'The user\'s name is Alice.',
       role: 'user',
@@ -31,7 +29,7 @@ const agent = createAgent({
 
 Initial history seeds the agent's input log. When a turn starts, Apeira appends the new input and passes the accumulated history to the configured runner. On success, the model output is appended to the history.
 
-You can read the current accumulated input at any time:
+You can read the current storage entries at any time. Each entry has an `id`, `timestamp`, `type`, and `data` payload:
 
 ```ts twoslash
 import { createAgent, mem } from 'apeira'
@@ -47,7 +45,7 @@ const agent = createAgent({
   storage: mem(),
 })
 
-const currentInput = await agent.storage.read()
+const currentEntries = await agent.storage.read()
 ```
 
 ## Queueing

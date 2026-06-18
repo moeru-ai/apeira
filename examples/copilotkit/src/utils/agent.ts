@@ -1,4 +1,4 @@
-import type { Agent, AgentInput, CreateAgentOptions } from '@apeira/core'
+import type { Agent, AgentEntry, AgentInput, CreateAgentOptions } from '@apeira/core'
 import type { AGUIEvent } from '@apeira/plugin-ag-ui'
 import type { HITLEvent } from '@apeira/plugin-hitl'
 import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v2'
@@ -384,7 +384,7 @@ export class AbstractApeiraAgent extends AbstractAgent {
           type: EventType.RUN_STARTED,
         })
 
-        const messages = toMessages(await this.agent.storage.read())
+        const messages = toMessages((await this.agent.storage.read()).filter(e => e.type === 'input').map(e => (e as AgentEntry<'input'>).data))
 
         if (messages.length > 0) {
           this.setMessages(messages)

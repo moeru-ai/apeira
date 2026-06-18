@@ -1,5 +1,5 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
-import type { AgentInput } from '@apeira/core'
+import type { AgentEntry } from '@apeira/core'
 import type { HITLRequestEvent } from '@apeira/plugin-hitl'
 
 import { responses } from '@apeira/core/responses'
@@ -34,7 +34,7 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
   const [approvalRequests, setApprovalRequests] = useState<HITLRequestEvent[]>([])
 
   const storage = useMemo(() =>
-    kv<AgentInput>({
+    kv<AgentEntry>({
       prefix: getThreadStorePrefix(threadId),
       storage: localStorage,
     }), [threadId])
