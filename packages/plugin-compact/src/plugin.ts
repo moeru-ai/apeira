@@ -1,4 +1,4 @@
-import type { Agent, AgentInput, AgentPlugin } from '@apeira/core'
+import type { Agent, AgentEntry, AgentInput, AgentPlugin } from '@apeira/core'
 
 import type { CompactAgentOptions } from './compact'
 
@@ -17,6 +17,17 @@ import {
   MAX_COMPACT_FAILURES,
 } from './constants'
 import { estimateTokens } from './split'
+
+export interface CompactBoundary {
+  preTokens: number
+  trigger: 'auto'
+}
+
+declare module '@apeira/core' {
+  interface AgentCustomEntry {
+    'compact/boundary': CompactBoundary
+  }
+}
 
 export interface CompactPluginOptions {
   compactAgent: CompactAgentOptions
@@ -120,8 +131,11 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
       const nextInput = [...compactedHistoricalInput, ...liveInput]
       const currentState = activeAgent.state.get()
 
-      await activeAgent.storage.clear()
       await activeAgent.storage.append(
+        entry('compact/boundary', {
+          preTokens: estimateTokens(historicalInput),
+          trigger: 'auto',
+        }),
         ...compactedHistoricalInput.map(data => entry('input', data)),
         entry('state', currentState),
       )
@@ -136,3 +150,6 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
     version,
   }
 }
+
+export const isCompaction = (entry: AgentEntry): boolean =>
+  entry.type === 'compact/boundary'

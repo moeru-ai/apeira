@@ -42,6 +42,22 @@ const agent = createAgent({
 })
 ```
 
+When using `@apeira/session`, pass the plugin's boundary predicate to the
+session. Compaction then keeps the original branch history and exposes only the
+latest compacted context to the agent:
+
+```ts
+import { mem } from '@apeira/core'
+import { isCompaction } from '@apeira/plugin-compact'
+import { createSession } from '@apeira/session'
+
+const session = createSession({
+  defaultRef: 'main',
+  isCompaction,
+  sessionStorage: mem(),
+})
+```
+
 `compactAgent.runner` optionally configures the backend used for summarization. It can use a smaller or cheaper model than the main agent. When omitted, the plugin reuses the parent agent's runner.
 
 ## How it works
@@ -112,5 +128,8 @@ When the preserved recent turns alone are too large, the plugin reduces the pres
 ## Notes
 
 - The temporary summary agent is created without plugins, so compaction cannot recursively compact itself.
-- The plugin mutates the agent's stored input via `agent.setInput()`, so the old history does not reappear in later turns.
+- Compaction appends a durable `compact/boundary` entry followed by the summary,
+  preserved recent input, and current state. A session configured with
+  `isCompaction` hides entries before the latest boundary from model context
+  without deleting the original history.
 - Token counting uses a cheap heuristic based on `JSON.stringify(input).length / 4`; it intentionally avoids tokenizer dependencies.

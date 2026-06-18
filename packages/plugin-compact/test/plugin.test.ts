@@ -172,11 +172,16 @@ describe('compact plugin', () => {
 
     const agent: Agent = {
       abort: () => {},
-      clear: () => {},
+      clear: async () => {},
       emit: () => {},
       getActiveTurnId: () => undefined,
       init: async () => {},
-      interrupt: () => undefined,
+      instructions: '',
+      interrupt: async () => undefined,
+      isIdle: () => true,
+      plugins: [],
+      reset: async () => {},
+      runner: async () => ({ output: [] }),
       send: () => 'turn-test',
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
@@ -191,6 +196,7 @@ describe('compact plugin', () => {
         listener = nextListener
         return () => {}
       },
+      wait: async () => {},
     }
 
     await plugin.init?.(agent)
@@ -211,8 +217,13 @@ describe('compact plugin', () => {
       role: 'developer',
       type: 'message',
     })
-    expect(storeClear).toHaveBeenCalled()
+    expect(storeClear).not.toHaveBeenCalled()
+    expect(storeAppend.mock.lastCall?.[0]).toMatchObject({
+      data: { trigger: 'auto' },
+      type: 'compact/boundary',
+    })
     expect(storeAppend).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'compact/boundary' }),
       expect.objectContaining({ data: developer('(Earlier conversation omitted due to length)'), type: 'input' }),
       expect.objectContaining({ data: user('recent'), type: 'input' }),
       expect.objectContaining({ data: assistant('recent answer'), type: 'input' }),
@@ -295,11 +306,16 @@ describe('compact plugin', () => {
 
     const agent: Agent = {
       abort: () => {},
-      clear: () => {},
+      clear: async () => {},
       emit: () => {},
       getActiveTurnId: () => undefined,
       init: async () => {},
-      interrupt: () => undefined,
+      instructions: '',
+      interrupt: async () => undefined,
+      isIdle: () => true,
+      plugins: [],
+      reset: async () => {},
+      runner: async () => ({ output: [] }),
       send: () => 'turn-test',
       state: { get: () => ({ contextLength: 1000 }), set: () => {}, update: () => {} },
       stop: async () => {},
@@ -310,6 +326,7 @@ describe('compact plugin', () => {
         reset: () => {},
       },
       subscribe: () => () => {},
+      wait: async () => {},
     }
 
     await plugin.init?.(agent)
@@ -331,8 +348,13 @@ describe('compact plugin', () => {
       user('live one'),
       user('live two'),
     ])
-    expect(storeClear).toHaveBeenCalled()
+    expect(storeClear).not.toHaveBeenCalled()
+    expect(storeAppend.mock.lastCall?.[0]).toMatchObject({
+      data: { trigger: 'auto' },
+      type: 'compact/boundary',
+    })
     expect(storeAppend).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'compact/boundary' }),
       expect.objectContaining({ data: user('old one'), type: 'input' }),
       expect.objectContaining({ data: developer('<context_summary>\nmulti-live summary\n</context_summary>'), type: 'input' }),
       expect.objectContaining({ data: user('old two'), type: 'input' }),

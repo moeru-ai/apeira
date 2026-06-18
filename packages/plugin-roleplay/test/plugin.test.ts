@@ -39,7 +39,9 @@ describe('roleplay plugin', () => {
       runner,
     })
     const events: RoleplayEvent[] = []
-    agent.subscribe('roleplay', event => events.push(event))
+    agent.subscribe('roleplay', (event) => {
+      events.push(event)
+    })
 
     await agent.init()
 
@@ -86,7 +88,9 @@ describe('roleplay plugin', () => {
       runner,
     })
     const events: RoleplayEvent[] = []
-    agent.subscribe('roleplay', event => events.push(event))
+    agent.subscribe('roleplay', (event) => {
+      events.push(event)
+    })
 
     await agent.init()
     expect(assistantText((await agent.storage.read())[0])).toBe('first')
@@ -124,7 +128,9 @@ describe('roleplay plugin', () => {
       }),
     })
     const events: RoleplayEvent[] = []
-    agent.subscribe('roleplay', event => events.push(event))
+    agent.subscribe('roleplay', (event) => {
+      events.push(event)
+    })
 
     for await (const event of run(agent, user('{{roll:6}} stays literal')))
       void event
@@ -160,10 +166,12 @@ describe('roleplay plugin', () => {
       type: 'message',
     })
     expect(JSON.stringify(mock.bodies[0])).not.toContain('Shown to the user, not the model.')
-    expect((await agent.storage.read()).some(item =>
-      item.type === 'input'
-      && item.data.type === 'message'
-      && item.data.role === 'system')).toBe(false)
+    expect((await agent.storage.read()).some((item) => {
+      if (item.type !== 'input')
+        return false
+      const input = (item as AgentEntry<'input'>).data
+      return input.type === 'message' && input.role === 'system'
+    })).toBe(false)
     const assembled = events.find(event => event.type === 'prompt.assembled')
     expect(assembled?.type).toBe('prompt.assembled')
     if (assembled?.type === 'prompt.assembled') {
@@ -289,9 +297,11 @@ describe('roleplay plugin', () => {
       expect(temporary.content).toContain('Temporary definition.')
     }
     expect(main.bodies[0]?.input).toContainEqual(developer('<context_summary>\nsummary\n</context_summary>'))
-    expect((await agent.storage.read()).some(item =>
-      item.type === 'input'
-      && item.data.type === 'message'
-      && item.data.role === 'system')).toBe(false)
+    expect((await agent.storage.read()).some((item) => {
+      if (item.type !== 'input')
+        return false
+      const input = (item as AgentEntry<'input'>).data
+      return input.type === 'message' && input.role === 'system'
+    })).toBe(false)
   })
 })

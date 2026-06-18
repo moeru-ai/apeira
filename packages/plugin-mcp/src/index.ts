@@ -228,8 +228,9 @@ export const mcp = (config: MCPConfig): AgentPlugin => {
 
       return results.flatMap(result => result.status === 'fulfilled' ? result.value : [])
     },
-    init: async () =>
-      Promise.allSettled([...states.keys()].map(async serverId => getConnectedClient(serverId))),
+    init: async () => {
+      await Promise.allSettled([...states.keys()].map(async serverId => getConnectedClient(serverId)))
+    },
     name,
     stop: async () => {
       for (const state of states.values()) {
