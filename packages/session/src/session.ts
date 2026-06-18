@@ -36,6 +36,8 @@ const normalizeError = (error: unknown): never => {
   throw new SessionError('storage', 'Session storage operation failed.', { cause: error })
 }
 
+type BranchChangeHandler = (payload: SessionCheckoutEvent | SessionForkEvent | SessionRebaseEvent) => Promise<void>
+
 const resolveCloneRefs = (
   snapshot: SessionSnapshot,
   options: CloneOptions,
@@ -57,7 +59,12 @@ const resolveCloneRefs = (
 export const createSession = (options: CreateSessionOptions): Session => {
   const queue = createMutationQueue()
   let initialized = false
-  let branchChangeHandler: ((payload: SessionCheckoutEvent | SessionForkEvent | SessionRebaseEvent) => Promise<void>) | undefined
+  const branchChangeHandlers = new Set<BranchChangeHandler>()
+
+  const notifyBranchChange = async (payload: Parameters<BranchChangeHandler>[0]) => {
+    for (const handler of branchChangeHandlers)
+      await handler(payload)
+  }
 
   const makeEntry = <T extends keyof AgentCustomEntry>(
     type: T,
@@ -225,7 +232,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
       targetId: newSnapshot.headTargetId,
       type: 'checkout',
     }
-    await branchChangeHandler?.(payload)
+    await notifyBranchChange(payload)
   })
 
   const fork: Session['fork'] = async (name, forkOptions) => mutate(async () => {
@@ -251,7 +258,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
         targetId: newSnapshot.headTargetId,
         type: 'fork',
       }
-      await branchChangeHandler?.(payload)
+      await notifyBranchChange(payload)
     }
   })
 
@@ -290,7 +297,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
         targetId: newSnapshot.headTargetId,
         type: 'rebase',
       }
-      await branchChangeHandler?.(payload)
+      await notifyBranchChange(payload)
     }
 
     return {
@@ -345,16 +352,22 @@ export const createSession = (options: CreateSessionOptions): Session => {
       .map(entry => entry.data)
   }
 
+  let pluginHandler: BranchChangeHandler | undefined
+
   const plugin: AgentPlugin = {
     init: (agent) => {
-      branchChangeHandler = async (payload) => {
+      pluginHandler = async (payload) => {
         agent.state.restore(payload.state)
         await agent.emit(`session.${payload.type}`, payload, { save: false })
       }
+      branchChangeHandlers.add(pluginHandler)
     },
     name: 'apeira.session',
     stop: () => {
-      branchChangeHandler = undefined
+      if (!pluginHandler)
+        return
+      branchChangeHandlers.delete(pluginHandler)
+      pluginHandler = undefined
     },
   }
 

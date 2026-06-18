@@ -1,4 +1,4 @@
-import type { AgentEntry, AgentStateManager } from '@apeira/core'
+import type { AgentEntry, AgentState, AgentStateManager } from '@apeira/core'
 
 import { assistant, createAgent, developer, entry, mem, run, user } from '@apeira/core'
 import { describe, expect, it } from 'vitest'
@@ -370,12 +370,12 @@ describe('session plugin state sync', () => {
     })
 
     await session.storage.append(
-      entry('state', { branch: 'main' }),
+      entry('state', { branch: 'main' } as AgentState),
       entry('input', user('main')),
     )
     await session.fork('feature')
     await session.storage.append(
-      entry('state', { branch: 'feature' }),
+      entry('state', { branch: 'feature' } as AgentState),
       entry('input', user('feature')),
     )
     await session.checkout('main')
@@ -403,7 +403,7 @@ describe('session plugin state sync', () => {
       sessionStorage: mem(),
     })
 
-    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.storage.append(entry('state', { branch: 'main' } as AgentState))
 
     const agent = createAgent({
       instructions: '',
@@ -414,7 +414,7 @@ describe('session plugin state sync', () => {
     await agent.init()
     expect(agent.state.get()).toEqual({ branch: 'main' })
 
-    await session.storage.append(entry('state', { branch: 'feature' }))
+    await session.storage.append(entry('state', { branch: 'feature' } as AgentState))
     await session.fork('feature')
     expect(agent.state.get()).toEqual({ branch: 'feature' })
   })
@@ -425,7 +425,7 @@ describe('session plugin state sync', () => {
       sessionStorage: mem(),
     })
 
-    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.storage.append(entry('state', { branch: 'main' } as AgentState))
 
     const agent = createAgent({
       instructions: '',
@@ -450,12 +450,12 @@ describe('session plugin state sync', () => {
     await session.storage.append(entry('input', user('root')))
     await session.fork('feature')
     await session.storage.append(
-      entry('state', { branch: 'feature' }),
+      entry('state', { branch: 'feature' } as AgentState),
       entry('input', user('feature')),
     )
     await session.checkout('main')
     await session.storage.append(
-      entry('state', { branch: 'main' }),
+      entry('state', { branch: 'main' } as AgentState),
       entry('input', user('main')),
     )
 
@@ -483,9 +483,9 @@ describe('session plugin state sync', () => {
 
     await session.storage.append(entry('input', user('root')))
     await session.fork('feature')
-    await session.storage.append(entry('state', { branch: 'feature' }))
+    await session.storage.append(entry('state', { branch: 'feature' } as AgentState))
     await session.checkout('main')
-    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.storage.append(entry('state', { branch: 'main' } as AgentState))
 
     const agent = createAgent({
       instructions: '',
@@ -506,7 +506,7 @@ describe('session plugin state sync', () => {
       sessionStorage: mem(),
     })
 
-    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.storage.append(entry('state', { branch: 'main' } as AgentState))
 
     const events: unknown[] = []
     const agent = createAgent({
@@ -538,9 +538,9 @@ describe('session plugin state sync', () => {
       sessionStorage: mem(),
     })
 
-    await session.storage.append(entry('state', { branch: 'main' }))
+    await session.storage.append(entry('state', { branch: 'main' } as AgentState))
     await session.fork('feature')
-    await session.storage.append(entry('state', { branch: 'feature' }))
+    await session.storage.append(entry('state', { branch: 'feature' } as AgentState))
 
     const agent = createAgent({
       instructions: '',

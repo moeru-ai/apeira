@@ -50,10 +50,6 @@ declare module '@apeira/core' {
     'session.fork': SessionForkEvent
     'session.rebase': SessionRebaseEvent
   }
-
-  interface AgentCustomState {
-    branch?: string
-  }
 }
 
 export interface CloneOptions {
