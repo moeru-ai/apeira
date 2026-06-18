@@ -7,6 +7,6 @@
   "include": [
     "**/*.config.ts",
     "**/scripts/*.ts",
-    "**/.vitepress/config.ts"
+    "**/.vitepress/**/*.ts"
   ]
 }
