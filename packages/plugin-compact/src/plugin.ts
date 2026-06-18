@@ -63,25 +63,17 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
   const getContextLength = () => getAgent().state.get().contextLength ?? DEFAULT_CONTEXT_LENGTH
 
   const compactHistoricalInput = async (historicalInput: readonly AgentInput[]): Promise<string> => {
-    const contextLength = getContextLength()
-
     try {
-      const result = await executeCompact({
+      const summary = await executeCompact({
         compactAgent: {
           instructions: options.compactAgent.instructions,
           runner: options.compactAgent.runner ?? getAgent().runner,
         },
-        contextLength,
         input: historicalInput,
-        maxRetainedUserTokens: 0,
-        preserveTurns: 0,
       })
 
-      if (result.summary.length === 0)
-        return ''
-
       compactFailures = 0
-      return result.summary
+      return summary
     }
     catch (error) {
       compactFailures++

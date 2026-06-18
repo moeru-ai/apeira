@@ -4,6 +4,7 @@ import { assistant, createAgent, developer, entry, mem, run, user } from '@apeir
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it, vi } from 'vitest'
 
+import { DEFAULT_COMPACTION_TRIGGER } from '../src/constants'
 import { compact, transformCompactEntries } from '../src/index'
 import { createMockFetch } from './_shared'
 
@@ -135,7 +136,7 @@ describe('compact plugin', () => {
       assistant('old answer'),
       user('trigger compact'),
       assistant('first'),
-      user('Summarize the conversation.'),
+      user(DEFAULT_COMPACTION_TRIGGER),
     ])
 
     const compactEntries = (await agent.storage.read())
@@ -198,7 +199,7 @@ describe('compact plugin', () => {
       user('recent history'),
       user('trigger again'),
       assistant('fresh answer'),
-      user('Summarize the conversation.'),
+      user(DEFAULT_COMPACTION_TRIGGER),
     ])
     expect(summarizer.bodies[0]?.input).not.toContainEqual(user('covered raw history'))
     expect((await agent.storage.read()).filter(item => item.type === 'compact')).toHaveLength(2)
@@ -332,7 +333,7 @@ describe('compact plugin', () => {
     await agent.wait()
 
     expect(main.bodies).toHaveLength(2)
-    expect(main.bodies[1]?.input).toContainEqual(user('Summarize the conversation.'))
+    expect(main.bodies[1]?.input).toContainEqual(user(DEFAULT_COMPACTION_TRIGGER))
 
     for await (const event of run(agent, user('after compact')))
       void event
