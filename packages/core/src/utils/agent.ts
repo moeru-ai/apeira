@@ -76,6 +76,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const loadLatestState = async () => {
     restoring = true
     try {
+      await storageReady
       const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
       state.set(latest?.data ?? (options.initialState ?? {}))
     }
@@ -135,6 +136,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
+      await storageReady
       const history = toAgentInput(await storage.read())
 
       const result = await options.runner({

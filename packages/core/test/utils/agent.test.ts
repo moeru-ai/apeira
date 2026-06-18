@@ -96,7 +96,41 @@ describe('createAgent', () => {
     agent.state.update({ contextLength: 16_000 })
     await Promise.resolve()
 
-    expect(items.some(e => e.type === 'state' && e.data.contextLength === 16_000)).toBe(true)
+    const latestState = items.findLast((e): e is AgentEntry<'state'> => e.type === 'state')
+    expect(latestState?.data.contextLength).toBe(16_000)
+  })
+
+  it('waits for pending state writes before loading latest state', async () => {
+    let releaseAppend!: () => void
+    let signalAppend!: () => void
+    const appendBlocked = new Promise<void>(resolve => releaseAppend = resolve)
+    const appendStarted = new Promise<void>(resolve => signalAppend = resolve)
+    const items: AgentEntry[] = []
+    const storage: AgentStorage<AgentEntry> = {
+      append: async (...next) => {
+        signalAppend()
+        await appendBlocked
+        items.push(...next)
+      },
+      clear: async () => { items.length = 0 },
+      read: () => items,
+      reset: async () => { items.length = 0 },
+    }
+    const agent = createAgent({
+      initialState: { contextLength: 8_000 },
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    agent.state.update({ contextLength: 16_000 })
+    await appendStarted
+
+    const initPromise = agent.init()
+    releaseAppend()
+    await initPromise
+
+    expect(agent.state.get()).toEqual({ contextLength: 16_000 })
   })
 
   it('replaces input with a cloned value', async () => {
