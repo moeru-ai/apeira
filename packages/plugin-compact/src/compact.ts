@@ -7,7 +7,6 @@ import { createAgent, developer, mem, run, toAgentInput, user } from '@apeira/co
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
   EMERGENCY_PRESERVE_THRESHOLD,
-  HARD_TRUNCATION_MESSAGE,
 } from './constants'
 import {
   buildCompactInput,
@@ -77,19 +76,6 @@ export const assembleCompactedInput = (
   developer(`<context_summary>\n${summary}\n</context_summary>`),
   ...preservedTurns,
 ]
-
-export const hardTruncateInput = (
-  items: readonly AgentInput[],
-  preserveTurns: number,
-  contextLength: number,
-): AgentInput[] => {
-  const { preserved } = splitWithEmergencyPreserve(items, preserveTurns, contextLength)
-
-  return [
-    developer(HARD_TRUNCATION_MESSAGE),
-    ...preserved,
-  ]
-}
 
 export const executeCompact = async ({
   compactAgent,

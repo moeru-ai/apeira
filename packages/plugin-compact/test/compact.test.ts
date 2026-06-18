@@ -2,7 +2,7 @@ import { assistant, developer, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it } from 'vitest'
 
-import { executeCompact, hardTruncateInput } from '../src/index'
+import { executeCompact } from '../src/index'
 import { createMockFetch } from './_shared'
 
 describe('executeCompact', () => {
@@ -67,26 +67,5 @@ describe('executeCompact', () => {
       maxRetainedUserTokens: 100,
       preserveTurns: 1,
     })).rejects.toThrow('Compaction summary was refused.')
-  })
-})
-
-describe('hardTruncateInput', () => {
-  it('replaces compressible history with a developer placeholder', () => {
-    const input = [
-      user('old'),
-      assistant('old answer'),
-      user('recent'),
-      assistant('recent answer'),
-    ]
-
-    expect(hardTruncateInput(input, 1, 1000)).toEqual([
-      {
-        content: '(Earlier conversation omitted due to length)',
-        role: 'developer',
-        type: 'message',
-      },
-      user('recent'),
-      assistant('recent answer'),
-    ])
   })
 })
