@@ -1,10 +1,10 @@
-import type { AgentInput } from '@apeira/core'
+import type { AgentEntry } from '@apeira/core'
 
 import type { FileStorageOptions } from './utils/types'
 
 import { createFileStorage } from './utils/file-storage'
 
-export interface JSONLStorageOptions<T> extends FileStorageOptions<T> {}
+export interface JSONLStorageOptions<T = AgentEntry> extends FileStorageOptions<T> {}
 
 const encode = <T>(items: readonly T[]): string =>
   items.map(item => JSON.stringify(item)).join('\n') + (items.length > 0 ? '\n' : '')
@@ -29,5 +29,5 @@ const decode = <T>(raw: string): T[] => {
   return result
 }
 
-export const jsonl = <T = AgentInput>(options: JSONLStorageOptions<T>) =>
+export const jsonl = <T = AgentEntry>(options: JSONLStorageOptions<T>) =>
   createFileStorage<T>(options, { decode, encode })

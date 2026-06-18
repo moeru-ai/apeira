@@ -1,8 +1,8 @@
-import type { AgentInput, AgentStorage, MaybePromise } from '@apeira/core'
+import type { AgentEntry, AgentStorage, MaybePromise } from '@apeira/core'
 
 import { createKeyedQueue } from './utils/keyed-queue'
 
-export interface KVStoreOptions<T> {
+export interface KVStoreOptions<T = AgentEntry> {
   initial?: readonly T[]
   /** @default `apeira` */
   prefix?: string
@@ -47,7 +47,7 @@ const decode = <T>(raw: string): T[] => {
   }
 }
 
-export const kv = <T = AgentInput>(options: KVStoreOptions<T>): AgentStorage<T> => {
+export const kv = <T = AgentEntry>(options: KVStoreOptions<T>): AgentStorage<T> => {
   const segmentSize = options.segmentSize ?? 100
   if (!Number.isInteger(segmentSize) || segmentSize <= 0)
     throw new Error('segmentSize must be a positive integer')
