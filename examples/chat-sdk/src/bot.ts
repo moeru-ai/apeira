@@ -1,5 +1,3 @@
-import type { AgentEntry } from '@apeira/core'
-
 import { env, exit } from 'node:process'
 
 import { run } from '@apeira/core'
@@ -15,7 +13,7 @@ const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
 const createThreadStorage = (threadId: string) =>
-  jsonl<AgentEntry>({ path: threadFilePath(threadId) })
+  jsonl({ path: threadFilePath(threadId) })
 
 export const startBot = async () => {
   if (TELEGRAM_USER_ID == null) {
