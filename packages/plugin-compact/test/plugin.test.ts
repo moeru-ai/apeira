@@ -142,7 +142,7 @@ describe('compact plugin', () => {
     const compactEntries = (await agent.storage.read())
       .filter((item): item is AgentEntry<'compact'> => item.type === 'compact')
     expect(compactEntries).toHaveLength(1)
-    expect(compactEntries[0]?.data).toEqual({ summary: 'checkpoint summary' })
+    expect(compactEntries[0]?.data).toEqual(expect.objectContaining({ summary: 'checkpoint summary' }))
     expect(await agent.storage.read()).not.toContainEqual(expect.objectContaining({
       data: developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
       type: 'input',
@@ -298,10 +298,9 @@ describe('compact plugin', () => {
     }
 
     expect(storeAppend).toHaveBeenCalledOnce()
-    expect(storeAppend).toHaveBeenCalledWith(expect.objectContaining({
-      data: { summary: '(Earlier conversation omitted due to length)' },
-      type: 'compact',
-    }))
+    const [compactEntry] = storeAppend.mock.calls[0]
+    expect(compactEntry?.type).toBe('compact')
+    expect(compactEntry?.data).toMatchObject({ summary: '(Earlier conversation omitted due to length)' })
     warn.mockRestore()
   })
 
@@ -341,6 +340,102 @@ describe('compact plugin', () => {
 
     expect(main.bodies[2]?.input).toEqual([
       developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
+      user('after compact'),
+    ])
+  })
+
+  it('only summarizes entries after the previous compact on subsequent compactions', async () => {
+    const summarizer = createMockFetch({ responseText: ['first summary', 'second summary'] })
+    const main = createMockFetch({ responseText: ['a1', 'a2'], totalTokens: [950, 950] })
+    const agent = createAgent({
+      initialState: { contextLength: 1000 },
+      instructions: '',
+      plugins: [
+        compact({
+          compactAgent: {
+            runner: responses({
+              apiKey: 'test',
+              baseURL: 'https://test',
+              fetch: summarizer.fetch,
+              model: 'compact-model',
+            }),
+          },
+          threshold: 0.9,
+        }),
+      ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'main-model',
+      }),
+      storage: mem([user('old'), assistant('old answer')]),
+    })
+
+    for await (const event of run(agent, user('first')))
+      void event
+    await agent.wait()
+
+    for await (const event of run(agent, user('second')))
+      void event
+    await agent.wait()
+
+    expect(summarizer.bodies).toHaveLength(2)
+    // First summary sees all historical input
+    expect(summarizer.bodies[0]?.input).toContainEqual(user('old'))
+    expect(summarizer.bodies[0]?.input).toContainEqual(user('first'))
+    // Second summary sees the previous compact projection plus new entries, not the raw old entries
+    expect(summarizer.bodies[1]?.input).toContainEqual(developer('<context_summary>\nfirst summary\n</context_summary>'))
+    expect(summarizer.bodies[1]?.input).toContainEqual(user('second'))
+    expect(summarizer.bodies[1]?.input).not.toContainEqual(user('old'))
+  })
+
+  it('preserves recent entries verbatim when preserveEntries is set', async () => {
+    const summarizer = createMockFetch({ responseText: 'summary' })
+    const main = createMockFetch({ responseText: 'a1', totalTokens: 950 })
+    const agent = createAgent({
+      initialState: { contextLength: 1000 },
+      instructions: '',
+      plugins: [
+        compact({
+          compactAgent: {
+            runner: responses({
+              apiKey: 'test',
+              baseURL: 'https://test',
+              fetch: summarizer.fetch,
+              model: 'compact-model',
+            }),
+          },
+          preserveEntries: 1,
+          threshold: 0.9,
+        }),
+      ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'main-model',
+      }),
+      storage: mem([user('old'), assistant('old answer')]),
+    })
+
+    for await (const event of run(agent, user('first')))
+      void event
+    await agent.wait()
+
+    // Summarizer should not see the most recent assistant entry
+    expect(summarizer.bodies[0]?.input).toContainEqual(user('old'))
+    expect(summarizer.bodies[0]?.input).toContainEqual(user('first'))
+    expect(summarizer.bodies[0]?.input).not.toContainEqual(assistant('a1'))
+
+    // Next turn sees the summary plus the preserved recent entry
+    for await (const event of run(agent, user('after compact')))
+      void event
+    await agent.wait()
+
+    expect(main.bodies[1]?.input).toEqual([
+      developer('<context_summary>\nsummary\n</context_summary>'),
+      assistant('a1'),
       user('after compact'),
     ])
   })

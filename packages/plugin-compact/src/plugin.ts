@@ -16,6 +16,7 @@ import {
 } from './constants'
 
 export interface CompactEntry {
+  lastEntryId?: string
   summary: string
 }
 
@@ -27,6 +28,7 @@ declare module '@apeira/core' {
 
 export interface CompactPluginOptions {
   compactAgent: CompactAgentOptions
+  preserveEntries?: number
   threshold?: number
 }
 
@@ -44,10 +46,23 @@ export const transformCompactEntries = (
     type: 'input',
   }
 
-  return [summaryEntry, ...entries.slice(compactIndex + 1)]
+  const lastEntryId = compactEntry.data.lastEntryId
+  if (lastEntryId == null)
+    return [summaryEntry, ...entries.slice(compactIndex + 1)]
+
+  const lastSummarizedIndex = entries.findIndex(entry => entry.id === lastEntryId)
+  if (lastSummarizedIndex === -1)
+    return [summaryEntry, ...entries.slice(compactIndex + 1)]
+
+  return [
+    summaryEntry,
+    ...entries.slice(lastSummarizedIndex + 1, compactIndex),
+    ...entries.slice(compactIndex + 1),
+  ]
 }
 
 export const compact = (options: CompactPluginOptions): AgentPlugin => {
+  const preserveEntries = Math.max(0, Math.floor(options.preserveEntries ?? 0))
   const threshold = options.threshold ?? DEFAULT_THRESHOLD
 
   let agent: Agent | undefined
@@ -99,10 +114,31 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
         return
 
       const activeAgent = getAgent()
-      const entries = transformCompactEntries(await activeAgent.storage.read())
-      const summary = await compactHistoricalInput(toAgentInput(entries))
-      if (summary.length > 0)
-        await activeAgent.storage.append(entry('compact', { summary }))
+      const projectedEntries = transformCompactEntries(await activeAgent.storage.read())
+
+      const inputEntryIndices = projectedEntries
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => entry.type === 'input')
+        .map(({ index }) => index)
+
+      if (inputEntryIndices.length <= preserveEntries)
+        return
+
+      const entriesToSummarize = preserveEntries === 0
+        ? projectedEntries
+        : projectedEntries.slice(0, inputEntryIndices[inputEntryIndices.length - preserveEntries])
+
+      if (entriesToSummarize.length === 0)
+        return
+
+      const summary = await compactHistoricalInput(toAgentInput(entriesToSummarize))
+      if (summary.length === 0)
+        return
+
+      const lastEntryId = preserveEntries === 0
+        ? entriesToSummarize.at(-1)?.id
+        : entriesToSummarize.findLast(entry => entry.type === 'input')?.id
+      await activeAgent.storage.append(entry('compact', { lastEntryId, summary }))
     },
     stop: () => {
       agent = undefined

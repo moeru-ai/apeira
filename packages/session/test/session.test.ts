@@ -369,9 +369,12 @@ describe('session operations', () => {
       user('second'),
     ])
     expect(sessionInput).toEqual(plainInput)
-    expect(await session.path()).toContainEqual(expect.objectContaining({
-      data: { summary: 'summary' },
-      type: 'compact',
-    }))
+    expect((await session.path()).some(entry =>
+      entry.type === 'compact'
+      && typeof entry.data === 'object'
+      && entry.data != null
+      && 'summary' in entry.data
+      && (entry.data as { summary: unknown }).summary === 'summary',
+    )).toBe(true)
   })
 })
