@@ -71,7 +71,7 @@ export const chainTransformEntries = (
     let current: readonly AgentEntry[] = entries
 
     for (const hook of list)
-      current = await hook(current, options)
+      current = await hook(current, options) ?? current
 
     return current
   }
