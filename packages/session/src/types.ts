@@ -33,8 +33,6 @@ export interface CloneOptions {
 }
 export interface CreateSessionOptions {
   defaultRef?: RefName
-  id?: () => string
-  now?: () => number
   sessionStorage: AgentStorage<AgentEntry>
 }
 

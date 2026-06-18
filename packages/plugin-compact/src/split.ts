@@ -1,17 +1,16 @@
 import type { AgentInput } from '@apeira/core'
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
-
 const readContentPartText = (part: unknown): string => {
-  if (!isRecord(part))
+  if (typeof part !== 'object' || part === null)
     return ''
 
-  if (typeof part.text === 'string')
-    return part.text
+  const { refusal, text } = part as { refusal?: unknown, text?: unknown }
 
-  if (typeof part.refusal === 'string')
-    return part.refusal
+  if (typeof text === 'string')
+    return text
+
+  if (typeof refusal === 'string')
+    return refusal
 
   return ''
 }

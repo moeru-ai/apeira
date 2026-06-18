@@ -13,7 +13,8 @@ import type {
   SessionSnapshot,
 } from './types'
 
-import { createEntry, isSemanticEntry } from './entry'
+import { entry } from '@apeira/core'
+
 import { createMutationQueue } from './queue'
 import { validateRef } from './ref'
 import {
@@ -50,8 +51,6 @@ const resolveCloneRefs = (
 }
 
 export const createSession = (options: CreateSessionOptions): Session => {
-  const id = options.id ?? (() => crypto.randomUUID())
-  const now = options.now ?? (() => Date.now())
   const queue = createMutationQueue()
   let initialized = false
 
@@ -59,7 +58,10 @@ export const createSession = (options: CreateSessionOptions): Session => {
     type: T,
     data: AgentCustomEntry[T],
     parentId?: string,
-  ) => createEntry(type, data, id, now, parentId)
+  ): AgentEntry<T> => ({
+    ...entry(type, data),
+    parentId,
+  })
 
   const initialize = async () => {
     if (initialized)
@@ -141,7 +143,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
           parentId: entry.parentId ?? tail,
         }
 
-        if (isSemanticEntry(next))
+        if (next.type !== 'event' && next.type !== 'session/checkout' && next.type !== 'session/ref')
           tail = next.id
 
         return next
@@ -238,12 +240,7 @@ export const createSession = (options: CreateSessionOptions): Session => {
     let parentId = newBaseId
     const mapping: Array<{ newId: string, oldId: string }> = []
     const entries = copied.map((entry) => {
-      const next: AgentEntry = {
-        ...entry,
-        id: id(),
-        parentId,
-        timestamp: now(),
-      }
+      const next: AgentEntry = makeEntry(entry.type, entry.data, parentId)
       mapping.push({ newId: next.id, oldId: entry.id })
       parentId = next.id
       return next

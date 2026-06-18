@@ -14,11 +14,6 @@ declare module '@apeira/core' {
   }
 }
 
-const ids = () => {
-  let value = 0
-  return () => `id-${++value}`
-}
-
 const inputText = (entries: readonly AgentEntry[]) =>
   entries
     .filter((entry): entry is AgentEntry<'input'> => entry.type === 'input')
@@ -29,8 +24,6 @@ describe('session replay and storage', () => {
     const sessionStorage = mem()
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
-      now: () => 1,
       sessionStorage,
     })
 
@@ -60,7 +53,6 @@ describe('session replay and storage', () => {
   it('forks and checks out independent branch paths', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
 
@@ -83,7 +75,6 @@ describe('session replay and storage', () => {
   it('supports detached and empty checkout, clear, and reset', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
 
@@ -121,7 +112,6 @@ describe('session operations', () => {
   it('rebases source-only semantic entries and leaves the source chain intact', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
 
@@ -160,7 +150,6 @@ describe('session operations', () => {
   it('clones the active ref into separate storage', async () => {
     const source = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
     await source.storage.append(
@@ -187,7 +176,6 @@ describe('session operations', () => {
   it('clones all selected refs', async () => {
     const source = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
     await source.storage.append(entry('input', user('root')))
@@ -213,7 +201,6 @@ describe('session operations', () => {
   it('treats arbitrary custom entries as semantic branch nodes', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
 
@@ -242,7 +229,6 @@ describe('session operations', () => {
   it('blocks branch movement between turn.start and its terminal event', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
 
@@ -265,7 +251,6 @@ describe('session operations', () => {
     let maxActive = 0
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: {
         ...backing,
         append: async (...entries) => {
@@ -293,7 +278,6 @@ describe('session operations', () => {
   it('integrates with core and persists lifecycle events in the raw log', async () => {
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
     const agent = createAgent({
@@ -359,7 +343,6 @@ describe('session operations', () => {
     const plainInput = await runWithStorage(mem())
     const session = createSession({
       defaultRef: 'main',
-      id: ids(),
       sessionStorage: mem(),
     })
     const sessionInput = await runWithStorage(session.storage)
