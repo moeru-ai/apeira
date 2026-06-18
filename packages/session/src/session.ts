@@ -62,8 +62,14 @@ export const createSession = (options: CreateSessionOptions): Session => {
   const branchChangeHandlers = new Set<BranchChangeHandler>()
 
   const notifyBranchChange = async (payload: Parameters<BranchChangeHandler>[0]) => {
-    for (const handler of branchChangeHandlers)
-      await handler(payload)
+    for (const handler of branchChangeHandlers) {
+      try {
+        await handler(payload)
+      }
+      catch (error) {
+        console.warn('[@apeira/session] Branch change handler failed:', error)
+      }
+    }
   }
 
   const makeEntry = <T extends keyof AgentCustomEntry>(

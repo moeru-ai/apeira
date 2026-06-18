@@ -532,7 +532,7 @@ describe('session plugin state sync', () => {
     expect(persisted).not.toContainEqual(expect.objectContaining({ type: 'session.checkout' }))
   })
 
-  it('rejects branch operation when state sync fails', async () => {
+  it('keeps branch change successful when state sync fails', async () => {
     const session = createSession({
       defaultRef: 'main',
       sessionStorage: mem(),
@@ -557,8 +557,9 @@ describe('session plugin state sync', () => {
     }
 
     try {
-      await expect(session.checkout('main')).rejects.toBeInstanceOf(SessionError)
+      await expect(session.checkout('main')).resolves.toBeUndefined()
       expect(await session.head()).toEqual({ name: 'main', type: 'ref' })
+      expect(agent.state.get()).toEqual({ branch: 'feature' })
     }
     finally {
       state.restore = originalRestore
