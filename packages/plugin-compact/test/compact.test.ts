@@ -1,12 +1,13 @@
-import { assistant, developer, user } from '@apeira/core'
+import { assistant, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it } from 'vitest'
 
-import { executeCompact, hardTruncateInput } from '../src/index'
+import { DEFAULT_COMPACTION_TRIGGER } from '../src/constants'
+import { executeCompact } from '../src/index'
 import { createMockFetch } from './_shared'
 
 describe('executeCompact', () => {
-  it('summarizes compressible history and assembles retained users, summary, and preserved turns', async () => {
+  it('summarizes the full input and returns the assistant summary', async () => {
     const mock = createMockFetch({ responseText: 'summary text' })
     const input = [
       user('old request'),
@@ -15,7 +16,7 @@ describe('executeCompact', () => {
       assistant('recent answer'),
     ]
 
-    const result = await executeCompact({
+    const summary = await executeCompact({
       compactAgent: {
         runner: responses({
           apiKey: 'test',
@@ -24,20 +25,17 @@ describe('executeCompact', () => {
           model: 'compact-model',
         }),
       },
-      contextLength: 1000,
       input,
-      maxRetainedUserTokens: 100,
-      preserveTurns: 1,
     })
 
-    expect(result.summary).toBe('summary text')
-    expect(result.input).toEqual([
+    expect(summary).toBe('summary text')
+    expect(mock.bodies[0]?.input).toEqual([
       user('old request'),
-      developer('<context_summary>\nsummary text\n</context_summary>'),
+      assistant('old answer'),
       user('recent request'),
       assistant('recent answer'),
+      user(DEFAULT_COMPACTION_TRIGGER),
     ])
-    expect(mock.bodies[0]?.input).toEqual([assistant('old answer'), user('Summarize the conversation.')])
   })
 
   it('treats summarizer refusal as a compact failure', async () => {
@@ -58,35 +56,11 @@ describe('executeCompact', () => {
           model: 'compact-model',
         }),
       },
-      contextLength: 1000,
       input: [
         user('old request'),
         assistant('old answer'),
         user('recent request'),
       ],
-      maxRetainedUserTokens: 100,
-      preserveTurns: 1,
     })).rejects.toThrow('Compaction summary was refused.')
-  })
-})
-
-describe('hardTruncateInput', () => {
-  it('replaces compressible history with a developer placeholder', () => {
-    const input = [
-      user('old'),
-      assistant('old answer'),
-      user('recent'),
-      assistant('recent answer'),
-    ]
-
-    expect(hardTruncateInput(input, 1, 1000)).toEqual([
-      {
-        content: '(Earlier conversation omitted due to length)',
-        role: 'developer',
-        type: 'message',
-      },
-      user('recent'),
-      assistant('recent answer'),
-    ])
   })
 })

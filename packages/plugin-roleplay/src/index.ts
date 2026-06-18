@@ -12,8 +12,4 @@ declare module '@apeira/core' {
   interface AgentCustomEvent {
     roleplay: RoleplayEvent
   }
-
-  interface AgentCustomState {
-    userName?: string
-  }
 }

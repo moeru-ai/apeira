@@ -15,10 +15,15 @@ interface AgentPlugin {
   name: string
   onFinish?: (step?: CompletionStep) => MaybePromise<unknown>
   onStepFinish?: (step: CompletionStep) => MaybePromise<unknown>
+  onTurnFinish?: (options: TurnFinishOptions) => MaybePromise<void>
   postToolCall?: PostToolCall
   prepareStep?: PrepareStep<AgentInput[], unknown>
   preToolCall?: PreToolCall
   stop?: () => MaybePromise<void>
+  transformEntries?: (
+    entries: readonly AgentEntry[],
+    options: TransformEntriesOptions,
+  ) => MaybePromise<readonly AgentEntry[]>
   version?: string
 }
 
@@ -38,6 +43,8 @@ interface ExtendOptions {
 
 - `extendInstructions` — append content to the system prompt. Receives the agent `state`, the turn's `turnId`, and an optional `signal` for cancellation.
 - `extendTools` — inject tools into model calls. Receives the same `ExtendOptions` as `extendInstructions`.
+- `transformEntries` — sequentially derives historical `AgentEntry[]` before core converts it with `toAgentInput()`. Current-turn live input is appended afterward and is not exposed to this hook.
+- `onTurnFinish` — runs once after a successful queue turn. Core persists and emits `turn.done` first, then awaits plugins sequentially before the next turn. It receives cumulative drained input/output and the final runner call's usage.
 - `onFinish`, `onStepFinish`, `prepareStep`, `preToolCall`, `postToolCall` — pass-through hooks to xsAI response lifecycle.
   - `preToolCall` — called before a tool is executed. Return a modified tool call or a tool result to short-circuit execution. The first plugin to return a non-empty value wins.
   - `postToolCall` — called after a tool is executed. Return a modified tool result to override the output. The first plugin to return a non-empty value wins.

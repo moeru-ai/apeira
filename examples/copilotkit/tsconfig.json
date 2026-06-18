@@ -17,5 +17,6 @@
     "src",
     "uno.config.ts",
     "vite.config.ts"
-  ]
+  ],
+  "exclude": []
 }

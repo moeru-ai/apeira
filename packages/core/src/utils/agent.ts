@@ -1,7 +1,7 @@
 import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentEntry } from '../types/entry'
-import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
+import type { AgentPluginOption, ExtendOptions, TurnFinishOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
 import type { AgentStorage } from '../types/storage'
@@ -12,7 +12,7 @@ import type { AgentStateManager } from './state-manager'
 import { entry, toAgentInput } from '../utils/entry'
 import { createAgentChannel } from './channel'
 import { developer } from './input'
-import { chain, chainPrepareStep, normalizePlugins } from './plugin'
+import { chain, chainPrepareStep, chainTransformEntries, normalizePlugins } from './plugin'
 import { createAgentQueue } from './queue'
 import { createAgentStateManager } from './state-manager'
 import { mem } from './storage'
@@ -48,6 +48,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     postToolCall: chain('some', plugins.map(p => p.postToolCall)),
     prepareStep: chainPrepareStep(plugins.map(p => p.prepareStep)),
     preToolCall: chain('some', plugins.map(p => p.preToolCall)),
+    transformEntries: chainTransformEntries(plugins.map(p => p.transformEntries)),
   }
 
   let storageReady = Promise.resolve()
@@ -64,25 +65,16 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       : undefined,
   })
 
-  let restoring = false
   const state = createAgentStateManager(options.initialState ?? {}, (next) => {
-    if (restoring)
-      return
     void mutateStorage(async () => storage.append(entry('state', next))).catch((error) => {
       console.error('[@apeira/core] Failed to persist agent state:', error)
     })
   })
 
   const loadLatestState = async () => {
-    restoring = true
-    try {
-      await storageReady
-      const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
-      state.set(latest?.data ?? (options.initialState ?? {}))
-    }
-    finally {
-      restoring = false
-    }
+    await storageReady
+    const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
+    state.restore(latest?.data ?? (options.initialState ?? {}))
   }
 
   const resolveInstructions = async (opts: ExtendOptions) => {
@@ -117,9 +109,21 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     }
   }
 
+  const onTurnFinish = async (turnOptions: TurnFinishOptions) => {
+    for (const plugin of plugins) {
+      try {
+        await plugin.onTurnFinish?.(turnOptions)
+      }
+      catch (error) {
+        console.warn(`[@apeira/core] Plugin ${plugin.name} onTurnFinish failed.`, error)
+      }
+    }
+  }
+
   const queue = createAgentQueue({
     channel,
     init,
+    onTurnFinish,
     runner: async (opts) => {
       const extendOptions: ExtendOptions = {
         signal: opts.abortSignal,
@@ -137,7 +141,9 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       }
 
       await storageReady
-      const history = toAgentInput(await storage.read())
+      const rawEntries = await storage.read()
+      const historicalEntries = await hooks.transformEntries?.(rawEntries, extendOptions) ?? rawEntries
+      const history = toAgentInput(historicalEntries)
 
       const result = await options.runner({
         ...opts,

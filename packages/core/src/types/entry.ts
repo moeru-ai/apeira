@@ -11,6 +11,7 @@ export interface AgentCustomEntry {
 export interface AgentEntry<T extends keyof AgentCustomEntry = keyof AgentCustomEntry> {
   data: AgentCustomEntry[T]
   id: string
+  parentId?: string
   timestamp: number
   type: T
 }

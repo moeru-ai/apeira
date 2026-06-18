@@ -255,6 +255,142 @@ describe('plugin hooks', () => {
     expect(calls).toContain('p1 onFinish')
     expect(calls).toContain('p1 onStepFinish')
   })
+
+  it('transforms historical entries sequentially before appending live input', async () => {
+    const calls: string[] = []
+    const { agent, inputs } = createTestAgent({
+      input: [user('stored')],
+      plugins: [
+        {
+          enforce: 'post',
+          name: 'second',
+          transformEntries: (entries) => {
+            calls.push(`second:${entries.length}`)
+            expect(entries).toEqual([
+              expect.objectContaining({
+                data: developer('first projection'),
+                type: 'input',
+              }),
+            ])
+            return entries
+          },
+        },
+        {
+          enforce: 'pre',
+          name: 'first',
+          transformEntries: (entries) => {
+            calls.push(`first:${entries.length}`)
+            return [entry('input', developer('first projection'))]
+          },
+        },
+      ],
+    })
+
+    for await (const event of run(agent, user('live')))
+      void event
+
+    expect(calls).toEqual(['first:3', 'second:1'])
+    expect(inputs[0]).toEqual([
+      developer('first projection'),
+      user('live'),
+    ])
+  })
+
+  it('runs onTurnFinish after turn.done is persisted', async () => {
+    const snapshots: AgentEntry[][] = []
+    const storage = mem()
+    const agent = createAgent({
+      instructions: '',
+      plugins: [{
+        name: 'finish',
+        onTurnFinish: async () => {
+          snapshots.push([...(await storage.read())])
+        },
+      }],
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    for await (const event of run(agent, user('hi')))
+      void event
+    await agent.wait()
+
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0]?.some(entry =>
+      entry.type === 'event' && (entry.data as AgentEvent).type === 'turn.done',
+    )).toBe(true)
+  })
+
+  it('isolates onTurnFinish failures and continues with later plugins', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const calls: string[] = []
+    const { agent } = createTestAgent({
+      plugins: [
+        {
+          name: 'broken',
+          onTurnFinish: () => {
+            calls.push('broken')
+            throw new Error('maintenance failed')
+          },
+        },
+        {
+          name: 'later',
+          onTurnFinish: () => {
+            calls.push('later')
+          },
+        },
+      ],
+    })
+
+    const events: AgentEvent[] = []
+    for await (const event of run(agent, user('hi')))
+      events.push(event)
+    await agent.wait()
+
+    expect(calls).toEqual(['broken', 'later'])
+    expect(events.at(-1)?.type).toBe('turn.done')
+    expect(warn).toHaveBeenCalledWith(
+      '[@apeira/core] Plugin broken onTurnFinish failed.',
+      expect.any(Error),
+    )
+    warn.mockRestore()
+  })
+
+  it('does not call onTurnFinish for failed turns', async () => {
+    const onTurnFinish = vi.fn()
+    const agent = createAgent({
+      instructions: '',
+      plugins: [{ name: 'finish', onTurnFinish }],
+      runner: async () => {
+        throw new Error('runner failed')
+      },
+    })
+
+    for await (const event of run(agent, user('hi')))
+      void event
+    await agent.wait()
+
+    expect(onTurnFinish).not.toHaveBeenCalled()
+  })
+
+  it('does not call onTurnFinish for aborted turns', async () => {
+    const onTurnFinish = vi.fn()
+    const agent = createAgent({
+      instructions: '',
+      plugins: [{ name: 'finish', onTurnFinish }],
+      runner: async () => {
+        await sleep(50)
+        return { output: [], usage: undefined }
+      },
+    })
+
+    agent.send(user('hi'))
+    await sleep(5)
+    agent.abort('test')
+    await agent.wait()
+
+    expect(onTurnFinish).not.toHaveBeenCalled()
+  })
 })
 
 describe('plugin normalization', () => {
@@ -419,6 +555,81 @@ describe('queue', () => {
     expect(turnEvents.some(e => e.type === 'turn.input_queued')).toBe(true)
     expect(turnEvents.some(e => e.type === 'turn.input_drained')).toBe(true)
     expect(turnEvents.at(-1)?.type).toBe('turn.done')
+  })
+
+  it('reports cumulative drained input/output and final usage to onTurnFinish', async () => {
+    const turns: unknown[] = []
+    let call = 0
+    const agent = createAgent({
+      instructions: '',
+      plugins: [{
+        name: 'finish',
+        onTurnFinish: (options) => {
+          turns.push(options)
+        },
+      }],
+      runner: async () => {
+        call++
+        await sleep(20)
+        return {
+          output: [developer(`output ${call}`)],
+          usage: {
+            inputTokens: call,
+            outputTokens: call,
+            totalTokens: call * 10,
+          },
+        }
+      },
+    })
+
+    const turnId = agent.send(user('first'))
+    await sleep(5)
+    expect(agent.send(user('second'))).toBe(turnId)
+    await agent.wait()
+
+    expect(turns).toEqual([{
+      input: [user('first'), user('second')],
+      output: [developer('output 1'), developer('output 2')],
+      turnId,
+      usage: {
+        inputTokens: 2,
+        outputTokens: 2,
+        totalTokens: 20,
+      },
+    }])
+  })
+
+  it('waits for onTurnFinish before starting the next queued turn', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>(resolve => release = resolve)
+    let finishes = 0
+    const inputs: AgentInput[][] = []
+    const agent = createAgent({
+      instructions: '',
+      plugins: [{
+        name: 'finish',
+        onTurnFinish: async () => {
+          finishes++
+          if (finishes === 1)
+            await blocked
+        },
+      }],
+      runner: async (context) => {
+        inputs.push([...context.input])
+        return { output: [] }
+      },
+    })
+
+    for await (const event of run(agent, user('first')))
+      void event
+
+    agent.send(user('second'))
+    await sleep(10)
+    expect(inputs).toHaveLength(1)
+
+    release()
+    await agent.wait()
+    expect(inputs).toHaveLength(2)
   })
 
   it('aborts active turn', async () => {

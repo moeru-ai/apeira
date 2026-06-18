@@ -1,40 +1,72 @@
-import type { Agent, AgentInput, AgentPlugin } from '@apeira/core'
+import type { Agent, AgentEntry, AgentInput, AgentPlugin } from '@apeira/core'
 
 import type { CompactAgentOptions } from './compact'
 
-import { entry, toAgentInput } from '@apeira/core'
+import { developer, entry, toAgentInput } from '@apeira/core'
 
 import { name, version } from '../package.json'
 import {
   executeCompact,
-  hardTruncateInput,
 } from './compact'
 import {
   DEFAULT_CONTEXT_LENGTH,
-  DEFAULT_MAX_RETAINED_USER_TOKENS,
-  DEFAULT_PRESERVE_TURNS,
   DEFAULT_THRESHOLD,
+  HARD_TRUNCATION_MESSAGE,
   MAX_COMPACT_FAILURES,
 } from './constants'
-import { estimateTokens } from './split'
+
+export interface CompactEntry {
+  lastEntryId?: string
+  summary: string
+}
+
+declare module '@apeira/core' {
+  interface AgentCustomEntry {
+    compact: CompactEntry
+  }
+}
 
 export interface CompactPluginOptions {
   compactAgent: CompactAgentOptions
-  maxRetainedUserTokens?: number
-  preserveTurns?: number
+  preserveEntries?: number
   threshold?: number
 }
 
+export const transformCompactEntries = (
+  entries: readonly AgentEntry[],
+): readonly AgentEntry[] => {
+  const compactIndex = entries.findLastIndex(entry => entry.type === 'compact')
+  if (compactIndex === -1)
+    return entries
+
+  const compactEntry = entries[compactIndex] as AgentEntry<'compact'>
+  const summaryEntry: AgentEntry<'input'> = {
+    ...compactEntry,
+    data: developer(`<context_summary>\n${compactEntry.data.summary}\n</context_summary>`),
+    type: 'input',
+  }
+
+  const lastEntryId = compactEntry.data.lastEntryId
+  if (lastEntryId == null)
+    return [summaryEntry, ...entries.slice(compactIndex + 1)]
+
+  const lastSummarizedIndex = entries.findIndex(entry => entry.id === lastEntryId)
+  if (lastSummarizedIndex === -1)
+    return [summaryEntry, ...entries.slice(compactIndex + 1)]
+
+  return [
+    summaryEntry,
+    ...entries.slice(lastSummarizedIndex + 1, compactIndex),
+    ...entries.slice(compactIndex + 1),
+  ]
+}
+
 export const compact = (options: CompactPluginOptions): AgentPlugin => {
-  const maxRetainedUserTokens = options.maxRetainedUserTokens ?? DEFAULT_MAX_RETAINED_USER_TOKENS
-  const preserveTurns = Math.max(0, Math.floor(options.preserveTurns ?? DEFAULT_PRESERVE_TURNS))
+  const preserveEntries = Math.max(0, Math.floor(options.preserveEntries ?? 0))
   const threshold = options.threshold ?? DEFAULT_THRESHOLD
 
   let agent: Agent | undefined
   let compactFailures = 0
-  let needsCompact = false
-  let stepCount = 0
-  let unsubscribe: (() => void) | undefined
 
   const getAgent = (): Agent => {
     if (!agent)
@@ -45,94 +77,73 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
 
   const getContextLength = () => getAgent().state.get().contextLength ?? DEFAULT_CONTEXT_LENGTH
 
-  const compactHistoricalInput = async (historicalInput: readonly AgentInput[]) => {
-    const contextLength = getContextLength()
-
+  const compactHistoricalInput = async (historicalInput: readonly AgentInput[]): Promise<string> => {
     try {
-      const result = await executeCompact({
+      const summary = await executeCompact({
         compactAgent: {
           instructions: options.compactAgent.instructions,
           runner: options.compactAgent.runner ?? getAgent().runner,
         },
-        contextLength,
         input: historicalInput,
-        maxRetainedUserTokens,
-        preserveTurns,
       })
 
-      if (result.summary.length === 0) {
-        needsCompact = false
-        return historicalInput
-      }
-
-      needsCompact = false
       compactFailures = 0
-      return result.input
+      return summary
     }
     catch (error) {
       compactFailures++
-      needsCompact = true
 
       if (compactFailures >= MAX_COMPACT_FAILURES) {
         compactFailures = 0
-        needsCompact = false
-        return hardTruncateInput(historicalInput, preserveTurns, contextLength)
+        return HARD_TRUNCATION_MESSAGE
       }
 
       console.warn('[@apeira/plugin-compact] Failed to compact context.', error)
-      return historicalInput
+      return ''
     }
   }
 
   return {
     init: (nextAgent) => {
       agent = nextAgent
-      unsubscribe = nextAgent.subscribe('apeira', (event) => {
-        if (event.type !== 'turn.start')
-          return
-
-        stepCount = 0
-      })
     },
     name,
-    onFinish: (step) => {
-      const totalTokens = step?.usage?.totalTokens
+    onTurnFinish: async (turn) => {
       const contextLength = getContextLength()
-      if (totalTokens != null && totalTokens >= contextLength * threshold)
-        needsCompact = true
-    },
-    prepareStep: async (stepOptions) => {
-      const isFirstStep = stepCount === 0
-      stepCount++
-
-      if (!isFirstStep)
-        return {}
-
-      const contextLength = getContextLength()
-      if (!needsCompact && estimateTokens(stepOptions.input) < contextLength * threshold)
-        return {}
+      if (turn.usage == null || turn.usage.totalTokens < contextLength * threshold)
+        return
 
       const activeAgent = getAgent()
-      const historicalEntries = await activeAgent.storage.read()
-      const historicalInput = toAgentInput(historicalEntries)
-      const liveInput = stepOptions.input.slice(historicalInput.length)
-      const compactedHistoricalInput = await compactHistoricalInput(historicalInput)
-      const nextInput = [...compactedHistoricalInput, ...liveInput]
-      const currentState = activeAgent.state.get()
+      const projectedEntries = transformCompactEntries(await activeAgent.storage.read())
 
-      await activeAgent.storage.clear()
-      await activeAgent.storage.append(
-        ...compactedHistoricalInput.map(data => entry('input', data)),
-        entry('state', currentState),
-      )
+      const inputEntryIndices = projectedEntries
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => entry.type === 'input')
+        .map(({ index }) => index)
 
-      return { input: nextInput }
+      if (inputEntryIndices.length <= preserveEntries)
+        return
+
+      const entriesToSummarize = preserveEntries === 0
+        ? projectedEntries
+        : projectedEntries.slice(0, inputEntryIndices[inputEntryIndices.length - preserveEntries])
+
+      if (entriesToSummarize.length === 0)
+        return
+
+      const summary = await compactHistoricalInput(toAgentInput(entriesToSummarize))
+      if (summary.length === 0)
+        return
+
+      const lastEntryId = preserveEntries === 0
+        ? entriesToSummarize.at(-1)?.id
+        : entriesToSummarize.findLast(entry => entry.type === 'input')?.id
+      await activeAgent.storage.append(entry('compact', { lastEntryId, summary }))
     },
     stop: () => {
-      unsubscribe?.()
-      unsubscribe = undefined
       agent = undefined
     },
+    transformEntries: transformCompactEntries,
     version,
   }
 }

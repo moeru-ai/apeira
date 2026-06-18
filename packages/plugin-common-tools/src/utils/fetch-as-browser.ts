@@ -15,7 +15,7 @@ const extractCharset = (contentType: string): string => {
   return match?.[1] ?? 'utf-8'
 }
 
-export const isBinaryContentType = (contentType: string): boolean => {
+const isBinaryContentType = (contentType: string): boolean => {
   const lower = contentType.toLowerCase()
 
   if (lower.startsWith('text/'))

@@ -23,9 +23,14 @@ const createMockAgent = (): MockAgent => {
     emitted,
     getActiveTurnId: () => undefined,
     init: async () => {},
+    instructions: '',
     interrupt: async () => undefined,
+    isIdle: () => true,
+    plugins: [],
+    reset: async () => {},
+    runner: async () => ({ output: [] }),
     send: () => 'turn-mock',
-    state: { get: () => ({}), set: () => {}, update: () => {} },
+    state: { get: () => ({}), restore: () => {}, set: () => {}, update: () => {} },
     stop: async () => {},
     storage: { append: () => {}, clear: () => {}, read: () => [], reset: () => {} },
     subscribe: ((channel: string, listener: AgentEventListener) => {
@@ -36,6 +41,7 @@ const createMockAgent = (): MockAgent => {
         listeners.get(channel)?.delete(listener)
       }
     }) as AgentChannel['subscribe'],
+    wait: async () => {},
   }
 }
 

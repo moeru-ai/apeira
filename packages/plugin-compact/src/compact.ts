@@ -1,21 +1,12 @@
 import type { AgentEntry, AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
 
-import type { RetainedMessage } from './split'
-
-import { createAgent, developer, mem, run, toAgentInput, user } from '@apeira/core'
+import { createAgent, mem, run, toAgentInput, user } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
-  EMERGENCY_PRESERVE_THRESHOLD,
-  HARD_TRUNCATION_MESSAGE,
+  DEFAULT_COMPACTION_TRIGGER,
 } from './constants'
-import {
-  buildCompactInput,
-  estimateTokens,
-  getMessageText,
-  selectRetainedUserMessages,
-  splitHistory,
-} from './split'
+import { getMessageText } from './split'
 
 export interface CompactAgentOptions {
   instructions?: CreateAgentOptions['instructions']
@@ -24,15 +15,7 @@ export interface CompactAgentOptions {
 
 export interface CompactHistoryOptions {
   compactAgent: CompactAgentOptions
-  contextLength: number
-  maxRetainedUserTokens: number
-  preserveTurns: number
   signal?: AbortSignal
-}
-
-export interface CompactHistoryResult {
-  input: readonly AgentInput[]
-  summary: string
 }
 
 const extractAssistantSummary = (items: readonly AgentEntry[]): string => {
@@ -49,72 +32,11 @@ const extractAssistantSummary = (items: readonly AgentEntry[]): string => {
   return ''
 }
 
-const splitWithEmergencyPreserve = (
-  items: readonly AgentInput[],
-  preserveTurns: number,
-  contextLength: number,
-) => {
-  let result = splitHistory(items, preserveTurns)
-
-  if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * EMERGENCY_PRESERVE_THRESHOLD)
-    return result
-
-  if (preserveTurns > 1) {
-    result = splitHistory(items, 1)
-    if (result.hasEnoughTurns && estimateTokens(result.preserved) <= contextLength * EMERGENCY_PRESERVE_THRESHOLD)
-      return result
-  }
-
-  return splitHistory(items, 0)
-}
-
-export const assembleCompactedInput = (
-  summary: string,
-  retainedUserMessages: RetainedMessage[],
-  preservedTurns: readonly AgentInput[],
-): AgentInput[] => [
-  ...retainedUserMessages.map(retained => user(retained.text)),
-  developer(`<context_summary>\n${summary}\n</context_summary>`),
-  ...preservedTurns,
-]
-
-export const hardTruncateInput = (
-  items: readonly AgentInput[],
-  preserveTurns: number,
-  contextLength: number,
-): AgentInput[] => {
-  const { preserved } = splitWithEmergencyPreserve(items, preserveTurns, contextLength)
-
-  return [
-    developer(HARD_TRUNCATION_MESSAGE),
-    ...preserved,
-  ]
-}
-
 export const executeCompact = async ({
   compactAgent,
-  contextLength,
   input,
-  maxRetainedUserTokens,
-  preserveTurns,
   signal,
-}: CompactHistoryOptions & { input: readonly AgentInput[] }): Promise<CompactHistoryResult> => {
-  const initialSplit = splitHistory(input, preserveTurns)
-  if (!initialSplit.hasEnoughTurns || initialSplit.compressible.length === 0)
-    return { input, summary: '' }
-
-  const { compressible, hasEnoughTurns, preserved } = splitWithEmergencyPreserve(
-    input,
-    preserveTurns,
-    contextLength,
-  )
-
-  if (!hasEnoughTurns || compressible.length === 0)
-    return { input, summary: '' }
-
-  const retainedUserMessages = selectRetainedUserMessages(compressible, maxRetainedUserTokens)
-  const compactInput = buildCompactInput(compressible, retainedUserMessages)
-
+}: CompactHistoryOptions & { input: readonly AgentInput[] }): Promise<string> => {
   const runner = compactAgent.runner
   if (!runner)
     throw new Error('[@apeira/plugin-compact] compactAgent.runner is required when not using the parent agent runner.')
@@ -123,11 +45,11 @@ export const executeCompact = async ({
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
     runner,
-    storage: mem(compactInput),
+    storage: mem(input),
   })
 
   try {
-    for await (const event of run(tempAgent, user('Summarize the conversation.'), { signal })) {
+    for await (const event of run(tempAgent, user(DEFAULT_COMPACTION_TRIGGER), { signal })) {
       if (event.type === 'turn.failed')
         throw event.error
 
@@ -143,8 +65,5 @@ export const executeCompact = async ({
   if (summary.length === 0)
     throw new Error('Compaction produced an empty summary.')
 
-  return {
-    input: assembleCompactedInput(summary, retainedUserMessages, preserved),
-    summary,
-  }
+  return summary
 }

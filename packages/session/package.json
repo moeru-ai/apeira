@@ -1,0 +1,50 @@
+{
+  "name": "@apeira/session",
+  "type": "module",
+  "version": "0.0.5",
+  "private": true,
+  "description": "Tree-shaped durable sessions for Apeira agents.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/session"
+  },
+  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "keywords": [
+    "agent",
+    "ai",
+    "session"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@apeira/core": "workspace:"
+  },
+  "devDependencies": {
+    "@apeira/core": "workspace:"
+  }
+}

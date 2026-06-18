@@ -36,7 +36,9 @@ describe('agui', () => {
     const plugin = agui({ threadId: 'thread-1' })
     const mockAgent = createMockAgent()
     const received: unknown[] = []
-    mockAgent.subscribe('ag-ui', event => received.push(event))
+    mockAgent.subscribe('ag-ui', (event) => {
+      received.push(event)
+    })
 
     await plugin.init?.(mockAgent)
 

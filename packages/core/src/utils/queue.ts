@@ -1,6 +1,7 @@
 import type { MaybePromise } from '../types/base'
 import type { AgentEvent } from '../types/event'
 import type { AgentInput } from '../types/input'
+import type { TurnFinishOptions } from '../types/plugin'
 import type { RunnerContext, RunnerResult } from '../types/runner'
 import type { AgentChannel } from './channel'
 
@@ -29,10 +30,11 @@ export interface AgentSignalOptions {
 export interface CreateAgentQueueOptions {
   channel: AgentChannel
   init?: () => Promise<void>
+  onTurnFinish?: (options: TurnFinishOptions) => Promise<void>
   runner: (options: Pick<RunnerContext, 'abortSignal' | 'channel' | 'input' | 'turnId'>) => Promise<RunnerResult>
 }
 
-export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOptions): AgentQueue => {
+export const createAgentQueue = ({ channel, init, onTurnFinish, runner }: CreateAgentQueueOptions): AgentQueue => {
   const pendingTurns = new Queue<AgentQueueTurn>()
   const pendingInput: AgentInput[] = []
   let activeTurn: undefined | { controller: AbortController, id: string }
@@ -106,6 +108,9 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
     activeTurn = { controller, id: turn.id }
 
     let input = turn.input
+    const turnInput = [...turn.input]
+    const turnOutput: AgentInput[] = []
+    let usage: RunnerResult['usage']
 
     try {
       if (controller.signal.aborted) {
@@ -117,12 +122,15 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
       await emit(turn.id, { turnId: turn.id, type: 'turn.start' })
 
       while (!controller.signal.aborted) {
-        await runner({ abortSignal: controller.signal, channel, input, turnId: turn.id })
+        const result = await runner({ abortSignal: controller.signal, channel, input, turnId: turn.id })
+        turnOutput.push(...result.output)
+        usage = result.usage
 
         if (pendingInput.length > 0) {
           const drained = pendingInput.splice(0)
           await emit(turn.id, { count: drained.length, turnId: turn.id, type: 'turn.input_drained' })
           input = drained
+          turnInput.push(...drained)
           continue
         }
 
@@ -132,10 +140,18 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
       if (activeTurn?.id === turn.id)
         activeTurn = undefined
 
-      if (controller.signal.aborted)
+      if (controller.signal.aborted) {
         await emit(turn.id, { reason: controller.signal.reason, turnId: turn.id, type: 'turn.aborted' })
-      else
+      }
+      else {
         await emit(turn.id, { turnId: turn.id, type: 'turn.done' })
+        await onTurnFinish?.({
+          input: turnInput,
+          output: turnOutput,
+          turnId: turn.id,
+          usage,
+        })
+      }
     }
     catch (error) {
       if (activeTurn?.id === turn.id)
