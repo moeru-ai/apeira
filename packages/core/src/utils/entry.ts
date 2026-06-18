@@ -1,6 +1,6 @@
-import type { AgentEntry, AgentEntryData } from '../types/entry'
+import type { AgentCustomEntry, AgentEntry } from '../types/entry'
 
-export const entry = <T extends keyof AgentEntryData>(type: T, data: AgentEntryData[T]): AgentEntry<T> =>
+export const entry = <T extends keyof AgentCustomEntry>(type: T, data: AgentCustomEntry[T]): AgentEntry<T> =>
   ({ data, id: crypto.randomUUID(), timestamp: Date.now(), type })
 
 export const toAgentInput = (entries: readonly AgentEntry[]) =>

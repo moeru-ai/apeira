@@ -1,7 +1,7 @@
 export type { ItemParam, MaybePromise } from './types/base'
 export type {
+  AgentCustomEntry,
   AgentEntry,
-  AgentEntryData,
   AgentEntryUnion,
 } from './types/entry'
 export type {
