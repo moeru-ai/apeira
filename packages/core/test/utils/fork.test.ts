@@ -154,6 +154,21 @@ describe('fork', () => {
     expect(calls).toEqual([])
   })
 
+  it('keeps custom initialState after init even when parent storage has a different state', async () => {
+    const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
+      input: [user('hello')],
+    })
+    agent.state.update({ contextLength: 16_000 })
+
+    const child = await fork(agent, {
+      init: true,
+      initialState: { contextLength: 24_000 },
+    })
+
+    expect(child.state.get()).toEqual({ contextLength: 24_000 })
+  })
+
   it('does not share parent subscribers', async () => {
     const { agent } = createTestAgent()
     const parentEvents: string[] = []

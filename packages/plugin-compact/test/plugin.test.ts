@@ -95,6 +95,54 @@ describe('compact plugin', () => {
     )).toBe(true)
   })
 
+  it('preserves the current state entry when compacting', async () => {
+    const main = createMockFetch({ responseText: ['first', 'second'], totalTokens: [950, 2] })
+    const summarizer = createMockFetch({ responseText: 'checkpoint summary' })
+
+    const agent = createAgent({
+      initialState: { contextLength: 1000 },
+      instructions: 'main',
+      plugins: [
+        compact({
+          compactAgent: {
+            runner: responses({
+              apiKey: 'test',
+              baseURL: 'https://test',
+              fetch: summarizer.fetch,
+              model: 'compact-model',
+            }),
+          },
+          preserveTurns: 1,
+          threshold: 0.9,
+        }),
+      ],
+      runner: responses({
+        apiKey: 'test',
+        baseURL: 'https://test',
+        fetch: main.fetch,
+        model: 'main-model',
+      }),
+      storage: mem([
+        user('old one'),
+        assistant('old answer one'),
+        user('old two'),
+        assistant('old answer two'),
+      ]),
+    })
+
+    for await (const event of run(agent, user('trigger compact')))
+      void event
+
+    for await (const event of run(agent, user('after compact')))
+      void event
+
+    const entries = await agent.storage.read()
+    expect(entries).toContainEqual(expect.objectContaining({
+      data: { contextLength: 1000 },
+      type: 'state',
+    }))
+  })
+
   it('falls back to hard truncation after three compact failures', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let listener: AgentEventListener | undefined
@@ -168,6 +216,7 @@ describe('compact plugin', () => {
       expect.objectContaining({ data: developer('(Earlier conversation omitted due to length)'), type: 'input' }),
       expect.objectContaining({ data: user('recent'), type: 'input' }),
       expect.objectContaining({ data: assistant('recent answer'), type: 'input' }),
+      expect.objectContaining({ data: { contextLength: 1000 }, type: 'state' }),
     )
     warn.mockRestore()
   })
@@ -288,6 +337,7 @@ describe('compact plugin', () => {
       expect.objectContaining({ data: developer('<context_summary>\nmulti-live summary\n</context_summary>'), type: 'input' }),
       expect.objectContaining({ data: user('old two'), type: 'input' }),
       expect.objectContaining({ data: assistant('old answer two'), type: 'input' }),
+      expect.objectContaining({ data: { contextLength: 1000 }, type: 'state' }),
     )
   })
 })

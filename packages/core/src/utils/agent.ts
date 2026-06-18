@@ -68,14 +68,20 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const state = createAgentStateManager(options.initialState ?? {}, (next) => {
     if (restoring)
       return
-    void mutateStorage(async () => storage.append(entry('state', next)))
+    void mutateStorage(async () => storage.append(entry('state', next))).catch((error) => {
+      console.error('[@apeira/core] Failed to persist agent state:', error)
+    })
   })
 
   const loadLatestState = async () => {
     restoring = true
-    const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
-    state.set(latest?.data ?? (options.initialState ?? {}))
-    restoring = false
+    try {
+      const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
+      state.set(latest?.data ?? (options.initialState ?? {}))
+    }
+    finally {
+      restoring = false
+    }
   }
 
   const resolveInstructions = async (opts: ExtendOptions) => {

@@ -69,6 +69,36 @@ describe('createAgent', () => {
     expect(agent.state.get()).toEqual({ contextLength: 24_000 })
   })
 
+  it('resets restoring flag even when storage.read fails during init', async () => {
+    const error = new Error('storage read failed')
+    let shouldFailRead = true
+    const items: AgentEntry[] = []
+    const storage: AgentStorage<AgentEntry> = {
+      append: async (...next) => { items.push(...next) },
+      clear: async () => { items.length = 0 },
+      read: () => {
+        if (shouldFailRead) {
+          shouldFailRead = false
+          throw error
+        }
+        return items
+      },
+      reset: async () => { items.length = 0 },
+    }
+    const agent = createAgent({
+      initialState: { contextLength: 8_000 },
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    await expect(agent.init()).rejects.toThrow(error)
+    agent.state.update({ contextLength: 16_000 })
+    await Promise.resolve()
+
+    expect(items.some(e => e.type === 'state' && e.data.contextLength === 16_000)).toBe(true)
+  })
+
   it('replaces input with a cloned value', async () => {
     const { agent } = createTestAgent({ input: [user('old')] })
     const nextInput = [user('new')]

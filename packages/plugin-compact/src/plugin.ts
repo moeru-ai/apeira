@@ -118,9 +118,13 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
       const liveInput = stepOptions.input.slice(historicalInput.length)
       const compactedHistoricalInput = await compactHistoricalInput(historicalInput)
       const nextInput = [...compactedHistoricalInput, ...liveInput]
+      const currentState = activeAgent.state.get()
 
       await activeAgent.storage.clear()
-      await activeAgent.storage.append(...compactedHistoricalInput.map(data => entry('input', data)))
+      await activeAgent.storage.append(
+        ...compactedHistoricalInput.map(data => entry('input', data)),
+        entry('state', currentState),
+      )
 
       return { input: nextInput }
     },

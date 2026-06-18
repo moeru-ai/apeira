@@ -9,7 +9,7 @@ export interface AgentChannel {
 export type AgentEventListener<T = unknown> = (event: T) => MaybePromise<void>
 
 export interface CreateAgentChannelOptions {
-  persist?: (event: unknown, options?: { save?: boolean }) => MaybePromise<void>
+  persist: (event: unknown, options?: { save?: boolean }) => MaybePromise<void>
 }
 
 export const createAgentChannel = (options?: CreateAgentChannelOptions): AgentChannel => {
@@ -29,7 +29,7 @@ export const createAgentChannel = (options?: CreateAgentChannelOptions): AgentCh
     }
 
     if (emitOptions?.save && options?.persist)
-      promises.push(Promise.resolve(options.persist(event, emitOptions)))
+      promises.push(Promise.resolve().then(async () => options.persist(event, emitOptions)))
 
     await Promise.all(promises)
   }

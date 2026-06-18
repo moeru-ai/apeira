@@ -18,7 +18,7 @@ export interface ForkOptions {
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
-  const parentEntries = await agent.storage.read()
+  const parentEntries = (await agent.storage.read()).filter(e => e.type !== 'state')
   const parentState = agent.state.get()
 
   const child = createAgent({
