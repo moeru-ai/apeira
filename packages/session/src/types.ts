@@ -6,6 +6,25 @@ import type {
   AgentStorage,
 } from '@apeira/core'
 
+export interface SessionCheckoutEntryData {
+  target:
+    | { id: string, type: 'id' }
+    | { name: string, type: 'ref' }
+    | { type: 'empty' }
+}
+
+export interface SessionRefEntryData {
+  name: string
+  targetId?: string
+}
+
+declare module '@apeira/core' {
+  interface AgentCustomEntry {
+    'session/checkout': SessionCheckoutEntryData
+    'session/ref': SessionRefEntryData
+  }
+}
+
 export interface CloneOptions {
   checkout?: EntryId | RefName
   from?: EntryId | RefName

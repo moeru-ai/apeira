@@ -1,5 +1,6 @@
 import type {
   AgentCustomEntry,
+  AgentCustomEvent,
   AgentEntry,
   AgentStorage,
 } from '@apeira/core'
@@ -23,21 +24,6 @@ import {
   semanticPath,
 } from './replay'
 import { SessionError } from './types'
-
-declare module '@apeira/core' {
-  interface AgentCustomEntry {
-    'session/checkout': {
-      target:
-        | { id: string, type: 'id' }
-        | { name: string, type: 'ref' }
-        | { type: 'empty' }
-    }
-    'session/ref': {
-      name: string
-      targetId?: string
-    }
-  }
-}
 
 const normalizeError = (error: unknown): never => {
   if (error instanceof SessionError)
@@ -121,8 +107,8 @@ export const createSession = (options: CreateSessionOptions): Session => {
     for (const entry of entries) {
       if (entry.type !== 'event')
         continue
-      const event = entry.data as { turnId?: string, type?: string }
-      if (event.turnId == null)
+      const event = entry.data as AgentCustomEvent[keyof AgentCustomEvent]
+      if (!('turnId' in event))
         continue
       if (event.type === 'turn.start')
         active.add(event.turnId)

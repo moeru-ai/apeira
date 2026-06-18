@@ -1,6 +1,6 @@
 import type { AgentEntry, AgentState } from '@apeira/core'
 
-import type { Head, SessionSnapshot } from './types'
+import type { Head, SessionCheckoutEntryData, SessionRefEntryData, SessionSnapshot } from './types'
 
 import { SessionError } from './types'
 
@@ -13,16 +13,11 @@ export const replay = (entries: readonly AgentEntry[]): SessionSnapshot => {
 
   for (const entry of entries) {
     if (entry.type === 'session/ref') {
-      const data = entry.data as { name: string, targetId?: string }
+      const data = entry.data as SessionRefEntryData
       refs.set(data.name, data.targetId)
     }
     else if (entry.type === 'session/checkout') {
-      const target = (entry.data as {
-        target:
-          | { id: string, type: 'id' }
-          | { name: string, type: 'ref' }
-          | { type: 'empty' }
-      }).target
+      const target = (entry.data as SessionCheckoutEntryData).target
 
       head = target.type === 'ref'
         ? { name: target.name, type: 'ref' }
@@ -93,4 +88,4 @@ export const branchPath = (
 export const buildState = (
   entries: readonly AgentEntry[],
 ): Readonly<AgentState> =>
-  (entries.findLast(entry => entry.type === 'state')?.data ?? {}) as AgentState
+  entries.findLast(entry => entry.type === 'state')?.data ?? {}
