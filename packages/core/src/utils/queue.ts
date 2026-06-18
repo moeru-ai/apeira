@@ -89,7 +89,7 @@ export const createAgentQueue = ({ channel, init, runner }: CreateAgentQueueOpti
   }
 
   const emit = async (turnId: string, event: AgentEvent) =>
-    channel.emit('apeira', { ...event, turnId })
+    channel.emit('apeira', { ...event, turnId }, { save: true })
 
   // eslint-disable-next-line sonarjs/cognitive-complexity
   const runTurn = async (turn: AgentQueueTurn) => {

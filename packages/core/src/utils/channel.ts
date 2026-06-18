@@ -2,26 +2,36 @@ import type { MaybePromise } from '../types/base'
 import type { AgentCustomEvent } from '../types/event'
 
 export interface AgentChannel {
-  emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown) => MaybePromise<void>
+  emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown, options?: { save?: boolean }) => MaybePromise<void>
   subscribe: <K extends string>(channel: K, listener: K extends keyof AgentCustomEvent ? AgentEventListener<AgentCustomEvent[K]> : AgentEventListener) => () => void
 }
 
 export type AgentEventListener<T = unknown> = (event: T) => MaybePromise<void>
 
-export const createAgentChannel = (): AgentChannel => {
+export interface CreateAgentChannelOptions {
+  persist?: (event: unknown, options?: { save?: boolean }) => MaybePromise<void>
+}
+
+export const createAgentChannel = (options?: CreateAgentChannelOptions): AgentChannel => {
   const channels = new Map<string, Set<AgentEventListener>>()
 
-  const emit: AgentChannel['emit'] = async (channel, event) => {
+  const emit: AgentChannel['emit'] = async (channel, event, emitOptions) => {
     const listeners = channels.get(channel)
-    if (!listeners)
-      return
+    const promises: Promise<void>[] = []
 
-    await Promise.all(Array.from(listeners).map(async (listener) => {
-      try {
-        await listener(event)
-      }
-      catch {}
-    }))
+    if (listeners) {
+      promises.push(...Array.from(listeners).map(async (listener) => {
+        try {
+          await listener(event)
+        }
+        catch {}
+      }))
+    }
+
+    if (emitOptions?.save && options?.persist)
+      promises.push(Promise.resolve(options.persist(event, emitOptions)))
+
+    await Promise.all(promises)
   }
 
   const subscribe: AgentChannel['subscribe'] = (channel, listener) => {

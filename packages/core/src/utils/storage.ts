@@ -1,8 +1,11 @@
+import type { AgentEntry } from '../types/entry'
 import type { AgentInput } from '../types/input'
 import type { AgentStorage } from '../types/storage'
 
-export const mem = <T = AgentInput>(initial?: readonly T[]): AgentStorage<T> => {
-  const initialItems = initial ?? []
+import { entry } from '../types/entry'
+
+export const mem = (initial?: readonly (AgentEntry | AgentInput)[]): AgentStorage<AgentEntry> => {
+  const initialItems = initial?.map(item => 'data' in item ? item : entry('input', item)) ?? []
   let items = [...initialItems]
 
   return {
@@ -19,7 +22,7 @@ export const mem = <T = AgentInput>(initial?: readonly T[]): AgentStorage<T> => 
   }
 }
 
-export const none = <T = AgentInput>(): AgentStorage<T> => ({
+export const none = (): AgentStorage<AgentEntry> => ({
   append: () => {},
   clear: () => {},
   read: () => [],

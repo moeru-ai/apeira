@@ -1,6 +1,6 @@
-import type { Agent, AgentEventListener } from '@apeira/core'
+import type { Agent, AgentEntry, AgentEventListener } from '@apeira/core'
 
-import { assistant, createAgent, developer, mem, run, user } from '@apeira/core'
+import { assistant, createAgent, developer, entry, mem, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -81,15 +81,18 @@ describe('compact plugin', () => {
       assistant('first'),
       user('after compact'),
     ])
-    expect(await agent.storage.read()).toEqual([
-      user('old one'),
-      user('old two'),
-      developer('<context_summary>\ncheckpoint summary\n</context_summary>'),
-      user('trigger compact'),
-      assistant('first'),
-      user('after compact'),
-      assistant('second'),
-    ])
+    const entries = await agent.storage.read()
+    expect(entries).toContainEqual(expect.objectContaining({ data: user('old one'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: user('old two'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: developer('<context_summary>\ncheckpoint summary\n</context_summary>'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: user('trigger compact'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: assistant('first'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: user('after compact'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: assistant('second'), type: 'input' }))
+    expect(entries.some(e =>
+      e.type === 'event'
+      && (e as AgentEntry<'event'>).data.type === 'turn.done',
+    )).toBe(true)
   })
 
   it('falls back to hard truncation after three compact failures', async () => {
@@ -103,6 +106,7 @@ describe('compact plugin', () => {
       user('recent'),
       assistant('recent answer'),
     ]
+    const historicalEntries = historicalInput.map(data => entry('input', data))
     const plugin = compact({
       compactAgent: {
         runner: responses({
@@ -131,7 +135,7 @@ describe('compact plugin', () => {
       storage: {
         append: storeAppend,
         clear: storeClear,
-        read: () => historicalInput,
+        read: () => historicalEntries,
         reset: () => {},
       },
       // @ts-expect-error wrong types
@@ -161,13 +165,9 @@ describe('compact plugin', () => {
     })
     expect(storeClear).toHaveBeenCalled()
     expect(storeAppend).toHaveBeenLastCalledWith(
-      {
-        content: '(Earlier conversation omitted due to length)',
-        role: 'developer',
-        type: 'message',
-      },
-      user('recent'),
-      assistant('recent answer'),
+      expect.objectContaining({ data: developer('(Earlier conversation omitted due to length)'), type: 'input' }),
+      expect.objectContaining({ data: user('recent'), type: 'input' }),
+      expect.objectContaining({ data: assistant('recent answer'), type: 'input' }),
     )
     warn.mockRestore()
   })
@@ -228,6 +228,7 @@ describe('compact plugin', () => {
       user('old two'),
       assistant('old answer two'),
     ]
+    const historicalEntries = historicalInput.map(data => entry('input', data))
     const storeAppend = vi.fn()
     const storeClear = vi.fn()
     const plugin = compact({
@@ -256,7 +257,7 @@ describe('compact plugin', () => {
       storage: {
         append: storeAppend,
         clear: storeClear,
-        read: () => historicalInput,
+        read: () => historicalEntries,
         reset: () => {},
       },
       subscribe: () => () => {},
@@ -283,10 +284,10 @@ describe('compact plugin', () => {
     ])
     expect(storeClear).toHaveBeenCalled()
     expect(storeAppend).toHaveBeenCalledWith(
-      user('old one'),
-      developer('<context_summary>\nmulti-live summary\n</context_summary>'),
-      user('old two'),
-      assistant('old answer two'),
+      expect.objectContaining({ data: user('old one'), type: 'input' }),
+      expect.objectContaining({ data: developer('<context_summary>\nmulti-live summary\n</context_summary>'), type: 'input' }),
+      expect.objectContaining({ data: user('old two'), type: 'input' }),
+      expect.objectContaining({ data: assistant('old answer two'), type: 'input' }),
     )
   })
 })

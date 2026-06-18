@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentInput, RunnerContext } from '../../src/index'
+import type { AgentEntry, AgentEvent, AgentInput, RunnerContext } from '../../src/index'
 
 import { stepCountAtLeast } from '@xsai/shared-chat'
 import { describe, expect, it } from 'vitest'
@@ -102,14 +102,16 @@ describe('chat', () => {
     for await (const event of run(agent, user('hi')))
       void event
 
-    expect(await agent.storage.read()).toEqual([
-      user('hi'),
-      expect.objectContaining({
-        content: 'hello',
-        role: 'assistant',
-        type: 'message',
-      }),
-    ])
+    const entries = await agent.storage.read()
+    const inputs = entries
+      .filter((e): e is AgentEntry<'input'> => e.type === 'input')
+      .map(e => e.data)
+    expect(inputs).toContainEqual(user('hi'))
+    expect(inputs).toContainEqual(expect.objectContaining({
+      content: 'hello',
+      role: 'assistant',
+      type: 'message',
+    }))
   })
 
   it('injects instructions, forwards events, and returns embedded Chat output', async () => {

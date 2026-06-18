@@ -1,4 +1,4 @@
-import type { AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
+import type { AgentEntry, AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
 
 import type { RetainedMessage } from './split'
 
@@ -35,8 +35,13 @@ export interface CompactHistoryResult {
   summary: string
 }
 
-const extractAssistantSummary = (items: readonly AgentInput[]): string => {
-  for (const item of items.toReversed()) {
+export const inputDataOf = (entries: readonly AgentEntry[]): AgentInput[] =>
+  entries
+    .filter(e => e.type === 'input')
+    .map(e => (e as AgentEntry<'input'>).data)
+
+const extractAssistantSummary = (items: readonly AgentEntry[]): string => {
+  for (const item of inputDataOf(items).toReversed()) {
     if (item.type !== 'message' || item.role !== 'assistant')
       continue
 

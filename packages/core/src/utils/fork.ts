@@ -1,5 +1,5 @@
 import type { MaybePromise } from '../types/base'
-import type { AgentInput } from '../types/input'
+import type { AgentEntry } from '../types/entry'
 import type { AgentState } from '../types/state'
 import type { AgentStorage } from '../types/storage'
 import type { Agent, CreateAgentOptions } from './agent'
@@ -14,11 +14,11 @@ export interface ForkOptions {
   runner?: CreateAgentOptions['runner']
   state?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
   /** @default mem(await agent.storage.read()) */
-  storage?: ((parentInput: readonly AgentInput[]) => MaybePromise<AgentStorage>) | AgentStorage
+  storage?: ((parentEntries: readonly AgentEntry[]) => MaybePromise<AgentStorage>) | AgentStorage
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
-  const parentInput = await agent.storage.read()
+  const parentEntries = await agent.storage.read()
   const parentState = agent.state.get()
 
   const child = createAgent({
@@ -30,9 +30,9 @@ export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Age
       : (options.state ?? parentState),
     storage: options.storage != null
       ? (typeof options.storage === 'function'
-          ? await options.storage(parentInput)
+          ? await options.storage(parentEntries)
           : options.storage)
-      : mem(parentInput),
+      : mem(parentEntries),
   })
 
   if (options.init)

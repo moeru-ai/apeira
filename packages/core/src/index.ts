@@ -1,5 +1,11 @@
 export type { ItemParam, MaybePromise } from './types/base'
 export type {
+  AgentEntry,
+  AgentEntryData,
+  AgentEntryUnion,
+} from './types/entry'
+export { entry } from './types/entry'
+export type {
   AgentCustomEvent,
   AgentEvent,
   ApeiraEvent,

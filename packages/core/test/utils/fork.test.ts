@@ -1,8 +1,8 @@
-import type { AgentInput, AgentPluginOption, AgentState } from '../../src/index'
+import type { AgentEntry, AgentInput, AgentPluginOption, AgentState } from '../../src/index'
 
 import { describe, expect, it } from 'vitest'
 
-import { createAgent, developer, fork, mem, run, user } from '../../src/index'
+import { createAgent, developer, entry, fork, mem, run, user } from '../../src/index'
 import { responses } from '../../src/responses'
 import { createMockFetch } from '../_shared'
 
@@ -33,31 +33,40 @@ describe('fork', () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
     const child = await fork(agent)
 
-    expect(await child.storage.read()).toEqual([user('hello')])
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: user('hello'), type: 'input' }),
+    ])
   })
 
   it('starts with empty storage when storage is empty', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { storage: mem<AgentInput>([]) })
+    const child = await fork(agent, { storage: mem([]) })
 
     expect(await child.storage.read()).toEqual([])
   })
 
   it('starts with explicit storage history', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { storage: mem<AgentInput>([user('custom')]) })
+    const child = await fork(agent, { storage: mem([user('custom')]) })
 
-    expect(await child.storage.read()).toEqual([user('custom')])
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: user('custom'), type: 'input' }),
+    ])
   })
 
   it('keeps child storage independent from parent', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
     const child = await fork(agent)
 
-    await child.storage.append(user('child-only'))
+    await child.storage.append(entry('input', user('child-only')))
 
-    expect(await agent.storage.read()).toEqual([user('hello')])
-    expect(await child.storage.read()).toEqual([user('hello'), user('child-only')])
+    expect(await agent.storage.read()).toEqual([
+      expect.objectContaining({ data: user('hello'), type: 'input' }),
+    ])
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: user('hello'), type: 'input' }),
+      expect.objectContaining({ data: user('child-only'), type: 'input' }),
+    ])
   })
 
   it('keeps child state independent from parent', async () => {
@@ -83,7 +92,7 @@ describe('fork', () => {
 
   it('applies overrides', async () => {
     const { agent } = createTestAgent({ instructions: 'parent' })
-    const customStorage = mem<AgentInput>([developer('custom')])
+    const customStorage = mem([developer('custom')])
 
     const child = await fork(agent, {
       instructions: 'child',
@@ -92,23 +101,29 @@ describe('fork', () => {
     })
 
     expect(child.instructions).toBe('child')
-    expect(await child.storage.read()).toEqual([developer('custom')])
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: developer('custom'), type: 'input' }),
+    ])
     expect(child.state.get()).toEqual({ agentName: 'child' })
   })
 
   it('uses a custom storage factory that receives the cloned parent history', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const factoryInput: AgentInput[] = []
+    const factoryInput: AgentEntry[] = []
 
     const child = await fork(agent, {
       storage: async (snapshot) => {
         factoryInput.push(...snapshot)
-        return mem<AgentInput>([developer('factory')])
+        return mem([developer('factory')])
       },
     })
 
-    expect(factoryInput).toEqual([user('hello')])
-    expect(await child.storage.read()).toEqual([developer('factory')])
+    expect(factoryInput).toEqual([
+      expect.objectContaining({ data: user('hello'), type: 'input' }),
+    ])
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: developer('factory'), type: 'input' }),
+    ])
   })
 
   it('initializes eagerly when init is true', async () => {

@@ -1,5 +1,6 @@
 import type { Tool } from '@xsai/shared-chat'
 
+import type { AgentEntry } from '../types/entry'
 import type { AgentPluginOption, ExtendOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
@@ -8,6 +9,7 @@ import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
 import type { AgentStateManager } from './state-manager'
 
+import { entry } from '../types/entry'
 import { createAgentChannel } from './channel'
 import { developer } from './input'
 import { chain, chainPrepareStep, normalizePlugins } from './plugin'
@@ -48,9 +50,21 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     preToolCall: chain('some', plugins.map(p => p.preToolCall)),
   }
 
-  const channel = createAgentChannel()
+  let storageReady = Promise.resolve()
 
-  const state = createAgentStateManager(options.state ?? {})
+  const mutateStorage = async (operation: () => Promise<void>) => {
+    const result = storageReady.then(operation, operation)
+    storageReady = result.catch(() => {})
+    return result
+  }
+
+  const channel = createAgentChannel({
+    persist: async (event, opts) => opts?.save
+      ? mutateStorage(async () => storage.append(entry('event', event as AgentEntry<'event'>['data'])))
+      : undefined,
+  })
+
+  const state = createAgentStateManager(options.state ?? {}, next => void mutateStorage(async () => storage.append(entry('state', next))))
 
   const resolveInstructions = async (opts: ExtendOptions) => {
     const base = typeof options.instructions === 'function'
@@ -68,14 +82,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   }
 
   let initPromise: Promise<void> | undefined
-  let storageReady = Promise.resolve()
   let agent: Agent
-
-  const mutateStorage = async (operation: () => Promise<void>) => {
-    const result = storageReady.then(operation, operation)
-    storageReady = result.catch(() => {})
-    return result
-  }
 
   const init = async () => {
     if (initPromise)
@@ -115,7 +122,9 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
-      const history = await storage.read()
+      const history = (await storage.read())
+        .filter(e => e.type === 'input')
+        .map(e => (e as AgentEntry<'input'>).data)
 
       const result = await options.runner({
         ...opts,
@@ -125,8 +134,12 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
         tools,
       })
 
-      if (!opts.abortSignal?.aborted)
-        await mutateStorage(async () => storage.append(...opts.input, ...result.output))
+      if (!opts.abortSignal?.aborted) {
+        await mutateStorage(async () => storage.append(
+          ...opts.input.map(data => entry('input', data)),
+          ...result.output.map(data => entry('input', data)),
+        ))
+      }
 
       return result
     },
@@ -136,11 +149,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     const turnId = queue.interrupt(reason)
 
     if (turnId != null) {
-      await mutateStorage(async () => storage.append(developer([
+      await mutateStorage(async () => storage.append(entry('input', developer([
         '<turn_aborted>',
         'The previous turn was interrupted on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.',
         '</turn_aborted>',
-      ].join('\n'))))
+      ].join('\n')))))
     }
 
     return turnId
@@ -150,7 +163,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     await queue.clear()
     await mutateStorage(async () => storage.reset())
     state.set(options.state ?? {})
-    await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' })
+    await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' }, { save: true })
   }
 
   agent = {

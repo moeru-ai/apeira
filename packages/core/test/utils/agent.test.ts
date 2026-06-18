@@ -1,11 +1,11 @@
 import type { Tool } from '@xsai/shared-chat'
 
-import type { Agent, AgentEvent, AgentInput, AgentPluginOption, AgentState } from '../../src/index'
+import type { Agent, AgentEntry, AgentEvent, AgentInput, AgentPluginOption, AgentState, AgentStorage } from '../../src/index'
 
 import { stepCountAtLeast } from '@xsai-ext/responses'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createAgent, developer, mem, run, user } from '../../src/index'
+import { createAgent, developer, entry, mem, run, user } from '../../src/index'
 import { responses } from '../../src/responses'
 import { createMockFetch, sleep } from '../_shared'
 
@@ -36,7 +36,9 @@ const createTestAgent = (opts?: {
 describe('createAgent', () => {
   it('creates an agent with initial input', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    expect(await agent.storage.read()).toEqual([user('hello')])
+    expect(await agent.storage.read()).toEqual([
+      expect.objectContaining({ data: user('hello'), type: 'input' }),
+    ])
   })
 
   it('returns empty input when none provided', async () => {
@@ -372,7 +374,7 @@ describe('queue', () => {
 
     await sleep(20)
 
-    expect(await agent.storage.read()).toEqual([boundary])
+    expect(await agent.storage.read()).toContainEqual(expect.objectContaining({ data: boundary, type: 'input' }))
 
     agent.send(user('next'))
     await sleep(150)
@@ -403,9 +405,9 @@ describe('queue', () => {
     let signalAppend!: () => void
     const appendBlocked = new Promise<void>(resolve => releaseAppend = resolve)
     const appendStarted = new Promise<void>(resolve => signalAppend = resolve)
-    const items: AgentInput[] = []
-    const storage = {
-      append: async (...next: AgentInput[]) => {
+    const items: AgentEntry[] = []
+    const storage: AgentStorage<AgentEntry> = {
+      append: async (...next) => {
         signalAppend()
         await appendBlocked
         items.push(...next)
@@ -426,7 +428,7 @@ describe('queue', () => {
     releaseAppend()
     await clearing
 
-    expect(await agent.storage.read()).toEqual([])
+    expect(items.some(item => item.type === 'input')).toBe(false)
   })
 
   it('restores initial input and state and emits one reset event', async () => {
@@ -440,11 +442,17 @@ describe('queue', () => {
     })
 
     await agent.storage.clear()
-    await agent.storage.append(user('changed'))
+    await agent.storage.append(entry('input', user('changed')))
     agent.state.update({ contextLength: 16_000 })
     await agent.reset()
 
-    expect(await agent.storage.read()).toEqual([user('initial')])
+    const entries = await agent.storage.read()
+    expect(entries).toContainEqual(expect.objectContaining({ data: user('initial'), type: 'input' }))
+    expect(entries).toContainEqual(expect.objectContaining({ data: { contextLength: 8_000 }, type: 'state' }))
+    expect(entries.some(e =>
+      e.type === 'event'
+      && (e as AgentEntry<'event'>).data.type === 'agent.reset',
+    )).toBe(true)
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
     expect(events.filter(event => event.type === 'agent.reset')).toHaveLength(1)
     expect(events.find(event => event.type === 'agent.reset')?.turnId).toBeTruthy()
