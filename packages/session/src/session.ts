@@ -358,23 +358,25 @@ export const createSession = (options: CreateSessionOptions): Session => {
       .map(entry => entry.data)
   }
 
-  let pluginHandler: BranchChangeHandler | undefined
+  const createPlugin = (): AgentPlugin => {
+    let handler: BranchChangeHandler | undefined
 
-  const plugin: AgentPlugin = {
-    init: (agent) => {
-      pluginHandler = async (payload) => {
-        agent.state.restore(payload.state)
-        await agent.emit(`session.${payload.type}`, payload, { save: false })
-      }
-      branchChangeHandlers.add(pluginHandler)
-    },
-    name: 'apeira.session',
-    stop: () => {
-      if (!pluginHandler)
-        return
-      branchChangeHandlers.delete(pluginHandler)
-      pluginHandler = undefined
-    },
+    return {
+      init: (agent) => {
+        handler = async (payload) => {
+          agent.state.restore(payload.state)
+          await agent.emit(`session.${payload.type}`, payload, { save: false })
+        }
+        branchChangeHandlers.add(handler)
+      },
+      name: 'apeira.session',
+      stop: () => {
+        if (!handler)
+          return
+        branchChangeHandlers.delete(handler)
+        handler = undefined
+      },
+    }
   }
 
   return {
@@ -395,7 +397,9 @@ export const createSession = (options: CreateSessionOptions): Session => {
     fork,
     head: async (): Promise<Head> => (await read()).head,
     path,
-    plugin,
+    get plugin() {
+      return createPlugin()
+    },
     read,
     rebase,
     refs: async () => (await read()).refs,
