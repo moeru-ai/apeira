@@ -11,13 +11,14 @@ import { createMockFetch, sleep } from '../_shared'
 
 const createTestAgent = (opts?: {
   delayMs?: number
+  initialState?: AgentState
   input?: AgentInput[]
   instructions?: ((state: Readonly<AgentState>) => string) | string
   plugins?: AgentPluginOption[]
-  state?: AgentState
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
+    initialState: opts?.initialState,
     instructions: opts?.instructions ?? 'You are a test assistant.',
     plugins: opts?.plugins,
     runner: responses({
@@ -27,7 +28,6 @@ const createTestAgent = (opts?: {
       model: 'test-model',
       stopWhen: stepCountAtLeast(1),
     }),
-    state: opts?.state,
     storage: mem(opts?.input),
   })
   return { agent, ...mock }
@@ -47,9 +47,26 @@ describe('createAgent', () => {
   })
 
   it('returns the current agent state', () => {
-    const { agent } = createTestAgent({ state: { contextLength: 8_000 } })
+    const { agent } = createTestAgent({ initialState: { contextLength: 8_000 } })
 
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
+  })
+
+  it('restores the latest state from storage when initializing', async () => {
+    const storage = mem()
+    await storage.append(entry('state', { contextLength: 16_000 }))
+    await storage.append(entry('state', { contextLength: 24_000 }))
+
+    const agent = createAgent({
+      initialState: { contextLength: 8_000 },
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    expect(agent.state.get()).toEqual({ contextLength: 8_000 })
+    await agent.init()
+    expect(agent.state.get()).toEqual({ contextLength: 24_000 })
   })
 
   it('replaces input with a cloned value', async () => {
@@ -57,15 +74,15 @@ describe('createAgent', () => {
     const nextInput = [user('new')]
 
     await agent.storage.clear()
-    await agent.storage.append(...nextInput)
+    await agent.storage.append(entry('input', nextInput[0]))
     nextInput[0] = user('mutated')
 
-    expect(await agent.storage.read()).toEqual([user('new')])
+    expect(await agent.storage.read()).toEqual([expect.objectContaining({ data: user('new'), type: 'input' })])
   })
 
   it('replaces nested state patches with cloned values', () => {
     const { agent } = createTestAgent({
-      state: {
+      initialState: {
         nested: { first: true },
       } as AgentState,
     })
@@ -83,7 +100,7 @@ describe('createAgent', () => {
   })
 
   it('merges state patches', () => {
-    const { agent } = createTestAgent({ state: { contextLength: 8_000 } })
+    const { agent } = createTestAgent({ initialState: { contextLength: 8_000 } })
 
     agent.state.update({ contextLength: 16_000 })
     expect(agent.state.get()).toEqual({ contextLength: 16_000 })
@@ -433,8 +450,8 @@ describe('queue', () => {
 
   it('restores initial input and state and emits one reset event', async () => {
     const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
       input: [user('initial')],
-      state: { contextLength: 8_000 },
     })
     const events: AgentEvent[] = []
     agent.subscribe('apeira', (event) => {
@@ -449,6 +466,7 @@ describe('queue', () => {
     const entries = await agent.storage.read()
     expect(entries).toContainEqual(expect.objectContaining({ data: user('initial'), type: 'input' }))
     expect(entries).toContainEqual(expect.objectContaining({ data: { contextLength: 8_000 }, type: 'state' }))
+    expect(entries).not.toContainEqual(expect.objectContaining({ data: { contextLength: 16_000 }, type: 'state' }))
     expect(entries.some(e =>
       e.type === 'event'
       && (e as AgentEntry<'event'>).data.type === 'agent.reset',
@@ -476,8 +494,8 @@ describe('queue', () => {
 
   it('uses reset state for a turn sent immediately after clear', async () => {
     const { agent, instructions } = createTestAgent({
+      initialState: { contextLength: 8_000 },
       instructions: state => String(state.contextLength),
-      state: { contextLength: 8_000 },
     })
 
     agent.state.update({ contextLength: 16_000 })

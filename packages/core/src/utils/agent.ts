@@ -30,10 +30,10 @@ export interface Agent extends AgentChannel, AgentQueue {
 }
 
 export interface CreateAgentOptions {
+  initialState?: AgentState
   instructions: ((state: Readonly<AgentState>) => Promise<string> | string) | string
   plugins?: AgentPluginOption[]
   runner: Runner
-  state?: AgentState
   /** @default `mem()` */
   storage?: AgentStorage
 }
@@ -64,7 +64,19 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       : undefined,
   })
 
-  const state = createAgentStateManager(options.state ?? {}, next => void mutateStorage(async () => storage.append(entry('state', next))))
+  let restoring = false
+  const state = createAgentStateManager(options.initialState ?? {}, (next) => {
+    if (restoring)
+      return
+    void mutateStorage(async () => storage.append(entry('state', next)))
+  })
+
+  const loadLatestState = async () => {
+    restoring = true
+    const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
+    state.set(latest?.data ?? (options.initialState ?? {}))
+    restoring = false
+  }
 
   const resolveInstructions = async (opts: ExtendOptions) => {
     const base = typeof options.instructions === 'function'
@@ -84,15 +96,10 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   let initPromise: Promise<void> | undefined
   let agent: Agent
 
-  const init = async () => {
-    if (initPromise)
-      return initPromise
-
-    // eslint-disable-next-line @masknet/type-no-force-cast-via-top-type
-    initPromise = Promise.all(plugins.map(async p => p.init?.(agent))) as unknown as Promise<void>
-
-    return initPromise
-  }
+  const init = async () => initPromise ?? (initPromise = (async () => {
+    await loadLatestState()
+    await Promise.all(plugins.map(async p => p.init?.(agent)))
+  })())
 
   const stop = async () => {
     for (const plugin of plugins.toReversed()) {
@@ -160,7 +167,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const reset: Agent['reset'] = async () => {
     await queue.clear()
     await mutateStorage(async () => storage.reset())
-    state.set(options.state ?? {})
+    state.set(options.initialState ?? {})
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' }, { save: true })
   }
 

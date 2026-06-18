@@ -87,17 +87,17 @@ Agent `state` is a plain object that plugins and instructions can read and write
 
 ```ts
 const agent = createAgent({
+  initialState: { userId: 'user_123' },
   instructions: state => `You are helping ${state.userId ?? 'a user'}.`,
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  state: { userId: 'user_123' },
 })
 ```
 
-`state` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime. Update it with `agent.state.update(patch)`:
+`initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime. Update it with `agent.state.update(patch)`:
 
 ```ts
 agent.state.update({ userId: 'user_456' })

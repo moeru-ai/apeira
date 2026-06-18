@@ -18,6 +18,9 @@ import { responses } from '@apeira/core/responses'
 import { compact } from '@apeira/plugin-compact'
 
 const agent = createAgent({
+  initialState: {
+    contextLength: 128_000,
+  },
   instructions: 'You are a helpful assistant.',
   plugins: [
     compact({
@@ -36,9 +39,6 @@ const agent = createAgent({
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  state: {
-    contextLength: 128_000,
-  },
 })
 ```
 
@@ -89,7 +89,7 @@ Set the context window on the agent state:
 ```ts
 createAgent({
   // ...
-  state: { contextLength: 128_000 },
+  initialState: { contextLength: 128_000 },
 })
 ```
 

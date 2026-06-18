@@ -34,6 +34,7 @@ describe('compact plugin', () => {
     const summarizer = createMockFetch({ responseText: 'checkpoint summary' })
 
     const agent = createAgent({
+      initialState: { contextLength: 1000 },
       instructions: 'main',
       plugins: [
         compact({
@@ -55,7 +56,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      state: { contextLength: 1000 },
       storage: mem([
         user('old one'),
         assistant('old answer one'),
@@ -176,6 +176,7 @@ describe('compact plugin', () => {
     const main = createMockFetch({ responseText: ['first', 'checkpoint summary', 'second'], totalTokens: [950, 2, 2] })
 
     const agent = createAgent({
+      initialState: { contextLength: 1000 },
       instructions: 'main',
       plugins: [
         compact({
@@ -190,7 +191,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      state: { contextLength: 1000 },
       storage: mem([
         user('old one'),
         assistant('old answer one'),

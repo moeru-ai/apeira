@@ -9,10 +9,10 @@ import { mem } from './storage'
 
 export interface ForkOptions {
   init?: boolean
+  initialState?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
   instructions?: CreateAgentOptions['instructions']
   plugins?: CreateAgentOptions['plugins']
   runner?: CreateAgentOptions['runner']
-  state?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
   /** @default mem(await agent.storage.read()) */
   storage?: ((parentEntries: readonly AgentEntry[]) => MaybePromise<AgentStorage>) | AgentStorage
 }
@@ -22,12 +22,12 @@ export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Age
   const parentState = agent.state.get()
 
   const child = createAgent({
+    initialState: typeof options.initialState === 'function'
+      ? options.initialState(parentState)
+      : (options.initialState ?? parentState),
     instructions: options.instructions ?? agent.instructions,
     plugins: options.plugins ?? agent.plugins,
     runner: options.runner ?? agent.runner,
-    state: typeof options.state === 'function'
-      ? options.state(parentState)
-      : (options.state ?? parentState),
     storage: options.storage != null
       ? (typeof options.storage === 'function'
           ? await options.storage(parentEntries)

@@ -7,13 +7,14 @@ import { responses } from '../../src/responses'
 import { createMockFetch } from '../_shared'
 
 const createTestAgent = (opts?: {
+  initialState?: AgentState
   input?: AgentInput[]
   instructions?: ((state: Readonly<AgentState>) => string) | string
   plugins?: AgentPluginOption[]
-  state?: AgentState
 }) => {
   const mock = createMockFetch()
   const agent = createAgent({
+    initialState: opts?.initialState,
     instructions: opts?.instructions ?? 'You are a test assistant.',
     plugins: opts?.plugins,
     runner: responses({
@@ -22,7 +23,6 @@ const createTestAgent = (opts?: {
       fetch: mock.fetch,
       model: 'test-model',
     }),
-    state: opts?.state,
     storage: mem(opts?.input),
   })
   return { agent, ...mock }
@@ -70,9 +70,9 @@ describe('fork', () => {
   })
 
   it('keeps child state independent from parent', async () => {
-    const { agent } = createTestAgent({ state: { agentName: 'parent' } })
+    const { agent } = createTestAgent({ initialState: { agentName: 'parent' } })
     const child = await fork(agent, {
-      state: parent => ({ ...parent, agentName: 'child' }),
+      initialState: parent => ({ ...parent, agentName: 'child' }),
     })
 
     expect(agent.state.get()).toEqual({ agentName: 'parent' })
@@ -95,8 +95,8 @@ describe('fork', () => {
     const customStorage = mem([developer('custom')])
 
     const child = await fork(agent, {
+      initialState: { agentName: 'child' },
       instructions: 'child',
-      state: { agentName: 'child' },
       storage: customStorage,
     })
 

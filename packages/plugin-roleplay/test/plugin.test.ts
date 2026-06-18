@@ -27,6 +27,7 @@ const assistantText = (item: AgentEntry | undefined) => {
 describe('roleplay plugin', () => {
   it('initializes the selected greeting', async () => {
     const agent = createAgent({
+      initialState: { userName: 'Alice' },
       instructions: '',
       plugins: [roleplay({
         card: createV3Card({
@@ -36,7 +37,6 @@ describe('roleplay plugin', () => {
         greetingIndex: 1,
       })],
       runner,
-      state: { userName: 'Alice' },
     })
     const events: RoleplayEvent[] = []
     agent.subscribe('roleplay', event => events.push(event))
@@ -102,6 +102,7 @@ describe('roleplay plugin', () => {
   it('assembles instructions and temporary character input without persisting it', async () => {
     const mock = createMockFetch()
     const agent = createAgent({
+      initialState: { userName: 'Alice' },
       instructions: '',
       plugins: [roleplay({
         card: createV3Card({
@@ -121,7 +122,6 @@ describe('roleplay plugin', () => {
         fetch: mock.fetch,
         model: 'test',
       }),
-      state: { userName: 'Alice' },
     })
     const events: RoleplayEvent[] = []
     agent.subscribe('roleplay', event => events.push(event))
@@ -235,6 +235,7 @@ describe('roleplay plugin', () => {
     const main = createMockFetch()
     const summarizer = createMockFetch('summary')
     const agent = createAgent({
+      initialState: { contextLength: 1_000 },
       instructions: '',
       plugins: [
         compact({
@@ -262,7 +263,6 @@ describe('roleplay plugin', () => {
         fetch: main.fetch,
         model: 'test',
       }),
-      state: { contextLength: 1_000 },
       storage: mem([
         user('old one'),
         {

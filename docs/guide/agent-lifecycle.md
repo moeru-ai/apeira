@@ -177,14 +177,14 @@ import { createAgent } from 'apeira'
 import { responses } from 'apeira/responses'
 
 const agent = createAgent({
+  initialState: { userName: 'user_123' },
   instructions: state => `You are helping ${state.userName ?? 'a user'}.`,
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  state: { userName: 'user_123' },
 })
 ```
 
-`state` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime.
+`initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime.

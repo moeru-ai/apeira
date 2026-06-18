@@ -20,6 +20,9 @@ import { responses } from '@apeira/core/responses'
 import { roleplay } from '@apeira/plugin-roleplay'
 
 const agent = createAgent({
+  initialState: {
+    userName: 'Alice',
+  },
   instructions: '',
   plugins: [
     roleplay({
@@ -32,9 +35,6 @@ const agent = createAgent({
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  state: {
-    userName: 'Alice',
-  },
 })
 ```
 
