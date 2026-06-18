@@ -1,6 +1,7 @@
 /* eslint-disable @masknet/browser-no-persistent-storage */
 import type { AgentEntry, AgentInput } from '@apeira/core'
 
+import { toAgentInput } from '@apeira/core'
 import { kv } from '@apeira/storage/kv'
 import { useLocalStorage } from 'foxact/use-local-storage'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -91,7 +92,7 @@ export const useThreads = () => {
       if (items.length === 0)
         return
 
-      const name = getThreadNameFromItems(items.filter(e => e.type === 'input').map(e => (e as AgentEntry<'input'>).data))
+      const name = getThreadNameFromItems(toAgentInput(items))
 
       setThreads((current) => {
         const threads = current ?? []

@@ -2,13 +2,12 @@ import type { Agent, AgentInput, AgentPlugin } from '@apeira/core'
 
 import type { CompactAgentOptions } from './compact'
 
-import { entry } from '@apeira/core'
+import { entry, toAgentInput } from '@apeira/core'
 
 import { name, version } from '../package.json'
 import {
   executeCompact,
   hardTruncateInput,
-  inputDataOf,
 } from './compact'
 import {
   DEFAULT_CONTEXT_LENGTH,
@@ -115,7 +114,7 @@ export const compact = (options: CompactPluginOptions): AgentPlugin => {
 
       const activeAgent = getAgent()
       const historicalEntries = await activeAgent.storage.read()
-      const historicalInput = inputDataOf(historicalEntries)
+      const historicalInput = toAgentInput(historicalEntries)
       const liveInput = stepOptions.input.slice(historicalInput.length)
       const compactedHistoricalInput = await compactHistoricalInput(historicalInput)
       const nextInput = [...compactedHistoricalInput, ...liveInput]

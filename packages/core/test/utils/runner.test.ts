@@ -1,10 +1,10 @@
-import type { AgentEntry, AgentEvent, AgentInput, RunnerContext } from '../../src/index'
+import type { AgentEvent, AgentInput, RunnerContext } from '../../src/index'
 
 import { stepCountAtLeast } from '@xsai/shared-chat'
 import { describe, expect, it } from 'vitest'
 
 import { chat } from '../../src/chat'
-import { createAgent, run, user } from '../../src/index'
+import { createAgent, run, toAgentInput, user } from '../../src/index'
 import { responses } from '../../src/responses'
 import { createAgentChannel } from '../../src/utils/channel'
 import { createMockFetch } from '../_shared'
@@ -103,9 +103,7 @@ describe('chat', () => {
       void event
 
     const entries = await agent.storage.read()
-    const inputs = entries
-      .filter((e): e is AgentEntry<'input'> => e.type === 'input')
-      .map(e => e.data)
+    const inputs = toAgentInput(entries)
     expect(inputs).toContainEqual(user('hi'))
     expect(inputs).toContainEqual(expect.objectContaining({
       content: 'hello',
@@ -118,7 +116,9 @@ describe('chat', () => {
     const mock = createChatMockFetch()
     const channel = createAgentChannel()
     const events: AgentEvent[] = []
-    channel.subscribe('apeira', event => events.push(event))
+    channel.subscribe('apeira', (event) => {
+      events.push(event)
+    })
     const runner = chat({
       apiKey: 'test',
       baseURL: 'https://test',

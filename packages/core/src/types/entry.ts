@@ -18,6 +18,3 @@ export interface AgentEntryData {
 export type AgentEntryUnion = {
   [T in keyof AgentEntryData]: AgentEntry<T>
 }[keyof AgentEntryData]
-
-export const entry = <T extends keyof AgentEntryData>(type: T, data: AgentEntryData[T]): AgentEntry<T> =>
-  ({ data, id: crypto.randomUUID(), timestamp: Date.now(), type })

@@ -9,7 +9,7 @@ import type { AgentChannel } from './channel'
 import type { AgentQueue } from './queue'
 import type { AgentStateManager } from './state-manager'
 
-import { entry } from '../types/entry'
+import { entry, toAgentInput } from '../utils/entry'
 import { createAgentChannel } from './channel'
 import { developer } from './input'
 import { chain, chainPrepareStep, normalizePlugins } from './plugin'
@@ -122,9 +122,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
           tools.push(...extended)
       }
 
-      const history = (await storage.read())
-        .filter(e => e.type === 'input')
-        .map(e => (e as AgentEntry<'input'>).data)
+      const history = toAgentInput(await storage.read())
 
       const result = await options.runner({
         ...opts,

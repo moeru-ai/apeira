@@ -4,7 +4,6 @@ export type {
   AgentEntryData,
   AgentEntryUnion,
 } from './types/entry'
-export { entry } from './types/entry'
 export type {
   AgentCustomEvent,
   AgentEvent,
@@ -42,6 +41,7 @@ export type { AgentStorage } from './types/storage'
 export type { Agent, CreateAgentOptions } from './utils/agent'
 export { createAgent } from './utils/agent'
 export type { AgentChannel, AgentEventListener } from './utils/channel'
+export { entry, toAgentInput } from './utils/entry'
 export type { ForkOptions } from './utils/fork'
 export { fork } from './utils/fork'
 export { assistant, developer, system, user } from './utils/input'
