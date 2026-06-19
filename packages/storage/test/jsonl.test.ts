@@ -37,7 +37,7 @@ describe('jsonl', () => {
     expect(raw).toBe('1\n2\n3\n')
   })
 
-  it('clears the file', async () => {
+  it('clears the file to empty', async () => {
     const storage = jsonl<string>({ path })
 
     await storage.append('a')
@@ -54,6 +54,7 @@ describe('jsonl', () => {
     await storage.reset()
 
     expect(await storage.read()).toEqual([1, 2])
+    expect(await readFile(path, 'utf-8')).toBe('1\n2\n')
   })
 
   it('returns initial before any append', async () => {
@@ -62,12 +63,21 @@ describe('jsonl', () => {
     expect(await storage.read()).toEqual(['x', 'y'])
   })
 
+  it('does not create file on read alone', async () => {
+    const storage = jsonl<string>({ initial: ['x', 'y'], path })
+
+    await storage.read()
+
+    await expect(readFile(path, 'utf-8')).rejects.toThrow('ENOENT')
+  })
+
   it('append preserves initial', async () => {
     const storage = jsonl<string>({ initial: ['x', 'y'], path })
 
     await storage.append('z')
 
     expect(await storage.read()).toEqual(['x', 'y', 'z'])
+    expect(await readFile(path, 'utf-8')).toBe('"x"\n"y"\n"z"\n')
   })
 
   it('does not re-initialize after clear', async () => {
@@ -80,15 +90,69 @@ describe('jsonl', () => {
     expect(await storage.read()).toEqual(['a'])
   })
 
-  it('ignores corrupt lines', async () => {
+  it('appends multiple items atomically', async () => {
     const storage = jsonl<string>({ path })
 
-    await storage.append('a', 'b')
-    await storage.append('c')
-
-    const raw = await readFile(path, 'utf-8')
-    await writeFile(path, `${raw}{broken line\n`, 'utf-8')
+    await storage.append('a')
+    await storage.append('b', 'c')
 
     expect(await storage.read()).toEqual(['a', 'b', 'c'])
+    expect(await readFile(path, 'utf-8')).toBe('"a"\n"b"\n"c"\n')
+  })
+
+  it('returns consistent results on subsequent reads', async () => {
+    const storage = jsonl<string>({ path })
+
+    await storage.append('a')
+    const first = await storage.read()
+    const second = await storage.read()
+
+    expect(first).toStrictEqual(second)
+  })
+
+  it('returns cached content even if the file is changed externally', async () => {
+    const storage = jsonl<string>({ path })
+
+    await storage.append('a')
+    await storage.read()
+    await writeFile(path, '"x"\n', 'utf-8')
+
+    expect(await storage.read()).toEqual(['a'])
+  })
+
+  it('serializes concurrent appends', async () => {
+    const storage = jsonl<string>({ path })
+
+    await Promise.all([
+      storage.append('a'),
+      storage.append('b'),
+      storage.append('c'),
+    ])
+
+    const entries = await storage.read()
+    expect(entries).toHaveLength(3)
+    expect(entries).toContain('a')
+    expect(entries).toContain('b')
+    expect(entries).toContain('c')
+  })
+
+  it('serializes concurrent appends from different instances sharing the same path', async () => {
+    const first = jsonl<number>({ path })
+    const second = jsonl<number>({ path })
+
+    await Promise.all(
+      Array.from({ length: 20 }, async (_, index) =>
+        (index % 2 === 0 ? first : second).append(index)),
+    )
+
+    expect([...(await first.read())].sort((a, b) => a - b))
+      .toEqual(Array.from({ length: 20 }, (_, index) => index))
+  })
+
+  it('throws on corrupt lines', async () => {
+    await writeFile(path, '"a"\n"b"\n{broken line\n', 'utf-8')
+
+    const storage = jsonl<string>({ path })
+    await expect(storage.read()).rejects.toThrow('Invalid JSON at line 3')
   })
 })

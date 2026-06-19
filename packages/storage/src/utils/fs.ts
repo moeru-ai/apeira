@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
 export const readFileSafe = async (path: string): Promise<string | undefined> => {
   try {
@@ -12,5 +13,8 @@ export const readFileSafe = async (path: string): Promise<string | undefined> =>
   }
 }
 
-export const writeFileSafe = async (path: string, content: string) =>
-  writeFile(path, content, 'utf-8')
+export const writeFileAtomic = async (path: string, content: string) => {
+  const tmpPath = join(dirname(path), `.tmp-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`)
+  await writeFile(tmpPath, content, 'utf-8')
+  await rename(tmpPath, path)
+}

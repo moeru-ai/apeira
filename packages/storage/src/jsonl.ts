@@ -13,16 +13,16 @@ const decode = <T>(raw: string): T[] => {
   const lines = raw.split('\n')
   const result: T[] = []
 
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed.length === 0)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line == null || line.length === 0)
       continue
 
     try {
-      result.push(JSON.parse(trimmed) as T)
+      result.push(JSON.parse(line) as T)
     }
-    catch {
-      // ignore corrupt lines
+    catch (error) {
+      throw new SyntaxError(`Invalid JSON at line ${i + 1}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -30,4 +30,4 @@ const decode = <T>(raw: string): T[] => {
 }
 
 export const jsonl = <T = AgentEntry>(options: JSONLStorageOptions<T>) =>
-  createFileStorage<T>(options, { decode, encode })
+  createFileStorage<T>(options, { appendEncode: encode, decode, encode })
