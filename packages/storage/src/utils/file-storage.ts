@@ -22,25 +22,32 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
   let items: T[] | undefined
   let initialized = false
 
-  const loadItemsFromDisk = async (): Promise<{ fileExists: boolean, items: T[] }> => {
+  const loadItemsFromDisk = async (): Promise<{ hasContent: boolean, items: T[] }> => {
     const raw = await readFileSafe(path)
 
     if (raw == null) {
       items = [...initial]
       initialized = true
-      return { fileExists: false, items }
+      return { hasContent: false, items }
     }
 
-    items = raw.length === 0 ? [] : codec.decode(raw)
+    if (raw.length === 0) {
+      items = []
+      initialized = true
+      return { hasContent: false, items }
+    }
+
+    items = codec.decode(raw)
     initialized = true
-    return { fileExists: true, items }
+    return { hasContent: true, items }
   }
 
-  const loadItems = async (): Promise<{ fileExists: boolean, items: T[] }> => {
+  const loadItems = async (): Promise<T[]> => {
     if (initialized)
-      return { fileExists: true, items: items! }
+      return items!
 
-    return loadItemsFromDisk()
+    const { items: loaded } = await loadItemsFromDisk()
+    return loaded
   }
 
   const writeItems = async (next: readonly T[]) => {
@@ -81,7 +88,7 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
       initialized = true
     }),
 
-    read: async () => enqueue(path, async () => (await loadItems()).items),
+    read: async () => enqueue(path, async () => loadItems()),
 
     reset: async () => enqueue(path, async () => writeItems(initial)),
   }
