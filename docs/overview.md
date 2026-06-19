@@ -9,7 +9,8 @@ Apeira is a small TypeScript runtime for building agents that runs anywhere. The
 Apeira is built on [xsAI](https://github.com/moeru-ai/xsai) and inherits its lightweight footprint.
 
 - `@apeira/core` [![bundle size](https://deno.bundlejs.com/?q=@apeira/core&badge=detailed)](https://bundlejs.com/?q=@apeira/core)
-<!-- - `@apeira/session` [![bundle size](https://deno.bundlejs.com/?q=@apeira/session&badge=detailed)](https://bundlejs.com/?q=@apeira/session) -->
+- `@apeira/session` [![bundle size](https://deno.bundlejs.com/?q=@apeira/session&badge=detailed)](https://bundlejs.com/?q=@apeira/session)
+- `apeira` [![bundle size](https://deno.bundlejs.com/?q=apeira&badge=detailed)](https://bundlejs.com/?q=apeira)
 
 The core package is only concerned with turn queueing, aborts, and event delivery. Runners, tools, storage, and UI bridges live in separate packages, so you pay for only what you use.
 
