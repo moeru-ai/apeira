@@ -10,7 +10,7 @@ export interface ForkOptions {
   inheritEntries?: boolean
   init?: boolean
   initialInput?: ((parentInput: readonly AgentInput[]) => readonly AgentInput[]) | readonly AgentInput[]
-  initialState?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
+  initialState?: ((parentInitialState: Readonly<AgentState>) => AgentState) | AgentState
   instructions?: CreateAgentOptions['instructions']
   plugins?: CreateAgentOptions['plugins']
   runner?: CreateAgentOptions['runner']
@@ -19,14 +19,12 @@ export interface ForkOptions {
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
-  const parentState = agent.state.get()
   const storage = options.storage ?? mem()
 
   if (options.inheritEntries !== false) {
     if (storage === agent.storage)
       throw new Error('Cannot inherit entries into the parent storage')
-    const parentEntries = (await agent.storage.read()).filter(e => e.type !== 'state')
-    await storage.append(...parentEntries)
+    await storage.append(...await agent.storage.read())
   }
 
   const child = createAgent({
@@ -34,8 +32,8 @@ export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Age
       ? options.initialInput(agent.initialInput)
       : (options.initialInput ?? agent.initialInput),
     initialState: typeof options.initialState === 'function'
-      ? options.initialState(parentState)
-      : (options.initialState ?? parentState),
+      ? options.initialState(agent.initialState)
+      : (options.initialState ?? agent.initialState),
     instructions: options.instructions ?? agent.instructions,
     plugins: options.plugins ?? agent.plugins,
     runner: options.runner ?? agent.runner,

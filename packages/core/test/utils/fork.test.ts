@@ -91,12 +91,14 @@ describe('fork', () => {
     ])
   })
 
-  it('keeps child state independent from parent', async () => {
+  it('inherits and transforms initial state', async () => {
     const { agent } = createTestAgent({ initialState: { agentName: 'parent' } })
     const child = await fork(agent, {
       initialState: parent => ({ ...parent, agentName: 'child' }),
     })
 
+    expect(agent.initialState).toEqual({ agentName: 'parent' })
+    expect(child.initialState).toEqual({ agentName: 'child' })
     expect(agent.state.get()).toEqual({ agentName: 'parent' })
     expect(child.state.get()).toEqual({ agentName: 'child' })
   })
@@ -162,18 +164,26 @@ describe('fork', () => {
     expect(child.storage).toBe(agent.storage)
   })
 
-  it('resets inherited history to initial input', async () => {
-    const { agent } = createTestAgent({ input: [user('initial')] })
+  it('resets inherited entries to initial baselines', async () => {
+    const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
+      input: [user('initial')],
+    })
     await agent.init()
     await agent.storage.append(entry('input', user('later')))
+    agent.state.update({ contextLength: 16_000 })
+    await Promise.resolve()
     const child = await fork(agent)
 
+    await child.init()
+    expect(child.state.get()).toEqual({ contextLength: 16_000 })
     await child.reset()
 
     const inputs = (await child.storage.read())
       .filter((item): item is AgentEntry<'input'> => item.type === 'input')
       .map(item => item.data)
     expect(inputs).toEqual([user('initial')])
+    expect(child.state.get()).toEqual({ contextLength: 8_000 })
   })
 
   it('initializes eagerly when init is true', async () => {
@@ -204,14 +214,31 @@ describe('fork', () => {
     expect(calls).toEqual([])
   })
 
-  it('keeps custom initialState after init even when parent storage has a different state', async () => {
+  it('restores inherited state entries over the child initial state', async () => {
     const { agent } = createTestAgent({
       initialState: { contextLength: 8_000 },
       input: [user('hello')],
     })
     agent.state.update({ contextLength: 16_000 })
+    await Promise.resolve()
 
     const child = await fork(agent, {
+      init: true,
+      initialState: { contextLength: 24_000 },
+    })
+
+    expect(child.initialState).toEqual({ contextLength: 24_000 })
+    expect(child.state.get()).toEqual({ contextLength: 16_000 })
+  })
+
+  it('uses child initial state when entries are not inherited', async () => {
+    const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
+    })
+    agent.state.update({ contextLength: 16_000 })
+
+    const child = await fork(agent, {
+      inheritEntries: false,
       init: true,
       initialState: { contextLength: 24_000 },
     })

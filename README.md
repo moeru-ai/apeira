@@ -97,7 +97,8 @@ const agent = createAgent({
 })
 ```
 
-`initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime. Update it with `agent.state.update(patch)`:
+`initialState` is the agent's reset baseline. Update current state with
+`agent.state.update(patch)`:
 
 ```ts
 agent.state.update({ userId: 'user_456' })

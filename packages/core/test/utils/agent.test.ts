@@ -103,6 +103,15 @@ describe('createAgent', () => {
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
   })
 
+  it('snapshots initial state', () => {
+    const initialState = { contextLength: 8_000 }
+    const { agent } = createTestAgent({ initialState })
+
+    initialState.contextLength = 16_000
+
+    expect(agent.initialState).toEqual({ contextLength: 8_000 })
+  })
+
   it('restores the latest state from storage when initializing', async () => {
     const storage = mem()
     await storage.append(entry('state', { contextLength: 16_000 }))

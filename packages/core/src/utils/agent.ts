@@ -21,6 +21,7 @@ import { mem } from './storage'
 export interface Agent extends AgentChannel, AgentQueue {
   init: () => Promise<void>
   readonly initialInput: readonly AgentInput[]
+  readonly initialState: Readonly<AgentState>
   readonly instructions: CreateAgentOptions['instructions']
   interrupt: (reason?: unknown) => Promise<string | undefined>
   readonly plugins: AgentPluginOption[]
@@ -43,6 +44,7 @@ export interface CreateAgentOptions {
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
   const initialInput = [...(options.initialInput ?? [])]
+  const initialState = structuredClone(options.initialState ?? {})
   const plugins = normalizePlugins(options.plugins ?? [])
   const storage = options.storage ?? mem()
 
@@ -69,7 +71,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       : undefined,
   })
 
-  const state = createAgentStateManager(options.initialState ?? {}, (next) => {
+  const state = createAgentStateManager(initialState, (next) => {
     void mutateStorage(async () => storage.append(entry('state', next))).catch((error) => {
       console.error('[@apeira/core] Failed to persist agent state:', error)
     })
@@ -78,7 +80,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const loadLatestState = async () => {
     await storageReady
     const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
-    state.restore(latest?.data ?? (options.initialState ?? {}))
+    state.restore(latest?.data ?? initialState)
   }
 
   const restoreInitialInput = async () => {
@@ -198,7 +200,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       await storage.clear()
       await restoreInitialInput()
     })
-    state.set(options.initialState ?? {})
+    state.set(initialState)
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' }, { save: true })
   }
 
@@ -207,6 +209,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     ...queue,
     init,
     initialInput,
+    initialState,
     instructions: options.instructions,
     interrupt,
     plugins: options.plugins ?? [],

@@ -11,5 +11,11 @@ accept initial entries or provide reset semantics. This keeps storage as a data
 container and gives every storage implementation the same agent lifecycle
 behavior.
 
-`fork()` may copy the parent's current non-state entries into child storage.
-Those copied entries are working history, not the child's reset baseline.
+`initialState` follows the same baseline model: the agent snapshots it at
+creation and restores it on reset. State entries in storage represent current
+state and take precedence during initialization.
+
+`fork()` may copy all of the parent's current entries into child storage,
+including state entries. Those copied entries are working history and current
+state, not the child's reset baseline. The child separately inherits or
+overrides the parent's initial input and state.

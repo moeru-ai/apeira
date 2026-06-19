@@ -24,6 +24,7 @@ const createMockAgent = (): MockAgent => {
     getActiveTurnId: () => undefined,
     init: async () => {},
     initialInput: [],
+    initialState: {},
     instructions: '',
     interrupt: async () => undefined,
     isIdle: () => true,

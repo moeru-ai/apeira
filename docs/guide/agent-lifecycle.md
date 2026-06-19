@@ -193,13 +193,15 @@ const agent = createAgent({
 })
 ```
 
-`initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime.
+`initialState` is the agent's reset baseline. Current state may be restored from
+state entries in storage during initialization.
 
 ## Forking
 
-`fork()` inherits the parent's current non-state entries by default. Inherited
-entries are copied into the child storage, but are not part of its reset
-baseline. Resetting the child restores only its `initialInput`.
+`fork()` inherits the parent's current entries by default, including state
+entries. Inherited entries are copied into child storage, but are not part of
+its reset baseline. The child inherits the parent's `initialInput` and
+`initialState` baselines unless they are overridden.
 
 ```ts twoslash
 import type { Agent } from 'apeira'
@@ -214,5 +216,5 @@ const child = await fork(agent, {
 })
 ```
 
-Set `inheritEntries: false` to start from the child's initial input instead of
-copying the parent's current history.
+Set `inheritEntries: false` to start from the child's initial input and state
+instead of restoring the parent's current history and state.
