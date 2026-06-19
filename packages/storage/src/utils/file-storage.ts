@@ -54,18 +54,18 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
       if (appendItems.length === 0)
         return
 
-      const { fileExists, items: existing } = await loadItemsFromDisk()
+      const { hasContent, items: existing } = await loadItemsFromDisk()
       const next = [...existing, ...appendItems]
 
       if (codec.appendEncode) {
-        const content = codec.appendEncode(appendItems)
-        if (content.length > 0) {
-          if (fileExists) {
+        if (hasContent) {
+          const content = codec.appendEncode(appendItems)
+          if (content.length > 0) {
             await appendFile(path, content)
           }
-          else {
-            await writeFileAtomic(path, codec.appendEncode(next))
-          }
+        }
+        else {
+          await writeFileAtomic(path, codec.encode(next))
         }
         items = next
         initialized = true
