@@ -13,49 +13,40 @@ export interface FileStorageCodec<T> {
   encode: (items: readonly T[]) => string
 }
 
-interface CacheState {
-  initialized: boolean
-  items: unknown[]
-}
-
-const caches = new Map<string, CacheState>()
 const enqueue = createKeyedQueue<string>()
-
-const getCache = <T>(path: string): CacheState & { items: T[] } => {
-  let state = caches.get(path)
-  if (state == null) {
-    state = { initialized: false, items: [] }
-    caches.set(path, state)
-  }
-  return state as CacheState & { items: T[] }
-}
 
 export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: FileStorageCodec<T>): AgentStorage<T> => {
   const path = options.path
   const initial = options.initial ?? []
-  const cache = getCache<T>(path)
 
-  const loadItems = async (): Promise<{ fileExists: boolean, items: T[] }> => {
-    if (cache.initialized)
-      return { fileExists: true, items: cache.items }
+  let items: T[] | undefined
+  let initialized = false
 
+  const loadItemsFromDisk = async (): Promise<{ fileExists: boolean, items: T[] }> => {
     const raw = await readFileSafe(path)
 
     if (raw == null) {
-      cache.items = [...initial]
-      cache.initialized = true
-      return { fileExists: false, items: cache.items }
+      items = [...initial]
+      initialized = true
+      return { fileExists: false, items }
     }
 
-    cache.items = raw.length === 0 ? [] : codec.decode(raw)
-    cache.initialized = true
-    return { fileExists: true, items: cache.items }
+    items = raw.length === 0 ? [] : codec.decode(raw)
+    initialized = true
+    return { fileExists: true, items }
+  }
+
+  const loadItems = async (): Promise<{ fileExists: boolean, items: T[] }> => {
+    if (initialized)
+      return { fileExists: true, items: items! }
+
+    return loadItemsFromDisk()
   }
 
   const writeItems = async (next: readonly T[]) => {
-    cache.items = [...next]
-    cache.initialized = true
-    await writeFileAtomic(path, codec.encode(cache.items))
+    items = [...next]
+    initialized = true
+    await writeFileAtomic(path, codec.encode(items))
   }
 
   return {
@@ -63,7 +54,7 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
       if (appendItems.length === 0)
         return
 
-      const { fileExists, items: existing } = await loadItems()
+      const { fileExists, items: existing } = await loadItemsFromDisk()
       const next = [...existing, ...appendItems]
 
       if (codec.appendEncode) {
@@ -76,8 +67,8 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
             await writeFileAtomic(path, codec.appendEncode(next))
           }
         }
-        cache.items = next
-        cache.initialized = true
+        items = next
+        initialized = true
       }
       else {
         await writeItems(next)
@@ -86,8 +77,8 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
 
     clear: async () => enqueue(path, async () => {
       await writeFileAtomic(path, '')
-      cache.items = []
-      cache.initialized = true
+      items = []
+      initialized = true
     }),
 
     read: async () => enqueue(path, async () => (await loadItems()).items),
