@@ -97,13 +97,14 @@ const agent = createAgent({
 })
 ```
 
-`initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime. Update it with `agent.state.update(patch)`:
+`initialState` is the agent's reset baseline. Update current state with
+`agent.state.update(patch)`:
 
 ```ts
 agent.state.update({ userId: 'user_456' })
 ```
 
-### Abort And Clear
+### Abort And Reset
 
 Abort the currently running turn without recording a boundary:
 
@@ -120,8 +121,8 @@ Reset the agent:
 agent.reset()
 ```
 
-`reset()` aborts the running turn, clears queued turns, resets the input
-history to the original `input`, and resets `state` to its initial value.
+`reset()` aborts the running turn, clears queued turns and storage, then
+restores `initialInput` and `initialState`.
 
 You can also pass an external `AbortSignal` to a single turn:
 

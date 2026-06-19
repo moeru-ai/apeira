@@ -1,6 +1,6 @@
 import type { AgentEntry, AgentInput, CreateAgentOptions, Runner } from '@apeira/core'
 
-import { createAgent, mem, run, toAgentInput, user } from '@apeira/core'
+import { createAgent, run, toAgentInput, user } from '@apeira/core'
 
 import {
   DEFAULT_COMPACTION_INSTRUCTIONS,
@@ -42,10 +42,10 @@ export const executeCompact = async ({
     throw new Error('[@apeira/plugin-compact] compactAgent.runner is required when not using the parent agent runner.')
 
   const tempAgent = createAgent({
+    initialInput: input,
     instructions: compactAgent.instructions ?? DEFAULT_COMPACTION_INSTRUCTIONS,
     plugins: [],
     runner,
-    storage: mem(input),
   })
 
   try {

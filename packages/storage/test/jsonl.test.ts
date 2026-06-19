@@ -47,47 +47,12 @@ describe('jsonl', () => {
     expect(await readFile(path, 'utf-8')).toBe('')
   })
 
-  it('resets to initial', async () => {
-    const storage = jsonl<number>({ initial: [1, 2], path })
-
-    await storage.append(3, 4, 5)
-    await storage.reset()
-
-    expect(await storage.read()).toEqual([1, 2])
-    expect(await readFile(path, 'utf-8')).toBe('1\n2\n')
-  })
-
-  it('returns initial before any append', async () => {
-    const storage = jsonl<string>({ initial: ['x', 'y'], path })
-
-    expect(await storage.read()).toEqual(['x', 'y'])
-  })
-
   it('does not create file on read alone', async () => {
-    const storage = jsonl<string>({ initial: ['x', 'y'], path })
+    const storage = jsonl<string>({ path })
 
-    await storage.read()
+    expect(await storage.read()).toEqual([])
 
     await expect(readFile(path, 'utf-8')).rejects.toThrow('ENOENT')
-  })
-
-  it('append preserves initial', async () => {
-    const storage = jsonl<string>({ initial: ['x', 'y'], path })
-
-    await storage.append('z')
-
-    expect(await storage.read()).toEqual(['x', 'y', 'z'])
-    expect(await readFile(path, 'utf-8')).toBe('"x"\n"y"\n"z"\n')
-  })
-
-  it('does not re-initialize after clear', async () => {
-    const storage = jsonl<string>({ initial: ['x', 'y'], path })
-
-    await storage.append('z')
-    await storage.clear()
-    await storage.append('a')
-
-    expect(await storage.read()).toEqual(['a'])
   })
 
   it('appends multiple items atomically', async () => {

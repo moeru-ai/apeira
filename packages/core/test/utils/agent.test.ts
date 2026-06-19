@@ -18,6 +18,7 @@ const createTestAgent = (opts?: {
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
+    initialInput: opts?.input,
     initialState: opts?.initialState,
     instructions: opts?.instructions ?? 'You are a test assistant.',
     plugins: opts?.plugins,
@@ -28,7 +29,6 @@ const createTestAgent = (opts?: {
       model: 'test-model',
       stopWhen: stepCountAtLeast(1),
     }),
-    storage: mem(opts?.input),
   })
   return { agent, ...mock }
 }
@@ -36,9 +36,60 @@ const createTestAgent = (opts?: {
 describe('createAgent', () => {
   it('creates an agent with initial input', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
+    await agent.init()
     expect(await agent.storage.read()).toEqual([
       expect.objectContaining({ data: user('hello'), type: 'input' }),
     ])
+  })
+
+  it('does not persist initial input before initialization', async () => {
+    const { agent } = createTestAgent({ input: [user('hello')] })
+
+    expect(await agent.storage.read()).toEqual([])
+  })
+
+  it('does not append initial input when storage already has input', async () => {
+    const storage = mem()
+    await storage.append(entry('input', user('stored')))
+    const agent = createAgent({
+      initialInput: [user('initial')],
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    await agent.init()
+
+    expect(await storage.read()).toEqual([
+      expect.objectContaining({ data: user('stored'), type: 'input' }),
+    ])
+  })
+
+  it('appends initial input when storage only has non-input entries', async () => {
+    const storage = mem()
+    await storage.append(entry('event', { turnId: 'turn', type: 'turn.done' }))
+    const agent = createAgent({
+      initialInput: [user('initial')],
+      instructions: 'test',
+      runner: async () => ({ output: [] }),
+      storage,
+    })
+
+    await agent.init()
+
+    expect(await storage.read()).toEqual([
+      expect.objectContaining({ type: 'event' }),
+      expect.objectContaining({ data: user('initial'), type: 'input' }),
+    ])
+  })
+
+  it('snapshots the initial input array', () => {
+    const input = [user('first')]
+    const { agent } = createTestAgent({ input })
+
+    input.push(user('second'))
+
+    expect(agent.initialInput).toEqual([user('first')])
   })
 
   it('returns empty input when none provided', async () => {
@@ -50,6 +101,15 @@ describe('createAgent', () => {
     const { agent } = createTestAgent({ initialState: { contextLength: 8_000 } })
 
     expect(agent.state.get()).toEqual({ contextLength: 8_000 })
+  })
+
+  it('snapshots initial state', () => {
+    const initialState = { contextLength: 8_000 }
+    const { agent } = createTestAgent({ initialState })
+
+    initialState.contextLength = 16_000
+
+    expect(agent.initialState).toEqual({ contextLength: 8_000 })
   })
 
   it('restores the latest state from storage when initializing', async () => {
@@ -83,7 +143,6 @@ describe('createAgent', () => {
         }
         return items
       },
-      reset: async () => { items.length = 0 },
     }
     const agent = createAgent({
       initialState: { contextLength: 8_000 },
@@ -114,7 +173,6 @@ describe('createAgent', () => {
       },
       clear: async () => { items.length = 0 },
       read: () => items,
-      reset: async () => { items.length = 0 },
     }
     const agent = createAgent({
       initialState: { contextLength: 8_000 },
@@ -706,7 +764,6 @@ describe('queue', () => {
       },
       clear: () => { items.length = 0 },
       read: () => items,
-      reset: () => { items.length = 0 },
     }
     const agent = createAgent({
       instructions: 'test',
@@ -739,6 +796,7 @@ describe('queue', () => {
     await agent.reset()
 
     const entries = await agent.storage.read()
+    expect(entries.map(item => item.type)).toEqual(['input', 'state', 'event'])
     expect(entries).toContainEqual(expect.objectContaining({ data: user('initial'), type: 'input' }))
     expect(entries).toContainEqual(expect.objectContaining({ data: { contextLength: 8_000 }, type: 'state' }))
     expect(entries).not.toContainEqual(expect.objectContaining({ data: { contextLength: 16_000 }, type: 'state' }))
@@ -814,7 +872,7 @@ describe('queue', () => {
         throw error
       }),
       stop: vi.fn(),
-      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []) },
       subscribe: vi.fn(() => unsubscribe),
     } as unknown as Agent
 
@@ -845,7 +903,7 @@ describe('queue', () => {
         return 'target-turn'
       }),
       stop: vi.fn(),
-      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []) },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe
@@ -885,7 +943,7 @@ describe('queue', () => {
         return 'new-turn'
       }),
       stop: vi.fn(),
-      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []), reset: vi.fn() },
+      storage: { append: vi.fn(), clear: vi.fn(), read: vi.fn(() => []) },
       subscribe: vi.fn((_channel: string, next: unknown) => {
         listener = next as (event: AgentEvent) => void
         return unsubscribe

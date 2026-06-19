@@ -14,6 +14,7 @@ const createTestAgent = (opts?: {
 }) => {
   const mock = createMockFetch()
   const agent = createAgent({
+    initialInput: opts?.input,
     initialState: opts?.initialState,
     instructions: opts?.instructions ?? 'You are a test assistant.',
     plugins: opts?.plugins,
@@ -23,7 +24,6 @@ const createTestAgent = (opts?: {
       fetch: mock.fetch,
       model: 'test-model',
     }),
-    storage: mem(opts?.input),
   })
   return { agent, ...mock }
 }
@@ -31,6 +31,7 @@ const createTestAgent = (opts?: {
 describe('fork', () => {
   it('inherits durable storage by default', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
+    await agent.init()
     const child = await fork(agent)
 
     expect(await child.storage.read()).toEqual([
@@ -38,16 +39,36 @@ describe('fork', () => {
     ])
   })
 
-  it('starts with empty storage when storage is empty', async () => {
+  it('does not inherit entries when disabled', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { storage: mem([]) })
+    await agent.init()
+    const child = await fork(agent, { inheritEntries: false })
 
     expect(await child.storage.read()).toEqual([])
   })
 
+  it('inherits and transforms initial input', async () => {
+    const { agent } = createTestAgent({ input: [user('parent')] })
+    const inherited = await fork(agent, { inheritEntries: false, init: true })
+    const transformed = await fork(agent, {
+      inheritEntries: false,
+      init: true,
+      initialInput: parent => [...parent, developer('child')],
+    })
+
+    expect(inherited.initialInput).toEqual([user('parent')])
+    expect(await inherited.storage.read()).toEqual([
+      expect.objectContaining({ data: user('parent'), type: 'input' }),
+    ])
+    expect(transformed.initialInput).toEqual([user('parent'), developer('child')])
+  })
+
   it('starts with explicit storage history', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const child = await fork(agent, { storage: mem([user('custom')]) })
+    await agent.init()
+    const storage = mem()
+    await storage.append(entry('input', user('custom')))
+    const child = await fork(agent, { inheritEntries: false, storage })
 
     expect(await child.storage.read()).toEqual([
       expect.objectContaining({ data: user('custom'), type: 'input' }),
@@ -56,6 +77,7 @@ describe('fork', () => {
 
   it('keeps child storage independent from parent', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
+    await agent.init()
     const child = await fork(agent)
 
     await child.storage.append(entry('input', user('child-only')))
@@ -69,12 +91,14 @@ describe('fork', () => {
     ])
   })
 
-  it('keeps child state independent from parent', async () => {
+  it('inherits and transforms initial state', async () => {
     const { agent } = createTestAgent({ initialState: { agentName: 'parent' } })
     const child = await fork(agent, {
       initialState: parent => ({ ...parent, agentName: 'child' }),
     })
 
+    expect(agent.initialState).toEqual({ agentName: 'parent' })
+    expect(child.initialState).toEqual({ agentName: 'child' })
     expect(agent.state.get()).toEqual({ agentName: 'parent' })
     expect(child.state.get()).toEqual({ agentName: 'child' })
   })
@@ -92,9 +116,11 @@ describe('fork', () => {
 
   it('applies overrides', async () => {
     const { agent } = createTestAgent({ instructions: 'parent' })
-    const customStorage = mem([developer('custom')])
+    const customStorage = mem()
+    await customStorage.append(entry('input', developer('custom')))
 
     const child = await fork(agent, {
+      inheritEntries: false,
       initialState: { agentName: 'child' },
       instructions: 'child',
       storage: customStorage,
@@ -107,23 +133,57 @@ describe('fork', () => {
     expect(child.state.get()).toEqual({ agentName: 'child' })
   })
 
-  it('uses a custom storage factory that receives the cloned parent history', async () => {
+  it('appends inherited entries to custom storage', async () => {
     const { agent } = createTestAgent({ input: [user('hello')] })
-    const factoryInput: AgentEntry[] = []
+    await agent.init()
+    const storage = mem()
+    await storage.append(entry('input', developer('custom')))
+    const child = await fork(agent, { storage })
 
-    const child = await fork(agent, {
-      storage: async (snapshot) => {
-        factoryInput.push(...snapshot)
-        return mem([developer('factory')])
-      },
-    })
-
-    expect(factoryInput).toEqual([
+    expect(await child.storage.read()).toEqual([
+      expect.objectContaining({ data: developer('custom'), type: 'input' }),
       expect.objectContaining({ data: user('hello'), type: 'input' }),
     ])
-    expect(await child.storage.read()).toEqual([
-      expect.objectContaining({ data: developer('factory'), type: 'input' }),
-    ])
+  })
+
+  it('rejects inheriting entries into the parent storage', async () => {
+    const { agent } = createTestAgent()
+
+    await expect(fork(agent, { storage: agent.storage })).rejects.toThrow(
+      'Cannot inherit entries into the parent storage',
+    )
+  })
+
+  it('allows sharing parent storage when entry inheritance is disabled', async () => {
+    const { agent } = createTestAgent()
+    const child = await fork(agent, {
+      inheritEntries: false,
+      storage: agent.storage,
+    })
+
+    expect(child.storage).toBe(agent.storage)
+  })
+
+  it('resets inherited entries to initial baselines', async () => {
+    const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
+      input: [user('initial')],
+    })
+    await agent.init()
+    await agent.storage.append(entry('input', user('later')))
+    agent.state.update({ contextLength: 16_000 })
+    await Promise.resolve()
+    const child = await fork(agent)
+
+    await child.init()
+    expect(child.state.get()).toEqual({ contextLength: 16_000 })
+    await child.reset()
+
+    const inputs = (await child.storage.read())
+      .filter((item): item is AgentEntry<'input'> => item.type === 'input')
+      .map(item => item.data)
+    expect(inputs).toEqual([user('initial')])
+    expect(child.state.get()).toEqual({ contextLength: 8_000 })
   })
 
   it('initializes eagerly when init is true', async () => {
@@ -154,14 +214,31 @@ describe('fork', () => {
     expect(calls).toEqual([])
   })
 
-  it('keeps custom initialState after init even when parent storage has a different state', async () => {
+  it('restores inherited state entries over the child initial state', async () => {
     const { agent } = createTestAgent({
       initialState: { contextLength: 8_000 },
       input: [user('hello')],
     })
     agent.state.update({ contextLength: 16_000 })
+    await Promise.resolve()
 
     const child = await fork(agent, {
+      init: true,
+      initialState: { contextLength: 24_000 },
+    })
+
+    expect(child.initialState).toEqual({ contextLength: 24_000 })
+    expect(child.state.get()).toEqual({ contextLength: 16_000 })
+  })
+
+  it('uses child initial state when entries are not inherited', async () => {
+    const { agent } = createTestAgent({
+      initialState: { contextLength: 8_000 },
+    })
+    agent.state.update({ contextLength: 16_000 })
+
+    const child = await fork(agent, {
+      inheritEntries: false,
       init: true,
       initialState: { contextLength: 24_000 },
     })

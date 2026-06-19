@@ -4,7 +4,7 @@ import type { FileStorageOptions } from './utils/types'
 
 import { createFileStorage } from './utils/file-storage'
 
-export interface JSONStorageOptions<T = AgentEntry> extends FileStorageOptions<T> {}
+export interface JSONStorageOptions extends FileStorageOptions {}
 
 const encode = <T>(items: readonly T[]): string =>
   `${JSON.stringify(items, null, 2)}\n`
@@ -24,5 +24,5 @@ const decode = <T>(raw: string): T[] => {
   return value as T[]
 }
 
-export const json = <T = AgentEntry>(options: JSONStorageOptions<T>) =>
+export const json = <T = AgentEntry>(options: JSONStorageOptions) =>
   createFileStorage<T>(options, { decode, encode })

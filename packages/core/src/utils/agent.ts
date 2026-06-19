@@ -1,6 +1,7 @@
 import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentEntry } from '../types/entry'
+import type { AgentInput } from '../types/input'
 import type { AgentPluginOption, ExtendOptions, TurnFinishOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
@@ -19,6 +20,8 @@ import { mem } from './storage'
 
 export interface Agent extends AgentChannel, AgentQueue {
   init: () => Promise<void>
+  readonly initialInput: readonly AgentInput[]
+  readonly initialState: Readonly<AgentState>
   readonly instructions: CreateAgentOptions['instructions']
   interrupt: (reason?: unknown) => Promise<string | undefined>
   readonly plugins: AgentPluginOption[]
@@ -30,6 +33,7 @@ export interface Agent extends AgentChannel, AgentQueue {
 }
 
 export interface CreateAgentOptions {
+  initialInput?: readonly AgentInput[]
   initialState?: AgentState
   instructions: ((state: Readonly<AgentState>) => Promise<string> | string) | string
   plugins?: AgentPluginOption[]
@@ -39,6 +43,8 @@ export interface CreateAgentOptions {
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
+  const initialInput = [...(options.initialInput ?? [])]
+  const initialState = structuredClone(options.initialState ?? {})
   const plugins = normalizePlugins(options.plugins ?? [])
   const storage = options.storage ?? mem()
 
@@ -65,7 +71,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
       : undefined,
   })
 
-  const state = createAgentStateManager(options.initialState ?? {}, (next) => {
+  const state = createAgentStateManager(initialState, (next) => {
     void mutateStorage(async () => storage.append(entry('state', next))).catch((error) => {
       console.error('[@apeira/core] Failed to persist agent state:', error)
     })
@@ -74,7 +80,16 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const loadLatestState = async () => {
     await storageReady
     const latest = (await storage.read()).findLast(e => e.type === 'state') as AgentEntry<'state'> | undefined
-    state.restore(latest?.data ?? (options.initialState ?? {}))
+    state.restore(latest?.data ?? initialState)
+  }
+
+  const restoreInitialInput = async () => {
+    if (initialInput.length === 0)
+      return
+
+    const entries = await storage.read()
+    if (!entries.some(item => item.type === 'input'))
+      await storage.append(...initialInput.map(input => entry('input', input)))
   }
 
   const resolveInstructions = async (opts: ExtendOptions) => {
@@ -96,6 +111,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   let agent: Agent
 
   const init = async () => initPromise ?? (initPromise = (async () => {
+    await mutateStorage(restoreInitialInput)
     await loadLatestState()
     await Promise.all(plugins.map(async p => p.init?.(agent)))
   })())
@@ -180,8 +196,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const reset: Agent['reset'] = async () => {
     await queue.clear()
-    await mutateStorage(async () => storage.reset())
-    state.set(options.initialState ?? {})
+    await mutateStorage(async () => {
+      await storage.clear()
+      await restoreInitialInput()
+    })
+    state.set(initialState)
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' }, { save: true })
   }
 
@@ -189,6 +208,8 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     ...channel,
     ...queue,
     init,
+    initialInput,
+    initialState,
     instructions: options.instructions,
     interrupt,
     plugins: options.plugins ?? [],

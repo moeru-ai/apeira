@@ -99,6 +99,10 @@ describe('compact plugin', () => {
     const main = createMockFetch({ responseText: ['first', 'second'], totalTokens: [950, 2] })
     const summarizer = createMockFetch({ responseText: 'checkpoint summary' })
     const agent = createAgent({
+      initialInput: [
+        user('old'),
+        assistant('old answer'),
+      ],
       initialState: { contextLength: 1000 },
       instructions: 'main',
       plugins: [
@@ -120,10 +124,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      storage: mem([
-        user('old'),
-        assistant('old answer'),
-      ]),
     })
 
     for await (const event of run(agent, user('trigger compact')))
@@ -161,6 +161,12 @@ describe('compact plugin', () => {
   it('summarizes only the previous compact projection on later compactions', async () => {
     const main = createMockFetch({ responseText: 'fresh answer', totalTokens: 950 })
     const summarizer = createMockFetch({ responseText: 'new summary' })
+    const storage = mem()
+    await storage.append(
+      entry('input', user('covered raw history')),
+      entry('compact', { summary: 'previous summary' }),
+      entry('input', user('recent history')),
+    )
     const agent = createAgent({
       initialState: { contextLength: 1000 },
       instructions: 'main',
@@ -183,11 +189,7 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      storage: mem([
-        entry('input', user('covered raw history')),
-        entry('compact', { summary: 'previous summary' }),
-        entry('input', user('recent history')),
-      ]),
+      storage,
     })
 
     for await (const event of run(agent, user('trigger again')))
@@ -277,9 +279,11 @@ describe('compact plugin', () => {
       },
       threshold: 0,
     })
-    const storage = mem(historicalEntries)
+    const storage = mem()
+    await storage.append(...historicalEntries)
     const storeAppend = vi.spyOn(storage, 'append')
     const agent = createAgent({
+      initialInput: [user('old'), assistant('old answer')],
       initialState: { contextLength: 1000 },
       instructions: '',
       runner: async () => ({ output: [] }),
@@ -324,7 +328,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      storage: mem([user('old'), assistant('old answer')]),
     })
 
     for await (const event of run(agent, user('trigger compact')))
@@ -348,6 +351,7 @@ describe('compact plugin', () => {
     const summarizer = createMockFetch({ responseText: ['first summary', 'second summary'] })
     const main = createMockFetch({ responseText: ['a1', 'a2'], totalTokens: [950, 950] })
     const agent = createAgent({
+      initialInput: [user('old'), assistant('old answer')],
       initialState: { contextLength: 1000 },
       instructions: '',
       plugins: [
@@ -369,7 +373,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      storage: mem([user('old'), assistant('old answer')]),
     })
 
     for await (const event of run(agent, user('first')))
@@ -394,6 +397,7 @@ describe('compact plugin', () => {
     const summarizer = createMockFetch({ responseText: 'summary' })
     const main = createMockFetch({ responseText: 'a1', totalTokens: 950 })
     const agent = createAgent({
+      initialInput: [user('old'), assistant('old answer')],
       initialState: { contextLength: 1000 },
       instructions: '',
       plugins: [
@@ -416,7 +420,6 @@ describe('compact plugin', () => {
         fetch: main.fetch,
         model: 'main-model',
       }),
-      storage: mem([user('old'), assistant('old answer')]),
     })
 
     for await (const event of run(agent, user('first')))

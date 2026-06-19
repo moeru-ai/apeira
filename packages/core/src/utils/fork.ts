@@ -1,5 +1,4 @@
-import type { MaybePromise } from '../types/base'
-import type { AgentEntry } from '../types/entry'
+import type { AgentInput } from '../types/input'
 import type { AgentState } from '../types/state'
 import type { AgentStorage } from '../types/storage'
 import type { Agent, CreateAgentOptions } from './agent'
@@ -8,31 +7,37 @@ import { createAgent } from './agent'
 import { mem } from './storage'
 
 export interface ForkOptions {
+  inheritEntries?: boolean
   init?: boolean
-  initialState?: ((parentState: Readonly<AgentState>) => AgentState) | AgentState
+  initialInput?: ((parentInput: readonly AgentInput[]) => readonly AgentInput[]) | readonly AgentInput[]
+  initialState?: ((parentInitialState: Readonly<AgentState>) => AgentState) | AgentState
   instructions?: CreateAgentOptions['instructions']
   plugins?: CreateAgentOptions['plugins']
   runner?: CreateAgentOptions['runner']
-  /** @default mem(await agent.storage.read()) */
-  storage?: ((parentEntries: readonly AgentEntry[]) => MaybePromise<AgentStorage>) | AgentStorage
+  /** @default mem() */
+  storage?: AgentStorage
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
-  const parentEntries = (await agent.storage.read()).filter(e => e.type !== 'state')
-  const parentState = agent.state.get()
+  const storage = options.storage ?? mem()
+
+  if (options.inheritEntries !== false) {
+    if (storage === agent.storage)
+      throw new Error('Cannot inherit entries into the parent storage')
+    await storage.append(...await agent.storage.read())
+  }
 
   const child = createAgent({
+    initialInput: typeof options.initialInput === 'function'
+      ? options.initialInput(agent.initialInput)
+      : (options.initialInput ?? agent.initialInput),
     initialState: typeof options.initialState === 'function'
-      ? options.initialState(parentState)
-      : (options.initialState ?? parentState),
+      ? options.initialState(agent.initialState)
+      : (options.initialState ?? agent.initialState),
     instructions: options.instructions ?? agent.instructions,
     plugins: options.plugins ?? agent.plugins,
     runner: options.runner ?? agent.runner,
-    storage: options.storage != null
-      ? (typeof options.storage === 'function'
-          ? await options.storage(parentEntries)
-          : options.storage)
-      : mem(parentEntries),
+    storage,
   })
 
   if (options.init)

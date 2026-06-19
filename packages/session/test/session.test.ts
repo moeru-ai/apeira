@@ -72,7 +72,7 @@ describe('session replay and storage', () => {
     ])
   })
 
-  it('supports detached and empty checkout, clear, and reset', async () => {
+  it('supports detached and empty checkout and clear', async () => {
     const session = createSession({
       defaultRef: 'main',
       sessionStorage: mem(),
@@ -93,9 +93,9 @@ describe('session replay and storage', () => {
     expect(await session.buildInput()).toEqual([])
 
     await session.checkout('main')
-    await session.storage.reset()
+    await session.storage.clear()
     expect(await session.buildInput()).toEqual([])
-    expect(await session.head()).toEqual({ name: 'main', type: 'ref' })
+    expect(await session.head()).toEqual({ targetId: undefined, type: 'detached' })
   })
 
   it('rejects unknown targets and invalid refs', async () => {
