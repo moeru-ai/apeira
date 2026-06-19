@@ -11,23 +11,27 @@ import { createAgent, mem } from 'apeira'
 import { responses } from 'apeira/responses'
 
 const agent = createAgent({
+  initialInput: [
+    {
+      content: 'The user\'s name is Alice.',
+      role: 'user',
+      type: 'message',
+    },
+  ],
   instructions: 'You are a helpful assistant.',
   runner: responses({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: 'https://api.openai.com/v1/',
     model: 'gpt-5.5',
   }),
-  storage: mem([
-    {
-      content: 'The user\'s name is Alice.',
-      role: 'user',
-      type: 'message',
-    },
-  ]),
 })
 ```
 
-Initial history seeds the agent's input log. When a turn starts, Apeira appends the new input and passes the accumulated history to the configured runner. On success, the model output is appended to the history.
+During initialization, the agent writes `initialInput` to storage if the storage
+does not contain any input entries. Existing input history always takes
+precedence. When a turn starts, Apeira passes the accumulated history and new
+input to the configured runner. On success, the model output is appended to the
+history.
 
 You can read the current storage entries at any time. Each entry has an `id`, `timestamp`, `type`, and `data` payload:
 
@@ -106,13 +110,13 @@ run(agentB, input) // starts immediately, runs in parallel
 `send()` queues input into the active turn if one exists, or creates a new
 top-level turn.
 
-## Interrupt vs abort vs clear
+## Interrupt vs abort vs reset
 
 | Method | Clears queue | Resets input history | Resets state |
 |--------|--------------|---------------------|--------------|
 | `interrupt(reason)` | No | No | No |
 | `abort(reason)` | No | No | No |
-| `clear()` | Yes | Yes | Yes |
+| `reset()` | Yes | Yes | Yes |
 
 **Interrupt** aborts the active turn and records a model-visible `<turn_aborted>` boundary in the input history. The queue continues.
 
@@ -150,7 +154,9 @@ const agent = createAgent({
 agent.abort('user cancelled')
 ```
 
-**Reset** aborts the running turn, removes queued turns, resets the input history to the original `storage`, and resets `state` to its initial value. The running turn emits `turn.aborted` with reason `reset`.
+**Reset** aborts the running turn, removes queued turns, clears storage, restores
+`initialInput` and `initialState`, then emits `agent.reset`. The running turn
+emits `turn.aborted` with reason `reset`.
 
 ```ts twoslash
 import { createAgent } from 'apeira'
@@ -188,3 +194,25 @@ const agent = createAgent({
 ```
 
 `initialState` is shared across all turns on the same agent. Use it for context that should persist across the agent's lifetime.
+
+## Forking
+
+`fork()` inherits the parent's current non-state entries by default. Inherited
+entries are copied into the child storage, but are not part of its reset
+baseline. Resetting the child restores only its `initialInput`.
+
+```ts twoslash
+import type { Agent } from 'apeira'
+
+import { fork } from 'apeira'
+
+declare const agent: Agent
+
+const child = await fork(agent, {
+  inheritEntries: false,
+  initialInput: parent => [...parent],
+})
+```
+
+Set `inheritEntries: false` to start from the child's initial input instead of
+copying the parent's current history.

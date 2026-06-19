@@ -194,20 +194,6 @@ export const createSession = (options: CreateSessionOptions): Session => {
       await appendControl(makeEntry('session/checkout', { target: { type: 'empty' } }))
     }),
     read: async () => path(),
-    reset: async () => mutate(async () => {
-      const snapshot = replay(await options.sessionStorage.read())
-      if (snapshot.head.type === 'ref') {
-        await appendControl(
-          makeEntry('session/ref', { name: snapshot.head.name }),
-          makeEntry('session/checkout', {
-            target: { name: snapshot.head.name, type: 'ref' },
-          }),
-        )
-      }
-      else {
-        await appendControl(makeEntry('session/checkout', { target: { type: 'empty' } }))
-      }
-    }),
   }
 
   const checkout: Session['checkout'] = async target => mutate(async () => {

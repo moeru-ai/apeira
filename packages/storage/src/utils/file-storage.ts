@@ -15,9 +15,8 @@ export interface FileStorageCodec<T> {
 
 const enqueue = createKeyedQueue<string>()
 
-export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: FileStorageCodec<T>): AgentStorage<T> => {
+export const createFileStorage = <T>(options: FileStorageOptions, codec: FileStorageCodec<T>): AgentStorage<T> => {
   const path = options.path
-  const initial = options.initial ?? []
 
   let items: T[] | undefined
   let initialized = false
@@ -26,7 +25,7 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
     const raw = await readFileSafe(path)
 
     if (raw == null) {
-      items = [...initial]
+      items = []
       initialized = true
       return { hasContent: false, items }
     }
@@ -89,7 +88,5 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
     }),
 
     read: async () => enqueue(path, async () => loadItems()),
-
-    reset: async () => enqueue(path, async () => writeItems(initial)),
   }
 }

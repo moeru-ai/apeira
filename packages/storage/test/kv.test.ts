@@ -61,34 +61,11 @@ describe('kv', () => {
     expect(backend.getItem('apeira:seg:0000002')).toBeNull()
   })
 
-  it('resets to initial', async () => {
+  it('returns empty before any append', async () => {
     const backend = createMemoryStorage()
-    const storage = kv<number>({ initial: [1, 2], segmentSize: 2, storage: backend })
+    const storage = kv<string>({ storage: backend })
 
-    await storage.append(3, 4, 5)
-    await storage.reset()
-
-    expect(await storage.read()).toEqual([1, 2])
-    expect(backend.getItem('apeira:head')).toBe('1')
-    expect(backend.getItem('apeira:seg:0000001')).toBe('[1,2]')
-  })
-
-  it('returns initial before any append', async () => {
-    const backend = createMemoryStorage()
-    const storage = kv<string>({ initial: ['x', 'y'], storage: backend })
-
-    expect(await storage.read()).toEqual(['x', 'y'])
-    expect(backend.getItem('apeira:head')).toBe('1')
-    expect(backend.getItem('apeira:seg:0000001')).toBe('["x","y"]')
-  })
-
-  it('append preserves initial', async () => {
-    const backend = createMemoryStorage()
-    const storage = kv<string>({ initial: ['x', 'y'], storage: backend })
-
-    await storage.append('z')
-
-    expect(await storage.read()).toEqual(['x', 'y', 'z'])
-    expect(backend.getItem('apeira:seg:0000001')).toBe('["x","y","z"]')
+    expect(await storage.read()).toEqual([])
+    expect(backend.getItem('apeira:head')).toBe('0')
   })
 })

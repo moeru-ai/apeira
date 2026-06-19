@@ -2,8 +2,7 @@ import type { AgentEntry, AgentStorage, MaybePromise } from '@apeira/core'
 
 import { createKeyedQueue } from './utils/keyed-queue'
 
-export interface KVStoreOptions<T = AgentEntry> {
-  initial?: readonly T[]
+export interface KVStoreOptions {
   /** @default `apeira` */
   prefix?: string
   /** @default `100` */
@@ -47,7 +46,7 @@ const decode = <T>(raw: string): T[] => {
   }
 }
 
-export const kv = <T = AgentEntry>(options: KVStoreOptions<T>): AgentStorage<T> => {
+export const kv = <T = AgentEntry>(options: KVStoreOptions): AgentStorage<T> => {
   const segmentSize = options.segmentSize ?? 100
   if (!Number.isInteger(segmentSize) || segmentSize <= 0)
     throw new Error('segmentSize must be a positive integer')
@@ -117,7 +116,7 @@ export const kv = <T = AgentEntry>(options: KVStoreOptions<T>): AgentStorage<T> 
     if (head !== null)
       return head
 
-    await writeItems(options.initial ?? [])
+    await writeItems([])
     return (await getHead()) ?? 0
   }
 
@@ -166,11 +165,6 @@ export const kv = <T = AgentEntry>(options: KVStoreOptions<T>): AgentStorage<T> 
       )
 
       return Object.freeze(segments.flat())
-    }),
-
-    reset: async () => queueOf(options.storage)(prefix, async () => {
-      await clearSegments()
-      await writeItems(options.initial ?? [])
     }),
   }
 }

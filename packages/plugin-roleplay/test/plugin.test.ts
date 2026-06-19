@@ -2,7 +2,7 @@ import type { AgentEntry } from '@apeira/core'
 
 import type { RoleplayEvent } from '../src'
 
-import { createAgent, developer, mem, run, user } from '@apeira/core'
+import { createAgent, developer, run, user } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { compact } from '@apeira/plugin-compact'
 import { describe, expect, it, vi } from 'vitest'
@@ -57,10 +57,10 @@ describe('roleplay plugin', () => {
   it('does not add a greeting to restored history or for empty content', async () => {
     const restored = user('existing')
     const agent = createAgent({
+      initialInput: [restored],
       instructions: '',
       plugins: [roleplay({ card: createV3Card({ first_mes: 'Hello.' }) })],
       runner,
-      storage: mem([restored]),
     })
     await agent.init()
     expect(await agent.storage.read()).toEqual([
@@ -243,6 +243,20 @@ describe('roleplay plugin', () => {
     const main = createMockFetch()
     const summarizer = createMockFetch('summary')
     const agent = createAgent({
+      initialInput: [
+        user('old one'),
+        {
+          content: [{ text: 'old answer one', type: 'output_text' }],
+          role: 'assistant',
+          type: 'message',
+        },
+        user('old two'),
+        {
+          content: [{ text: 'old answer two', type: 'output_text' }],
+          role: 'assistant',
+          type: 'message',
+        },
+      ],
       initialState: { contextLength: 1_000 },
       instructions: '',
       plugins: [
@@ -270,20 +284,6 @@ describe('roleplay plugin', () => {
         fetch: main.fetch,
         model: 'test',
       }),
-      storage: mem([
-        user('old one'),
-        {
-          content: [{ text: 'old answer one', type: 'output_text' }],
-          role: 'assistant',
-          type: 'message',
-        },
-        user('old two'),
-        {
-          content: [{ text: 'old answer two', type: 'output_text' }],
-          role: 'assistant',
-          type: 'message',
-        },
-      ]),
     })
 
     for await (const event of run(agent, user('live')))

@@ -1,6 +1,7 @@
 import type { Tool } from '@xsai/shared-chat'
 
 import type { AgentEntry } from '../types/entry'
+import type { AgentInput } from '../types/input'
 import type { AgentPluginOption, ExtendOptions, TurnFinishOptions } from '../types/plugin'
 import type { Runner } from '../types/runner'
 import type { AgentState } from '../types/state'
@@ -19,6 +20,7 @@ import { mem } from './storage'
 
 export interface Agent extends AgentChannel, AgentQueue {
   init: () => Promise<void>
+  readonly initialInput: readonly AgentInput[]
   readonly instructions: CreateAgentOptions['instructions']
   interrupt: (reason?: unknown) => Promise<string | undefined>
   readonly plugins: AgentPluginOption[]
@@ -30,6 +32,7 @@ export interface Agent extends AgentChannel, AgentQueue {
 }
 
 export interface CreateAgentOptions {
+  initialInput?: readonly AgentInput[]
   initialState?: AgentState
   instructions: ((state: Readonly<AgentState>) => Promise<string> | string) | string
   plugins?: AgentPluginOption[]
@@ -39,6 +42,7 @@ export interface CreateAgentOptions {
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
+  const initialInput = [...(options.initialInput ?? [])]
   const plugins = normalizePlugins(options.plugins ?? [])
   const storage = options.storage ?? mem()
 
@@ -77,6 +81,15 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     state.restore(latest?.data ?? (options.initialState ?? {}))
   }
 
+  const restoreInitialInput = async () => {
+    if (initialInput.length === 0)
+      return
+
+    const entries = await storage.read()
+    if (!entries.some(item => item.type === 'input'))
+      await storage.append(...initialInput.map(input => entry('input', input)))
+  }
+
   const resolveInstructions = async (opts: ExtendOptions) => {
     const base = typeof options.instructions === 'function'
       ? await options.instructions(state.get())
@@ -96,6 +109,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   let agent: Agent
 
   const init = async () => initPromise ?? (initPromise = (async () => {
+    await mutateStorage(restoreInitialInput)
     await loadLatestState()
     await Promise.all(plugins.map(async p => p.init?.(agent)))
   })())
@@ -180,7 +194,10 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
   const reset: Agent['reset'] = async () => {
     await queue.clear()
-    await mutateStorage(async () => storage.reset())
+    await mutateStorage(async () => {
+      await storage.clear()
+      await restoreInitialInput()
+    })
     state.set(options.initialState ?? {})
     await channel.emit('apeira', { turnId: crypto.randomUUID(), type: 'agent.reset' }, { save: true })
   }
@@ -189,6 +206,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     ...channel,
     ...queue,
     init,
+    initialInput,
     instructions: options.instructions,
     interrupt,
     plugins: options.plugins ?? [],

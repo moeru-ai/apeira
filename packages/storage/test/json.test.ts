@@ -47,46 +47,12 @@ describe('json', () => {
     expect(await readFile(path, 'utf-8')).toBe('')
   })
 
-  it('resets to initial', async () => {
-    const storage = json<number>({ initial: [1, 2], path })
-
-    await storage.append(3, 4, 5)
-    await storage.reset()
-
-    expect(await storage.read()).toEqual([1, 2])
-    expect(await readFile(path, 'utf-8')).toBe('[\n  1,\n  2\n]\n')
-  })
-
-  it('returns initial before any append', async () => {
-    const storage = json<string>({ initial: ['x', 'y'], path })
-
-    expect(await storage.read()).toEqual(['x', 'y'])
-  })
-
   it('does not create file on read alone', async () => {
-    const storage = json<string>({ initial: ['x', 'y'], path })
+    const storage = json<string>({ path })
 
-    await storage.read()
+    expect(await storage.read()).toEqual([])
 
     await expect(readFile(path, 'utf-8')).rejects.toThrow('ENOENT')
-  })
-
-  it('append preserves initial', async () => {
-    const storage = json<string>({ initial: ['x', 'y'], path })
-
-    await storage.append('z')
-
-    expect(await storage.read()).toEqual(['x', 'y', 'z'])
-  })
-
-  it('does not re-initialize after clear', async () => {
-    const storage = json<string>({ initial: ['x', 'y'], path })
-
-    await storage.append('z')
-    await storage.clear()
-    await storage.append('a')
-
-    expect(await storage.read()).toEqual(['a'])
   })
 
   it('throws on invalid json', async () => {
