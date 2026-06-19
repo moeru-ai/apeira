@@ -14,11 +14,15 @@ const decode = <T>(raw: string): T[] => {
   const result: T[] = []
 
   for (const [i, line] of lines.entries()) {
-    if (line == null || line.length === 0)
+    if (line == null)
+      continue
+
+    const trimmed = line.trim()
+    if (trimmed.length === 0)
       continue
 
     try {
-      result.push(JSON.parse(line) as T)
+      result.push(JSON.parse(trimmed) as T)
     }
     catch (error) {
       throw new SyntaxError(`Invalid JSON at line ${i + 1}: ${error instanceof Error ? error.message : String(error)}`)
