@@ -14,9 +14,6 @@ const decode = <T>(raw: string): T[] => {
   const result: T[] = []
 
   for (const [i, line] of lines.entries()) {
-    if (line == null)
-      continue
-
     const trimmed = line.trim()
     if (trimmed.length === 0)
       continue
