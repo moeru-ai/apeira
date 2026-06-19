@@ -90,7 +90,7 @@ export const createFileStorage = <T>(options: FileStorageOptions<T>, codec: File
       cache.initialized = true
     }),
 
-    read: async () => enqueue(path, async () => Object.freeze([...(await loadItems()).items])),
+    read: async () => enqueue(path, async () => (await loadItems()).items),
 
     reset: async () => enqueue(path, async () => writeItems(initial)),
   }

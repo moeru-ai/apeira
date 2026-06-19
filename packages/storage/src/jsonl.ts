@@ -13,8 +13,7 @@ const decode = <T>(raw: string): T[] => {
   const lines = raw.split('\n')
   const result: T[] = []
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  for (const [i, line] of lines.entries()) {
     if (line == null || line.length === 0)
       continue
 

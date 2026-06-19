@@ -103,14 +103,14 @@ describe('json', () => {
     await expect(storage.read()).rejects.toThrow('Invalid storage file')
   })
 
-  it('returns consistent results on subsequent reads', async () => {
+  it('returns the same cached array on subsequent reads', async () => {
     const storage = json<string>({ path })
 
     await storage.append('a')
     const first = await storage.read()
     const second = await storage.read()
 
-    expect(first).toStrictEqual(second)
+    expect(first).toBe(second)
   })
 
   it('returns cached content even if the file is changed externally', async () => {
