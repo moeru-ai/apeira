@@ -6,7 +6,7 @@ Plugins extend the agent lifecycle through a simple hook interface. They provide
 The plugin packages are not published yet. Stay tuned.
 :::
 
-For the full plugin interface and API details, see [AgentPlugin](/reference/agent-plugin).
+For the full plugin interface and API details, see [AgentPlugin](/references/agent-plugin).
 
 ## Using plugins
 

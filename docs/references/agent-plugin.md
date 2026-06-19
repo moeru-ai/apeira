@@ -36,7 +36,7 @@ interface ExtendOptions {
 
 ### `init(agent)`
 
-Called before the first turn runs. Use `agent.subscribe()` and `agent.emit()` for custom channels. See [AgentChannel](/reference/agent-channel) for details.
+Called before the first turn runs. Use `agent.subscribe()` and `agent.emit()` for custom channels. See [AgentChannel](/references/agent-channel) for details.
 
 ### `stop()`
 

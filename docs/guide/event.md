@@ -116,4 +116,4 @@ The returned function removes the listener. Listener errors are silently ignored
 
 ## Custom channels
 
-Plugins can emit and listen on their own channels using `agent.emit()` and `agent.subscribe()`. The `'apeira'` channel carries core events; any other string is a custom channel. See [AgentChannel](/reference/agent-channel) for the channel design and how to add typed custom events.
+Plugins can emit and listen on their own channels using `agent.emit()` and `agent.subscribe()`. The `'apeira'` channel carries core events; any other string is a custom channel. See [AgentChannel](/references/agent-channel) for the channel design and how to add typed custom events.

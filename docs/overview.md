@@ -19,7 +19,7 @@ Plugins provide lifecycle extensions such as skills, context compaction, human-i
 
 Plugins extend the agent through a small hook interface. They can inject instructions, append tools, transform history entries, react to turn finish, and communicate over typed channels. Apeira runs them in registration order, or `enforce: 'pre'` / `enforce: 'post'` when ordering matters.
 
-See the [Plugins overview](/plugins/) for available packages and the [AgentPlugin](/reference/agent-plugin) reference for building your own.
+See the [Plugins overview](/plugins/) for available packages and the [AgentPlugin](/references/agent-plugin) reference for building your own.
 
 ### Append-only entries
 

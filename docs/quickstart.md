@@ -143,4 +143,4 @@ See [Agent](/guide/agent) for the full picture.
 - [Runner](/guide/runner) — choose between `responses()` and `chat()`, use provider presets, or write a custom runner.
 - [Event](/guide/event) — lifecycle and streaming events.
 - [Plugins](/plugins/) — pre-built plugins for skills, HITL, MCP, compaction, AG-UI, and more.
-- [AgentPlugin](/reference/agent-plugin) — build your own plugin.
+- [AgentPlugin](/references/agent-plugin) — build your own plugin.

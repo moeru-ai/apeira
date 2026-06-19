@@ -23,6 +23,7 @@ export default extendConfig({
       { link: '/overview', text: 'Get Started' },
       { link: '/guide/agent', text: 'Guide' },
       { link: '/plugins/', text: 'Plugins' },
+      { link: '/references/', text: 'References' },
     ],
 
     search: { provider: 'local' },
@@ -63,13 +64,13 @@ export default extendConfig({
       },
       {
         items: [
-          { link: '/reference/', text: 'Overview' },
-          { link: '/reference/agent-channel', text: 'AgentChannel' },
-          { link: '/reference/agent-plugin', text: 'AgentPlugin' },
-          { link: '/reference/agent-queue', text: 'AgentQueue' },
-          { link: '/reference/agent-state-manager', text: 'AgentStateManager' },
+          { link: '/references/', text: 'Overview' },
+          { link: '/references/agent-channel', text: 'AgentChannel' },
+          { link: '/references/agent-plugin', text: 'AgentPlugin' },
+          { link: '/references/agent-queue', text: 'AgentQueue' },
+          { link: '/references/agent-state-manager', text: 'AgentStateManager' },
         ],
-        text: 'Reference',
+        text: 'References',
       },
     ],
 

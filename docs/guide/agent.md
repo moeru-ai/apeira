@@ -20,7 +20,7 @@ const agent = createAgent({
 })
 ```
 
-`createAgent()` returns an `Agent` object that combines an [event channel](/reference/agent-channel), a [turn queue](/reference/agent-queue), state storage, and plugin hooks.
+`createAgent()` returns an `Agent` object that combines an [event channel](/references/agent-channel), a [turn queue](/references/agent-queue), state storage, and plugin hooks.
 
 ### Options
 
