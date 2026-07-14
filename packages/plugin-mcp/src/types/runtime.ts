@@ -1,6 +1,6 @@
+import type { rawTool } from '@apeira/core'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { rawTool } from '@xsai/tool'
 
 import type { MCPToolDefinition } from './plugin'
 

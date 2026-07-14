@@ -42,6 +42,7 @@ export default extendConfig({
           { link: '/guide/input', text: 'Input' },
           { link: '/guide/state', text: 'State' },
           { link: '/guide/event', text: 'Event' },
+          { link: '/guide/tools', text: 'Tools' },
           { link: '/guide/runner', text: 'Runner' },
           { link: '/guide/storage', text: 'Storage' },
           { link: '/guide/entry', text: 'Entry' },

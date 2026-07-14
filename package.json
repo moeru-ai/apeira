@@ -44,6 +44,7 @@
     "vite": "catalog:",
     "vitepress": "catalog:",
     "vitest": "catalog:",
-    "vue": "catalog:"
+    "vue": "catalog:",
+    "zod": "catalog:"
   }
 }

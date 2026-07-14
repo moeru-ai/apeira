@@ -48,7 +48,6 @@
   },
   "dependencies": {
     "@mozilla/readability": "catalog:",
-    "@xsai/tool": "catalog:xsai",
     "linkedom": "catalog:",
     "sanitize-html": "catalog:",
     "turndown": "catalog:"

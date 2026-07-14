@@ -1,3 +1,5 @@
+import type { Tool } from '@xsai/shared-chat'
+
 import type { AgentInput } from '../types/input'
 import type { AgentState } from '../types/state'
 import type { AgentStorage } from '../types/storage'
@@ -16,6 +18,7 @@ export interface ForkOptions {
   runner?: CreateAgentOptions['runner']
   /** @default mem() */
   storage?: AgentStorage
+  tools?: readonly Tool[]
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {
@@ -38,6 +41,7 @@ export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Age
     plugins: options.plugins ?? agent.plugins,
     runner: options.runner ?? agent.runner,
     storage,
+    tools: options.tools ?? agent.tools,
   })
 
   if (options.init)

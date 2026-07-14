@@ -42,8 +42,7 @@
     "@apeira/core": "workspace:"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:",
-    "@xsai/tool": "catalog:xsai"
+    "@modelcontextprotocol/sdk": "catalog:"
   },
   "devDependencies": {
     "@apeira/core": "workspace:"

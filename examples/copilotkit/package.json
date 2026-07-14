@@ -21,7 +21,6 @@
     "@radix-ui/react-separator": "catalog:",
     "@radix-ui/react-slot": "catalog:",
     "@radix-ui/react-tooltip": "catalog:",
-    "@xsai/tool": "catalog:xsai",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "foxact": "catalog:",

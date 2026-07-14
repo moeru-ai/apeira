@@ -32,6 +32,7 @@ const agent = createAgent({
 | `initialState` | Initial state object; restored on `reset()`. |
 | `plugins` | Array of plugins to register. |
 | `storage` | `AgentStorage` implementation. Defaults to `mem()`. |
+| `tools` | Tools configured on the agent and available to every model call. See [Tools](/guide/tools). |
 
 ### Dynamic instructions
 
@@ -225,7 +226,7 @@ await agent.stop()
 
 ## Fork an agent
 
-`fork()` creates a child agent that inherits the parent's `initialInput`, `initialState`, `instructions`, `plugins`, `runner`, and current storage entries.
+`fork()` creates a child agent that inherits the parent's `initialInput`, `initialState`, `instructions`, `plugins`, `runner`, tools, and current storage entries.
 
 ```ts twoslash
 import { createAgent, fork, mem } from '@apeira/core'
@@ -249,3 +250,11 @@ const child = await fork(parent, {
 ```
 
 Set `inheritEntries: false` to start from the child's initial input and state instead of copying the parent's current history.
+
+Forked agents inherit the parent's tools by default. Pass `tools` to `fork()` to replace them for the child; plugin-provided tools follow the child's plugin configuration.
+
+```ts
+const child = await fork(parent, {
+  tools: [childTool],
+})
+```

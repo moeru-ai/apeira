@@ -1,6 +1,6 @@
 import type { SkillSet } from '../types'
 
-import { tool } from '@xsai/tool'
+import { tool } from '@apeira/core'
 import { z } from 'zod'
 
 import { formatSkillInvocation, formatSkillReference } from './format'

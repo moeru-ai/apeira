@@ -1,7 +1,7 @@
 import { appendFile, mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-import { rawTool } from '@xsai/tool'
+import { rawTool } from '@apeira/core'
 
 export const createWriteTool = () => rawTool({
   description: 'Write content to a file, creating parent directories if needed. Can append to existing files.',

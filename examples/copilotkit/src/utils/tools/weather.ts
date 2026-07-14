@@ -1,4 +1,4 @@
-import { tool } from '@xsai/tool'
+import { tool } from '@apeira/core'
 import { z } from 'zod'
 
 interface GeocodingResponse {
@@ -90,8 +90,7 @@ const getWeather = async (location: string) => {
   }
 }
 
-// eslint-disable-next-line antfu/no-top-level-await
-export const weatherTool = await tool({
+export const weatherTool = tool({
   description: 'Get current weather for a location',
   execute: async ({ location }) => getWeather(location),
   name: 'get-weather',

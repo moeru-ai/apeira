@@ -1,4 +1,4 @@
-import type { AgentEntry, AgentInput, AgentPluginOption, AgentState } from '../../src/index'
+import type { AgentEntry, AgentInput, AgentPluginOption, AgentState, Tool } from '../../src/index'
 
 import { describe, expect, it } from 'vitest'
 
@@ -11,6 +11,7 @@ const createTestAgent = (opts?: {
   input?: AgentInput[]
   instructions?: ((state: Readonly<AgentState>) => string) | string
   plugins?: AgentPluginOption[]
+  tools?: readonly Tool[]
 }) => {
   const mock = createMockFetch()
   const agent = createAgent({
@@ -24,6 +25,7 @@ const createTestAgent = (opts?: {
       fetch: mock.fetch,
       model: 'test-model',
     }),
+    tools: opts?.tools,
   })
   return { agent, ...mock }
 }
@@ -112,6 +114,26 @@ describe('fork', () => {
     expect(child.instructions).toBe('parent instructions')
     expect(child.runner).toBe(agent.runner)
     expect(child.plugins).toEqual([plugin])
+  })
+
+  it('inherits and overrides tools', async () => {
+    const parentTool: Tool = {
+      execute: async () => 'parent',
+      function: { name: 'parent-tool', parameters: {} },
+      type: 'function',
+    }
+    const childTool: Tool = {
+      execute: async () => 'child',
+      function: { name: 'child-tool', parameters: {} },
+      type: 'function',
+    }
+    const { agent } = createTestAgent({ tools: [parentTool] })
+
+    const inherited = await fork(agent)
+    const overridden = await fork(agent, { tools: [childTool] })
+
+    expect(inherited.tools).toEqual([parentTool])
+    expect(overridden.tools).toEqual([childTool])
   })
 
   it('applies overrides', async () => {

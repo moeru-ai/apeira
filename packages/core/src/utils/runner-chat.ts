@@ -238,7 +238,7 @@ export const chat = (options: ChatRunnerOptions): Runner =>
         },
       preToolCall: context.preToolCall,
       stopWhen: options.stopWhen ?? stepCountAtLeast(20),
-      tools: [...(options.tools ?? []), ...context.tools],
+      tools: context.tools,
     })
 
     for (const promise of [result.messages, result.steps, result.usage, result.totalUsage])

@@ -1,5 +1,4 @@
-import type { AgentPlugin } from '@apeira/core'
-import type { rawTool } from '@xsai/tool'
+import type { AgentPlugin, rawTool } from '@apeira/core'
 
 import { name, version } from '../package.json'
 import { createBashTool } from './tools/bash'

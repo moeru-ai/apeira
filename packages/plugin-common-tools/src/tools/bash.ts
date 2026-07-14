@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { rawTool } from '@xsai/tool'
+import { rawTool } from '@apeira/core'
 
 const execAsync = promisify(exec)
 

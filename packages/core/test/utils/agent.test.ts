@@ -15,6 +15,7 @@ const createTestAgent = (opts?: {
   input?: AgentInput[]
   instructions?: ((state: Readonly<AgentState>) => string) | string
   plugins?: AgentPluginOption[]
+  tools?: readonly Tool[]
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
@@ -29,6 +30,7 @@ const createTestAgent = (opts?: {
       model: 'test-model',
       stopWhen: stepCountAtLeast(1),
     }),
+    tools: opts?.tools,
   })
   return { agent, ...mock }
 }
@@ -254,6 +256,22 @@ describe('plugin lifecycle', () => {
 })
 
 describe('plugin hooks', () => {
+  it('passes tools from createAgent options to the runner', async () => {
+    const tool: Tool = {
+      execute: async () => 'result',
+      function: { name: 'test-tool', parameters: {} },
+      type: 'function',
+    }
+    const { agent, bodies } = createTestAgent({ tools: [tool] })
+
+    for await (const event of run(agent, user('hi')))
+      void event
+
+    expect(bodies[0]?.tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'test-tool', type: 'function' }),
+    ]))
+  })
+
   it('extends instructions from plugins', async () => {
     const { agent, instructions } = createTestAgent({
       instructions: 'base',
