@@ -315,9 +315,6 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: 'catalog:'
         version: 1000.1.5
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       chat:
         specifier: 'catalog:'
         version: 4.33.0(zod@4.4.3)
@@ -360,9 +357,6 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: 'catalog:'
         version: 1.2.12(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -421,9 +415,6 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: 'catalog:'
         version: 1000.1.5
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       tinyrainbow:
         specifier: 'catalog:'
         version: 3.1.0
@@ -457,6 +448,9 @@ importers:
       '@xsai/stream-text':
         specifier: catalog:xsai
         version: 0.5.0-beta.7
+      '@xsai/tool':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       yocto-queue:
         specifier: 'catalog:'
         version: 1.2.2
@@ -480,9 +474,6 @@ importers:
       '@mozilla/readability':
         specifier: 'catalog:'
         version: 0.6.0
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       linkedom:
         specifier: 'catalog:'
         version: 0.18.13
@@ -524,9 +515,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     devDependencies:
       '@apeira/core':
         specifier: 'workspace:'
@@ -547,9 +535,6 @@ importers:
 
   packages/plugin-skills:
     dependencies:
-      '@xsai/tool':
-        specifier: catalog:xsai
-        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -8945,8 +8930,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.59.2(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.59.2(typescript@6.0.3)
-      '@typescript-eslint/types': 8.59.2
+      '@typescript-eslint/tsconfig-utils': 8.63.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.63.0
       debug: 4.4.3
       typescript: 6.0.3
     transitivePeerDependencies:

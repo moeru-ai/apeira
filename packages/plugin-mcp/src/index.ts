@@ -4,8 +4,8 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { MCPConfig, MCPToolDefinition } from './types/plugin'
 import type { MCPServerState, MCPTool, MCPToolCatalog } from './types/runtime'
 
+import { rawTool } from '@apeira/core'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
-import { rawTool } from '@xsai/tool'
 
 import { name, version } from '../package.json'
 import { createMCPClient, createMCPTransport, getRequestOptions } from './utils/client'

@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { open, readFile } from 'node:fs/promises'
 
-import { rawTool } from '@xsai/tool'
+import { rawTool } from '@apeira/core'
 
 interface PartialReadState {
   currentLine: number

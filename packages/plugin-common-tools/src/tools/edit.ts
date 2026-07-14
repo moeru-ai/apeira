@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 
-import { rawTool } from '@xsai/tool'
+import { rawTool } from '@apeira/core'
 
 export const createEditTool = () => rawTool({
   description: 'Edit a file by finding and replacing text. Uses exact string matching. Returns a diff of the change.',

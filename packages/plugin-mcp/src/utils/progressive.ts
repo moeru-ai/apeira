@@ -3,7 +3,7 @@ import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { NormalizedMCPServerConfig } from '../types/plugin'
 import type { MCPTool, MCPToolCatalog } from '../types/runtime'
 
-import { rawTool } from '@xsai/tool'
+import { rawTool } from '@apeira/core'
 
 import { getRequestOptions } from './client'
 import { mcpInfoFromString } from './names'

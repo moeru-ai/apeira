@@ -13,7 +13,6 @@
     "@apeira/storage": "workspace:",
     "@chat-adapter/telegram": "catalog:",
     "@pnpm/find-workspace-dir": "catalog:",
-    "@xsai/tool": "catalog:xsai",
     "chat": "catalog:",
     "zod": "catalog:"
   }

@@ -50,7 +50,6 @@
     "@apeira/core": "workspace:"
   },
   "dependencies": {
-    "@xsai/tool": "catalog:xsai",
     "yaml": "catalog:",
     "zod": "catalog:"
   },

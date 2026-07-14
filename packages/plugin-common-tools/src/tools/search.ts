@@ -1,5 +1,5 @@
+import { rawTool } from '@apeira/core'
 import { Readability } from '@mozilla/readability'
-import { rawTool } from '@xsai/tool'
 
 import { fetchAsBrowser } from '../utils/fetch-as-browser'
 
