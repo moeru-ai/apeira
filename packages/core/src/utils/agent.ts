@@ -30,7 +30,7 @@ export interface Agent extends AgentChannel, AgentQueue {
   readonly state: Readonly<AgentStateManager>
   stop: () => Promise<void>
   readonly storage: AgentStorage
-  readonly tools: Tool[]
+  readonly tools: readonly Tool[]
 }
 
 export interface CreateAgentOptions {
@@ -41,7 +41,7 @@ export interface CreateAgentOptions {
   runner: Runner
   /** @default `mem()` */
   storage?: AgentStorage
-  tools?: Tool[]
+  tools?: readonly Tool[]
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {

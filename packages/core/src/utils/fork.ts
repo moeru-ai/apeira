@@ -18,7 +18,7 @@ export interface ForkOptions {
   runner?: CreateAgentOptions['runner']
   /** @default mem() */
   storage?: AgentStorage
-  tools?: Tool[]
+  tools?: readonly Tool[]
 }
 
 export const fork = async (agent: Agent, options: ForkOptions = {}): Promise<Agent> => {

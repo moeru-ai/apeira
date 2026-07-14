@@ -15,7 +15,7 @@ const createTestAgent = (opts?: {
   input?: AgentInput[]
   instructions?: ((state: Readonly<AgentState>) => string) | string
   plugins?: AgentPluginOption[]
-  tools?: Tool[]
+  tools?: readonly Tool[]
 }) => {
   const mock = createMockFetch({ delayMs: opts?.delayMs ?? 0 })
   const agent = createAgent({
