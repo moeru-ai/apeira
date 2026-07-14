@@ -12,14 +12,18 @@ words:
   - changelogithub
   - chara
   - charx
+  - clsx
+  - demi
   - dotenv
   - duckduckgo
   - earendil
+  - esbuild
   - eslintcache
   - flac
   - hitl
   - KHTML
   - kwaa
+  - lucide
   - masknet
   - moeru
   - ollama
@@ -27,6 +31,7 @@ words:
   - qwen
   - risu
   - risuai
+  - shadcn
   - shiki
   - shikijs
   - sonarjs
