@@ -1,7 +1,7 @@
 {
   "name": "@apeira/plugin-skills",
   "type": "module",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "private": true,
   "description": "A skill system for Apeira with multi-source support.",
   "author": "Moeru AI",

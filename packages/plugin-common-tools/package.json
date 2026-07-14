@@ -1,7 +1,7 @@
 {
   "name": "@apeira/plugin-common-tools",
   "type": "module",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "private": true,
   "description": "Common development tools (read, write, edit, bash, glob, grep, web)",
   "author": "Moeru AI",

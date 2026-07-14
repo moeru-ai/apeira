@@ -1,7 +1,7 @@
 {
   "name": "@apeira/storage",
   "type": "module",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Persistent storage adapters for Apeira agents.",
   "author": "Moeru AI",
   "license": "MIT",
