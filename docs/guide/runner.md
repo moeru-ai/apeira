@@ -20,7 +20,7 @@ const agent = createAgent({
 })
 ```
 
-You can pass any option supported by `@xsai-ext/responses` except the ones Apeira manages internally (`input`, `instructions`, `abortSignal`, `onFinish`, `onStepFinish`, `postToolCall`, `prepareStep`, `preToolCall`). Common options include `model`, `apiKey`, `baseURL`, `temperature`, `tools`, and `stopWhen`.
+Runner options are passed to `@xsai-ext/responses`. Apeira supplies the request input, instructions, and lifecycle hooks. Common options include `model`, `apiKey`, `baseURL`, `temperature`, and `stopWhen`.
 
 ## chat()
 
@@ -40,7 +40,7 @@ const agent = createAgent({
 })
 ```
 
-You can pass any option supported by `@xsai/stream-text` except the ones Apeira manages internally (`messages`, `abortSignal`, `onFinish`, `onStepFinish`, `postToolCall`, `prepareStep`, `preToolCall`). Common options include `model`, `apiKey`, `baseURL`, `temperature`, `tools`, `stop`, and `stopWhen`.
+Runner options are passed to `@xsai/stream-text`. Apeira supplies the messages and lifecycle hooks. Common options include `model`, `apiKey`, `baseURL`, `temperature`, `stop`, and `stopWhen`.
 
 ## Providers
 
