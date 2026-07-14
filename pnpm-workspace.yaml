@@ -16,6 +16,9 @@ packages:
   - examples/*
   - packages/*
 
+overrides:
+  eslint-plugin-sonarjs: 4.1.0
+
 catalog:
   '@ag-ui/core': ^0.0.57
   '@antfu/eslint-config': ^9.1.0
