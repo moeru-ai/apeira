@@ -62,7 +62,7 @@ export const responses = (options: ResponsesRunnerOptions): Runner =>
         },
       preToolCall: context.preToolCall,
       stopWhen: options.stopWhen ?? stepCountAtLeast(20),
-      tools: [...(options.tools ?? []), ...context.tools],
+      tools: context.tools,
     })
 
     for (const promise of [result.input, result.steps, result.usage, result.totalUsage])

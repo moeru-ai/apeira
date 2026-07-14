@@ -54,11 +54,11 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
       apiKey,
       baseURL,
       model,
-      tools: [
-        weatherTool,
-      ],
     }),
     storage,
+    tools: [
+      weatherTool,
+    ],
   }, onThreadUpdated, threadId), [apiKey, baseURL, model, onThreadUpdated, storage, threadId])
 
   useEffect(() => {

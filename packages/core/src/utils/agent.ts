@@ -30,6 +30,7 @@ export interface Agent extends AgentChannel, AgentQueue {
   readonly state: Readonly<AgentStateManager>
   stop: () => Promise<void>
   readonly storage: AgentStorage
+  readonly tools: Tool[]
 }
 
 export interface CreateAgentOptions {
@@ -40,6 +41,7 @@ export interface CreateAgentOptions {
   runner: Runner
   /** @default `mem()` */
   storage?: AgentStorage
+  tools?: Tool[]
 }
 
 export const createAgent = (options: CreateAgentOptions): Agent => {
@@ -47,6 +49,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
   const initialState = structuredClone(options.initialState ?? {})
   const plugins = normalizePlugins(options.plugins ?? [])
   const storage = options.storage ?? mem()
+  const tools = [...(options.tools ?? [])]
 
   const hooks = {
     onFinish: chain('every', plugins.map(p => p.onFinish)),
@@ -149,11 +152,11 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
 
       const instructions = await resolveInstructions(extendOptions)
 
-      const tools: Tool[] = []
+      const extendedTools: Tool[] = [...tools]
       for (const plugin of plugins) {
         const extended = await plugin.extendTools?.(extendOptions)
         if (extended != null)
-          tools.push(...extended)
+          extendedTools.push(...extended)
       }
 
       await storageReady
@@ -166,7 +169,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
         ...hooks,
         input: [...history, ...opts.input],
         instructions,
-        tools,
+        tools: extendedTools,
       })
 
       if (!opts.abortSignal?.aborted) {
@@ -218,6 +221,7 @@ export const createAgent = (options: CreateAgentOptions): Agent => {
     state,
     stop,
     storage,
+    tools,
   }
 
   return agent

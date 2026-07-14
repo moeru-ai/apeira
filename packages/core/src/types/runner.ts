@@ -20,6 +20,7 @@ export type DynamicOptions
     | 'postToolCall'
     | 'prepareStep'
     | 'preToolCall'
+    | 'tools'
 
 export type Runner = (context: RunnerContext) => Promise<RunnerResult>
 
