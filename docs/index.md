@@ -52,6 +52,31 @@ terminal:
         )
 
         agent.send(user('Say hello.'))
+    - id: tools
+      label: tools
+      language: typescript
+      code: |
+        import { createAgent, responses, run, tool, user } from 'apeira'
+        import { z } from 'zod'
+
+        const agent = createAgent({
+          instructions: 'You are a concise assistant.',
+          runner: responses({
+            apiKey: process.env.OPENAI_API_KEY,
+            baseURL: 'https://api.openai.com/v1/',
+            model: 'gpt-5.5',
+          }),
+          tools: [
+            tool({
+              description: 'Greets a person by name.',
+              execute: ({ name }) => `Hello, ${name}!`,
+              name: 'greet',
+              parameters: z.object({
+                name: z.string().describe('The person to greet.'),
+              }),
+            }),
+          ],
+        })
 
 features:
   - title: Stream-first
