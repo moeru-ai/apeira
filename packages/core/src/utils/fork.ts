@@ -12,7 +12,7 @@ export interface ForkOptions {
   initialInput?: ((parentInput: readonly AgentInput[]) => readonly AgentInput[]) | readonly AgentInput[]
   initialState?: ((parentInitialState: Readonly<AgentState>) => AgentState) | AgentState
   instructions?: CreateAgentOptions['instructions']
-  plugins?: CreateAgentOptions['plugins']
+  plugins?: NonNullable<CreateAgentOptions['plugins']>
   runner?: CreateAgentOptions['runner']
   /** @default mem() */
   storage?: AgentStorage

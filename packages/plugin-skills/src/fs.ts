@@ -17,18 +17,22 @@ export interface FSSkillSetOptions {
 }
 
 const parseFrontmatter = <T>(content: string): { attrs?: T, body: string } => {
-  // eslint-disable-next-line sonarjs/slow-regex, regexp/no-super-linear-backtracking
-  const match = /^\uFEFF?---\s*\n([\s\S]*?)\n---\s*(?:\n|$)/.exec(content)
-  if (match == null)
+  const opening = /^\uFEFF?---[^\S\r\n]*\n/.exec(content)
+  if (opening == null)
+    return { attrs: undefined, body: content.trim() }
+
+  const bodyStart = opening[0].length
+  const closing = /\n---[^\S\r\n]*(?:\n|$)/.exec(content.slice(bodyStart))
+  if (closing == null)
     return { attrs: undefined, body: content.trim() }
 
   let attrs: T | undefined
   try {
-    attrs = parse(match[1]) as T
+    attrs = parse(content.slice(bodyStart, bodyStart + closing.index)) as T
   }
   catch {}
 
-  return { attrs, body: content.slice(match[0].length).trim() }
+  return { attrs, body: content.slice(bodyStart + closing.index + closing[0].length).trim() }
 }
 
 const normalizeReferencePath = (value: string) =>

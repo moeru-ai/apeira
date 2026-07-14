@@ -232,10 +232,9 @@ describe('humanInTheLoop', () => {
     controller.abort('stop')
 
     await expect(pending).rejects.toBe('stop')
-    const resolvedCount = mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length
     await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
     await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.reject' })
-    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length).toBe(resolvedCount)
+    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(0)
   })
 
   it('rejects immediately when the signal is already aborted', async () => {
@@ -251,9 +250,8 @@ describe('humanInTheLoop', () => {
     await expect(
       plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal)),
     ).rejects.toBe('already-aborted')
-    const resolvedCount = mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length
     await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
-    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved').length).toBe(resolvedCount)
+    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(0)
   })
 
   it('approves via sugar function', async () => {

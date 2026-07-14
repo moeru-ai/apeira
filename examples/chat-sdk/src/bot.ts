@@ -1,7 +1,9 @@
+import type { AgentStorage } from '@apeira/core'
+
 import { env, exit } from 'node:process'
 
 import { run } from '@apeira/core'
-import { jsonl } from '@apeira/storage'
+import { jsonl } from '@apeira/storage/jsonl'
 import { createTelegramAdapter } from '@chat-adapter/telegram'
 import { Chat } from 'chat'
 
@@ -12,7 +14,7 @@ import { ensureStorageDir, threadFilePath } from './storage'
 const TELEGRAM_USER_ID = env.TELEGRAM_USER_ID
 const TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN
 
-const createThreadStorage = (threadId: string) =>
+const createThreadStorage = (threadId: string): AgentStorage =>
   jsonl({ path: threadFilePath(threadId) })
 
 export const startBot = async () => {

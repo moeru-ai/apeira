@@ -1,4 +1,3 @@
-/* eslint-disable @masknet/browser-no-persistent-storage */
 import type { AgentEntry, AgentInput } from '@apeira/core'
 
 import { toAgentInput } from '@apeira/core'

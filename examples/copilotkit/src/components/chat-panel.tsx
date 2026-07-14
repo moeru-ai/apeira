@@ -1,4 +1,3 @@
-/* eslint-disable @masknet/browser-no-persistent-storage */
 import type { AgentEntry } from '@apeira/core'
 import type { HITLRequestEvent } from '@apeira/plugin-hitl'
 
