@@ -70,6 +70,28 @@ const agent = createAgent({
 })
 ```
 
+## Agents as tools
+
+Use `asTool()` to expose an agent as a function tool for another agent:
+
+```ts twoslash
+import { asTool, createAgent, user } from '@apeira/core'
+import { z } from 'zod'
+
+declare const translator: ReturnType<typeof createAgent>
+
+const translate = asTool(translator, {
+  description: 'Translate the supplied text.',
+  name: 'translate',
+  parameters: z.object({ text: z.string() }),
+  toAgentInput: ({ text }: { text: string }) => user(text),
+})
+```
+
+By default, the tool accepts `{ input: string }` and sends `input` as a user input to the wrapped agent. When `parameters` is replaced with a Standard Schema, the default input is `JSON.stringify(parameters)`; `toAgentInput` can override either conversion and return one `AgentInput`. The tool returns the wrapped agent's text output and forwards the tool execution abort signal.
+
+When `name` and `description` are omitted, they are read once from `agent.state.get().agentName` and `agent.state.get().agentDescription`. A name is required either in the options or in the agent state, and must match the provider-safe format `[A-Za-z0-9_-]{1,64}`.
+
 ## Plugin tools
 
 Plugins can provide tools dynamically with `extendTools`. The hook runs for each turn and receives the turn's signal, state, and id:
