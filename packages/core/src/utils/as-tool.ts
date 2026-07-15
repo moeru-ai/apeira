@@ -34,6 +34,9 @@ const runAsTool = <T>(
   agent: Agent,
   toAgentInput: (parameters: T) => MaybePromise<AgentInput>,
 ) => async (parameters: T, options: ToolExecuteOptions) => {
+  if (options.abortSignal?.aborted)
+    throw options.abortSignal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+
   const input = await toAgentInput(parameters)
 
   const doneText: string[] = []
