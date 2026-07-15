@@ -202,6 +202,9 @@ catalogs:
     '@xsai/tool':
       specifier: ^0.5.0-beta.7
       version: 0.5.0-beta.7
+    xsschema:
+      specifier: ^0.5.0-beta.7
+      version: 0.5.0-beta.7
 
 overrides:
   eslint-plugin-sonarjs: 4.1.0
@@ -452,6 +455,9 @@ importers:
         specifier: catalog:xsai
         version: 0.5.0-beta.7
       '@xsai/tool':
+        specifier: catalog:xsai
+        version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      xsschema:
         specifier: catalog:xsai
         version: 0.5.0-beta.7(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       yocto-queue:

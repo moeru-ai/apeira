@@ -41,6 +41,7 @@ words:
   - vitepress
   - vitest
   - xsai
+  - xsschema
   - yocto
 ignoreWords: []
 import: []
