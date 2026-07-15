@@ -7,7 +7,7 @@ import type {
   Usage,
 } from '@xsai/shared-chat'
 
-import type { AgentChannel } from '../utils/channel'
+import type { AgentChannel } from './channel'
 import type { AgentInput } from './input'
 
 export type DynamicOptions

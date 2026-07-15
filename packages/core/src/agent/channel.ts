@@ -1,5 +1,5 @@
-import type { MaybePromise } from '../types/base'
-import type { AgentCustomEvent } from '../types/event'
+import type { MaybePromise } from '../types'
+import type { AgentCustomEvent } from './event'
 
 export interface AgentChannel {
   emit: <K extends string>(channel: K, event: K extends keyof AgentCustomEvent ? AgentCustomEvent[K] : unknown, options?: { save?: boolean }) => MaybePromise<void>

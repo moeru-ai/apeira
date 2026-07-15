@@ -1,9 +1,9 @@
-import type { MaybePromise } from '../types/base'
-import type { AgentEvent } from '../types/event'
-import type { AgentInput } from '../types/input'
-import type { TurnFinishOptions } from '../types/plugin'
-import type { RunnerContext, RunnerResult } from '../types/runner'
+import type { MaybePromise } from '../types'
 import type { AgentChannel } from './channel'
+import type { AgentEvent } from './event'
+import type { AgentInput } from './input'
+import type { TurnFinishOptions } from './plugin'
+import type { RunnerContext, RunnerResult } from './runner'
 
 import Queue from 'yocto-queue'
 

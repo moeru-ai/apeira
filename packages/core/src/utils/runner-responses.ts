@@ -1,8 +1,8 @@
 import type { ResponsesOptions } from '@xsai-ext/responses'
 
-import type { ItemParam } from '../types/base'
-import type { AgentInput } from '../types/input'
-import type { DynamicOptions, Runner } from '../types/runner'
+import type { AgentInput } from '../agent/input'
+import type { DynamicOptions, Runner } from '../agent/runner'
+import type { ItemParam } from '../types'
 
 import { stepCountAtLeast, responses as xsaiResponses } from '@xsai-ext/responses'
 

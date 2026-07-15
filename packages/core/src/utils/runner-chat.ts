@@ -17,8 +17,8 @@ import type {
   AgentInput,
   AgentSystemMessageInput,
   AgentUserMessageInput,
-} from '../types/input'
-import type { DynamicOptions, Runner } from '../types/runner'
+} from '../agent/input'
+import type { DynamicOptions, Runner } from '../agent/runner'
 
 import { stepCountAtLeast } from '@xsai/shared-chat'
 import { streamText } from '@xsai/stream-text'

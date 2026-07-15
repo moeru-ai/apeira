@@ -1,12 +1,12 @@
 import type { Tool } from '@xsai/shared-chat'
 
-import type { AgentInput } from '../types/input'
-import type { AgentState } from '../types/state'
-import type { AgentStorage } from '../types/storage'
-import type { Agent, CreateAgentOptions } from './agent'
+import type { Agent, CreateAgentOptions } from '../agent'
+import type { AgentInput } from '../agent/input'
+import type { AgentState } from '../agent/state'
+import type { AgentStorage } from '../agent/storage'
 
-import { createAgent } from './agent'
-import { mem } from './storage'
+import { createAgent } from '../agent'
+import { mem } from '../agent/storage'
 
 export interface ForkOptions {
   inheritEntries?: boolean

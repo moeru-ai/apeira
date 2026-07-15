@@ -1,4 +1,4 @@
-import type { AgentState } from '../types/state'
+import type { AgentState } from './state'
 
 export interface AgentStateManager {
   get: () => Readonly<AgentState>

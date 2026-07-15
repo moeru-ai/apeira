@@ -1,5 +1,11 @@
-import type { AgentEntry } from '../types/entry'
-import type { AgentStorage } from '../types/storage'
+import type { MaybePromise } from '../types'
+import type { AgentEntry } from './entry'
+
+export interface AgentStorage<T = AgentEntry> {
+  append: (...items: T[]) => MaybePromise<void>
+  clear: () => MaybePromise<void>
+  read: () => MaybePromise<Readonly<T[]>>
+}
 
 export const mem = (): AgentStorage<AgentEntry> => {
   const items: AgentEntry[] = []

@@ -1,13 +1,13 @@
 import type { Tool, ToolExecuteOptions } from '@xsai/shared-chat'
 import type { Schema, SchemaWithJson } from 'xsschema'
 
-import type { MaybePromise } from '../types/base'
-import type { AgentInput } from '../types/input'
-import type { Agent } from './agent'
+import type { Agent } from '../agent'
+import type { AgentInput } from '../agent/input'
+import type { MaybePromise } from '../types'
 
 import { defineTool, rawTool } from '@xsai/tool'
 
-import { user } from './input'
+import { user } from '../agent/input'
 import { run } from './run'
 
 export interface AsToolOptions<TParameters = { input: string }, TSchema extends Schema & SchemaWithJson = Schema & SchemaWithJson> {

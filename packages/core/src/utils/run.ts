@@ -1,7 +1,7 @@
-import type { AgentEvent } from '../types/event'
-import type { AgentInput } from '../types/input'
-import type { Agent } from './agent'
-import type { AgentSignalOptions } from './queue'
+import type { Agent } from '../agent'
+import type { AgentEvent } from '../agent/event'
+import type { AgentInput } from '../agent/input'
+import type { AgentSignalOptions } from '../agent/queue'
 
 const isTerminalTurnEvent = (event: AgentEvent) =>
   event.type === 'turn.done' || event.type === 'turn.failed' || event.type === 'turn.aborted'

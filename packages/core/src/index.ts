@@ -1,9 +1,12 @@
-export type { ItemParam, MaybePromise } from './types/base'
+export type { Agent, CreateAgentOptions } from './agent'
+export { createAgent } from './agent'
+export type { AgentChannel, AgentEventListener } from './agent/channel'
+export { entry, toAgentInput } from './agent/entry'
 export type {
   AgentCustomEntry,
   AgentEntry,
   AgentEntryUnion,
-} from './types/entry'
+} from './agent/entry'
 export type {
   AgentCustomEvent,
   AgentEvent,
@@ -16,7 +19,8 @@ export type {
   TurnQueuedEvent,
   TurnStartEvent,
   WithId,
-} from './types/event'
+} from './agent/event'
+export { assistant, developer, system, user } from './agent/input'
 export type {
   AgentAssistantMessageInput,
   AgentCompactionInput,
@@ -28,33 +32,28 @@ export type {
   AgentReasoningInput,
   AgentSystemMessageInput,
   AgentUserMessageInput,
-} from './types/input'
+} from './agent/input'
 export type {
   AgentPlugin,
   AgentPluginOption,
   ExtendOptions,
   TransformEntriesOptions,
   TurnFinishOptions,
-} from './types/plugin'
-export type * from './types/re-export'
+} from './agent/plugin'
+export type { AgentQueue, AgentSignalOptions } from './agent/queue'
 export type {
   Runner,
   RunnerContext,
   RunnerResult,
-} from './types/runner'
-export type { AgentCustomState, AgentState } from './types/state'
-export type { AgentStorage } from './types/storage'
-export type { Agent, CreateAgentOptions } from './utils/agent'
-export { createAgent } from './utils/agent'
+} from './agent/runner'
+export type { AgentCustomState, AgentState } from './agent/state'
+export type { AgentStateManager } from './agent/state-manager'
+export { mem, none } from './agent/storage'
+export type { AgentStorage } from './agent/storage'
+export type { ItemParam, MaybePromise } from './types'
 export { asTool } from './utils/as-tool'
 export type { AsToolOptions } from './utils/as-tool'
-export type { AgentChannel, AgentEventListener } from './utils/channel'
-export { entry, toAgentInput } from './utils/entry'
 export type { ForkOptions } from './utils/fork'
 export { fork } from './utils/fork'
-export { assistant, developer, system, user } from './utils/input'
-export type { AgentQueue, AgentSignalOptions } from './utils/queue'
 export * from './utils/re-export'
 export { run } from './utils/run'
-export type { AgentStateManager } from './utils/state-manager'
-export { mem, none } from './utils/storage'
