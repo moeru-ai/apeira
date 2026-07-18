@@ -9,9 +9,11 @@ const redactAssignment = (match: string) => {
 
 const redactPlainString = (value: string) => value
   // Header and cookie options are opaque shell arguments; redact the whole value.
-  .replace(/((?:^|\s)(?:-H|--header|--cookie)(?:\s+|=))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/gi, '$1[REDACTED]')
+  .replace(/((?:^|\s)(?:-H|--header|--cookie|--user|--proxy-user|--oauth2-bearer)(?:\s+|=))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/gi, '$1[REDACTED]')
+  .replace(/((?:^|\s)(?:-b|-u|-U)(?:\s+|=))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/g, '$1[REDACTED]')
+  .replace(/((?:^|\s)(?:-b|-u|-U))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/g, '$1[REDACTED]')
   // Authorization and Cookie values commonly contain a scheme or several key/value pairs.
-  .replace(/(?:authorization|cookie)\s*:\s*(?:"[^"]*"|'[^']*'|[^";&|]+)/gi, redactAssignment)
+  .replace(/(?:authorization|cookie)\s*:\s*(?:"[^"]*"|'[^']*'|[^"&|]+)/gi, redactAssignment)
   .replace(/(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*(?:"[^"]*"|'[^']*')/gi, redactAssignment)
   .replace(/(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*[^"'\s,;&|]+/gi, redactAssignment)
   .replace(/--(?:api-key|password|secret|token)(?:=|\s+)(?:"[^"]*"|'[^']*'|[^\s;&|]+)/gi, '[REDACTED]')

@@ -247,9 +247,13 @@ describe('hitl', () => {
 
     const authorization = 'sk-secret-value'
     const cookie = 'session-cookie-value'
+    const csrf = 'csrf-cookie-value'
+    const basicAuthValue = 'super-secret-password'
+    const proxyAuthValue = 'proxy-secret-password'
+    const bearer = 'oauth-secret-token'
     const pending = plugin.preToolCall?.(createToolCall({
       args: JSON.stringify({
-        command: `curl -H "Authorization: Bearer ${authorization}" --cookie "session=${cookie}"`,
+        command: `curl -H "Authorization: Bearer ${authorization}" -b "session=${cookie}; csrf=${csrf}" -b"attached=${cookie}" -u alice:${basicAuthValue} -ualice:${basicAuthValue} -U proxy:${proxyAuthValue} -Uproxy:${proxyAuthValue} --oauth2-bearer ${bearer}; printf 'Cookie: session=${cookie}; csrf=${csrf}'`,
       }),
     }), createExecuteOptions())
     const request = await waitForRequest(agent)
@@ -258,6 +262,10 @@ describe('hitl', () => {
     if (request.type === 'tool') {
       expect(request.toolCall.args).not.toContain(authorization)
       expect(request.toolCall.args).not.toContain(cookie)
+      expect(request.toolCall.args).not.toContain(csrf)
+      expect(request.toolCall.args).not.toContain(basicAuthValue)
+      expect(request.toolCall.args).not.toContain(proxyAuthValue)
+      expect(request.toolCall.args).not.toContain(bearer)
       expect(request.toolCall.args).toContain('[REDACTED]')
     }
     const listed = plugin.listPending()[0]
@@ -265,6 +273,10 @@ describe('hitl', () => {
     if (listed?.type === 'tool') {
       expect(listed.toolCall.args).not.toContain(authorization)
       expect(listed.toolCall.args).not.toContain(cookie)
+      expect(listed.toolCall.args).not.toContain(csrf)
+      expect(listed.toolCall.args).not.toContain(basicAuthValue)
+      expect(listed.toolCall.args).not.toContain(proxyAuthValue)
+      expect(listed.toolCall.args).not.toContain(bearer)
     }
 
     plugin.resolve(request.requestId, { type: 'approve' })
