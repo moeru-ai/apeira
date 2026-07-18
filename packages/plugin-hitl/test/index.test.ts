@@ -43,6 +43,7 @@ const createMockAgent = (): MockAgent => {
         listeners.get(channel)?.delete(listener)
       }
     }) as AgentChannel['subscribe'],
+    tools: [],
     wait: async () => {},
   }
 }
