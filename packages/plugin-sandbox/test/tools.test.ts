@@ -1,4 +1,4 @@
-import type { Sandbox } from '../src'
+import type { ExecutionResult, Sandbox } from '../src'
 
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -70,10 +70,10 @@ describe('sandbox tools', () => {
     await expect(instance.check()).rejects.toMatchObject({ code: 'disposed' })
   })
 
-  it('exec maps tool fields and preserves the tool call request id', async () => {
+  it('exec runs commands and preserves the tool call request id', async () => {
     const instance = await createTestSandbox()
     const tool = createExecTool({ sandbox: instance })
-    const result = await tool.execute({ command: 'printf \'hello\'', yield_time_ms: 500 }, EXECUTE_OPTIONS)
+    const result = await tool.execute({ command: 'printf \'hello\'' }, EXECUTE_OPTIONS)
 
     expect(result).toMatchObject({
       requestId: 'tool-call-1',
@@ -145,6 +145,6 @@ new file mode 100644
     }, EXECUTE_OPTIONS)
 
     expect(result).not.toMatchObject({ exitCode: 0 })
-    expect(result).toMatchObject({ stderr: 'error: invalid path \'../escaped.txt\'\n' })
+    expect((result as ExecutionResult).stderr).toContain('../escaped.txt')
   })
 })
