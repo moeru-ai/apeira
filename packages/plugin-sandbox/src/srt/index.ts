@@ -24,6 +24,7 @@ export interface SrtAdapterOptions {
   enableLogMonitor?: boolean
   enableWeakerNestedSandbox?: boolean
   mandatoryDenySearchDepth?: number
+  networkProfile: Readonly<SandboxProfile['network']>
   ripgrep?: {
     args?: string[]
     command: string
@@ -72,12 +73,12 @@ const sameNetworkPolicy = (
   right: Readonly<SandboxProfile['network']>,
 ) => serializeNetworkPolicy(left) === serializeNetworkPolicy(right)
 
-export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapter => {
+export const createSrtAdapter = (options: SrtAdapterOptions): SandboxAdapter => {
   const instance = Symbol('apeira-srt-adapter')
+  const networkProfile = structuredClone(options.networkProfile)
   let disposed = false
   let initialized = false
   let initialization: Promise<void> | undefined
-  let networkProfile: Readonly<SandboxProfile['network']> | undefined
 
   const check = async (): Promise<SandboxCapabilityReport> => {
     if (process.platform !== 'linux') {
@@ -113,7 +114,6 @@ export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapte
     }
 
     adapterState.active = instance
-    networkProfile = structuredClone(profile.network)
     initialization = (async () => {
       const capabilities = await check()
       if (!capabilities.supported) {
@@ -137,7 +137,6 @@ export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapte
     catch (error) {
       if (adapterState.active === instance)
         adapterState.active = undefined
-      networkProfile = undefined
       initialization = undefined
       throw error
     }
@@ -148,19 +147,18 @@ export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapte
     profile: Readonly<SandboxProfile>,
     sink: ProcessSink,
   ): Promise<RunningProcess> => {
-    await initialize(profile)
-    if (disposed)
-      throw new SandboxError('disposed', 'SRT adapter has been disposed.')
-
     // SRT's proxy policy is process-global. Per-command filesystem profiles are
     // supported, but widening network access for one concurrent command would
     // widen it for every command. Reject that unsafe shape instead.
-    if (networkProfile == null || !sameNetworkPolicy(networkProfile, profile.network)) {
+    if (!sameNetworkPolicy(networkProfile, profile.network)) {
       throw new SandboxError(
         'adapter_unavailable',
         'The SRT adapter cannot change network policy per process. Configure a fixed network policy or request an explicit host bypass.',
       )
     }
+    await initialize(profile)
+    if (disposed)
+      throw new SandboxError('disposed', 'SRT adapter has been disposed.')
 
     const shell = request.shell ?? process.env.SHELL ?? '/bin/bash'
     const wrapped = await SandboxManager.wrapWithSandboxArgv(
@@ -200,7 +198,6 @@ export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapte
     }
     finally {
       initialized = false
-      networkProfile = undefined
       if (adapterState.active === instance)
         adapterState.active = undefined
     }

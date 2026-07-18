@@ -21,9 +21,10 @@ import {
 } from '@apeira/plugin-sandbox'
 import { createSrtAdapter } from '@apeira/plugin-sandbox/srt'
 
+const profile = workspaceWriteProfile({ cwd: process.cwd() })
 const plugin = sandbox({
-  adapter: createSrtAdapter(),
-  profile: workspaceWriteProfile({ cwd: process.cwd() }),
+  adapter: createSrtAdapter({ networkProfile: profile.network }),
+  profile,
 })
 ```
 
@@ -66,11 +67,13 @@ const sandbox = createSandbox({
 
 `context.createGrant()` binds the grant to the current request id and exact escalation. The lower-level `createExecutionGrant()` export remains available for authorizers that need to mint a grant explicitly.
 
+The sandbox owns cancellation across escalation authorization, middleware, backend startup, and running processes. Authorizers and middleware receive `context.signal` so they can stop their own I/O, but ignoring it does not prevent `execute()` from returning. Once a backend returns a process handle, the sandbox terminates it with SIGTERM and a one-second SIGKILL fallback when execution is aborted.
+
 ## SRT constraints
 
 - The initial adapter targets Linux.
 - SRT owns process-global state, so only one active SRT adapter is allowed per Node.js process.
-- SRT network proxy policy is process-global. Per-command filesystem expansion is supported, but per-command network policy changes are rejected to avoid widening access for concurrent commands.
+- SRT network proxy policy is process-global and must be fixed through `createSrtAdapter({ networkProfile })`. Per-command filesystem expansion is supported, but per-command network policy changes are rejected before runtime initialization. Use an explicit host bypass when separately approved network access is required.
 - `sandbox()` owns its runtime and disposes it when the plugin stops.
 
 `createHostExecutor()` is deliberately separate from a sandbox adapter. It exists for an application-approved bypass and must never be treated as isolation.

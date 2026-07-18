@@ -1,9 +1,11 @@
 import type {
+  EscalationAuthorizationContext,
   EscalationAuthorizer,
   ExecutionBackend,
   ExecutionRequest,
   RunningProcess,
   Sandbox,
+  SandboxMiddlewareContext,
   SandboxProfile,
 } from '../src'
 
@@ -220,6 +222,109 @@ describe('createSandbox', () => {
     await executionResult
     await expect(disposing).resolves.toBeUndefined()
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('aborts an escalation authorizer that never returns during disposal', async () => {
+    let authorizationSignal: AbortSignal | undefined
+    const authorizeEscalation: EscalationAuthorizer = vi.fn(async (
+      _request,
+      context: EscalationAuthorizationContext,
+    ) => {
+      authorizationSignal = context.signal
+      return new Promise<never>(() => {})
+    })
+    const sandbox = trackedSandbox({ adapter: host, authorizeEscalation, profile: readOnlyProfile() })
+    const execution = sandbox.execute({
+      command: 'true',
+      escalation: { justification: 'read fixtures', permissions: {}, type: 'expand' },
+    })
+    const executionResult = expect(execution).rejects.toMatchObject({ code: 'disposed' })
+    await vi.waitFor(() => expect(authorizeEscalation).toHaveBeenCalledOnce())
+
+    const disposing = sandbox.dispose()
+
+    await executionResult
+    await expect(disposing).resolves.toBeUndefined()
+    expect(authorizationSignal?.aborted).toBe(true)
+  })
+
+  it('aborts middleware that never returns through an external signal', async () => {
+    const controller = new AbortController()
+    let middlewareSignal: AbortSignal | undefined
+    const middleware = vi.fn(async (context: SandboxMiddlewareContext) => {
+      middlewareSignal = context.signal
+      return new Promise<never>(() => {})
+    })
+    const sandbox = trackedSandbox({ adapter: host, middleware: [middleware], profile: readOnlyProfile() })
+    const execution = sandbox.execute({ command: 'true' }, { signal: controller.signal })
+    const executionResult = expect(execution).rejects.toBe('stop')
+    await vi.waitFor(() => expect(middleware).toHaveBeenCalledOnce())
+
+    controller.abort('stop')
+
+    await executionResult
+    expect(middlewareSignal?.aborted).toBe(true)
+  })
+
+  it('aborts middleware that never returns during disposal', async () => {
+    const middleware = vi.fn(async () => new Promise<never>(() => {}))
+    const sandbox = trackedSandbox({ adapter: host, middleware: [middleware], profile: readOnlyProfile() })
+    const execution = sandbox.execute({ command: 'true' })
+    const executionResult = expect(execution).rejects.toMatchObject({ code: 'disposed' })
+    await vi.waitFor(() => expect(middleware).toHaveBeenCalledOnce())
+
+    const disposing = sandbox.dispose()
+
+    await executionResult
+    await expect(disposing).resolves.toBeUndefined()
+  })
+
+  it('terminates a running process when its execution is aborted', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const signals: Array<NodeJS.Signals | undefined> = []
+      let finish: (exit: { signal?: NodeJS.Signals }) => void = _exit => undefined
+      let start: () => void = () => undefined
+      const completed = new Promise<{ signal?: NodeJS.Signals }>((resolveCompleted) => {
+        finish = resolveCompleted
+      })
+      const didStart = new Promise<void>((resolveStart) => {
+        start = resolveStart
+      })
+      const adapter: ExecutionBackend = {
+        check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+        name: 'abort-ignorant',
+        start: async () => {
+          start()
+          return {
+            completed,
+            end: async () => {},
+            kill: (signal) => {
+              signals.push(signal)
+              if (signal === 'SIGKILL')
+                finish({ signal })
+            },
+            write: async () => {},
+          }
+        },
+      }
+      const sandbox = trackedSandbox({ adapter, profile: readOnlyProfile() })
+      const execution = sandbox.execute({ command: 'wait forever' }, { signal: controller.signal })
+      const executionResult = expect(execution).rejects.toBe('stop')
+      await didStart
+
+      controller.abort('stop')
+      await executionResult
+      await vi.advanceTimersByTimeAsync(0)
+      expect(signals).toEqual(['SIGTERM'])
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(signals).toEqual(['SIGTERM', 'SIGKILL'])
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('fails closed when escalation has no authorizer', async () => {

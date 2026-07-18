@@ -199,18 +199,17 @@ const waitFor = async (promise: Promise<unknown>, timeoutMs: number): Promise<bo
   return completed
 }
 
-const terminateLateProcess = (handle: RunningProcess) => {
+const killProcess = (handle: RunningProcess, signal: NodeJS.Signals) => {
   try {
-    handle.kill('SIGTERM')
+    handle.kill(signal)
   }
   catch {}
+}
 
-  const forceKill = setTimeout(() => {
-    try {
-      handle.kill('SIGKILL')
-    }
-    catch {}
-  }, FORCE_KILL_DELAY_MS)
+const terminateLateProcess = (handle: RunningProcess) => {
+  killProcess(handle, 'SIGTERM')
+
+  const forceKill = setTimeout(killProcess, FORCE_KILL_DELAY_MS, handle, 'SIGKILL')
   forceKill.unref?.()
   const clearForceKill = () => clearTimeout(forceKill)
   void handle.completed.then(clearForceKill, clearForceKill)
@@ -219,7 +218,7 @@ const terminateLateProcess = (handle: RunningProcess) => {
 const scheduleForceKill = (session: ManagedProcess) => {
   if (session.forceKill != null)
     clearTimeout(session.forceKill)
-  session.forceKill = setTimeout(() => session.handle.kill('SIGKILL'), FORCE_KILL_DELAY_MS)
+  session.forceKill = setTimeout(killProcess, FORCE_KILL_DELAY_MS, session.handle, 'SIGKILL')
   session.forceKill.unref?.()
 }
 
@@ -259,7 +258,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
   const resolveExecution = async (
     request: ExecutionRequest & { requestId: string },
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<{ backend: ExecutionBackend, profile: SandboxProfile, route: SandboxRoute }> => {
     if (request.escalation == null) {
       const route = options.profile.route
@@ -283,18 +282,21 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       )
     }
 
-    const grant = await options.authorizeEscalation(request as ExecutionRequest & {
-      escalation: NonNullable<ExecutionRequest['escalation']>
-    }, {
-      createGrant: grantOptions => createExecutionGrant({
-        escalation: request.escalation!,
-        expiresAt: grantOptions?.expiresAt,
+    const grant = await raceAbort(
+      options.authorizeEscalation(request as ExecutionRequest & {
+        escalation: NonNullable<ExecutionRequest['escalation']>
+      }, {
+        createGrant: grantOptions => createExecutionGrant({
+          escalation: request.escalation!,
+          expiresAt: grantOptions?.expiresAt,
+          requestId: request.requestId,
+        }),
+        defaultProfile: options.profile,
         requestId: request.requestId,
+        signal,
       }),
-      defaultProfile: options.profile,
-      requestId: request.requestId,
       signal,
-    })
+    )
 
     if (grant == null) {
       throw new SandboxError(
@@ -352,6 +354,13 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
     const collector = new OutputCollector(request.maxOutputBytes!)
     let claimed = false
+    let terminated = false
+    const terminate = (handle: RunningProcess) => {
+      if (terminated)
+        return
+      terminated = true
+      terminateLateProcess(handle)
+    }
     const starting = backend.start({
       command: request.command,
       cwd: request.cwd!,
@@ -366,12 +375,12 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     void starting.then((handle) => {
       if (claimed || (!signal.aborted && !disposed))
         return
-      terminateLateProcess(handle)
+      terminate(handle)
     }, () => {})
     const handle = await raceAbort(starting, signal)
     claimed = true
     if (signal.aborted || disposed) {
-      terminateLateProcess(handle)
+      terminate(handle)
       throw signal.reason ?? new SandboxError('disposed', 'Sandbox was disposed while execution was starting.')
     }
     const session: ManagedProcess = {
@@ -387,25 +396,34 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
     const timeout = setTimeout(() => {
       session.timedOut = true
-      handle.kill('SIGTERM')
+      killProcess(handle, 'SIGTERM')
       scheduleForceKill(session)
     }, request.timeoutMs)
     timeout.unref?.()
 
-    session.completed = handle.completed.then((exit) => {
-      session.exit = exit
+    const onAbort = () => {
+      killProcess(handle, 'SIGTERM')
+      scheduleForceKill(session)
+    }
+    session.completed = handle.completed.then(
+      (exit) => {
+        session.exit = exit
+      },
+      (error) => {
+        session.error = error
+      },
+    ).finally(() => {
       clearTimeout(timeout)
       if (session.forceKill != null)
         clearTimeout(session.forceKill)
-      activeProcesses.delete(session)
-    }, (error) => {
-      session.error = error
-      clearTimeout(timeout)
-      if (session.forceKill != null)
-        clearTimeout(session.forceKill)
+      signal.removeEventListener('abort', onAbort)
       activeProcesses.delete(session)
     })
     activeProcesses.add(session)
+    if (signal.aborted)
+      onAbort()
+    else
+      signal.addEventListener('abort', onAbort, { once: true })
 
     return session
   }
@@ -432,26 +450,28 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   ): Promise<ExecutionResult> => {
     const request = normalizeRequest(rawRequest)
     const execution = await resolveExecution(request, signal)
+    signal.throwIfAborted()
     const context: SandboxMiddlewareContext = {
       profile: execution.profile,
       request,
       requestId: request.requestId,
       route: execution.route,
+      signal,
     }
 
-    return runMiddleware(options.middleware ?? [], context, async () => {
+    const operation = runMiddleware(options.middleware ?? [], context, async () => {
       const session = await start(
         request,
         execution.backend,
         execution.profile,
         signal,
       )
-      const completed = request.yieldTimeMs == null
-        ? (await session.completed.then(() => true))
-        : await waitFor(session.completed, request.yieldTimeMs)
-
-      if (signal.aborted)
-        throw signal.reason ?? new SandboxError('aborted', 'Execution was aborted.')
+      const completed = await raceAbort(
+        request.yieldTimeMs == null
+          ? session.completed.then(() => true)
+          : waitFor(session.completed, request.yieldTimeMs),
+        signal,
+      )
 
       if (completed) {
         if (session.error != null)
@@ -462,6 +482,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       sessions.set(session.sessionId, session)
       return resultFor(session, true)
     })
+    return raceAbort(operation, signal)
   }
 
   const execute: Sandbox['execute'] = async (rawRequest, executeOptions = {}) => {
@@ -519,10 +540,6 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     const active = [...activeProcesses]
     activeProcesses.clear()
     sessions.clear()
-    for (const session of active) {
-      session.handle.kill('SIGTERM')
-      scheduleForceKill(session)
-    }
     await Promise.allSettled(active.map(async session => session.completed))
     await Promise.allSettled([...inFlightStarts])
     await options.adapter.dispose?.()

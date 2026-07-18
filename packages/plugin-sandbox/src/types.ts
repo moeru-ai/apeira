@@ -4,6 +4,7 @@ export interface BackendStartOptions {
   env: Record<string, string | undefined>
   input?: string
   shell?: string
+  /** Cancels backend startup. Sandbox owns cancellation after a handle is returned. */
   signal?: AbortSignal
 }
 
@@ -19,7 +20,7 @@ export interface EscalationAuthorizationContext {
   createGrant: (options?: { expiresAt?: number }) => ExecutionGrant
   defaultProfile: Readonly<SandboxProfile>
   requestId: string
-  signal?: AbortSignal
+  signal: AbortSignal
 }
 
 export type EscalationAuthorizer = (
@@ -164,6 +165,7 @@ export interface SandboxMiddlewareContext {
   request: Readonly<ExecutionRequest>
   requestId: string
   route: SandboxRoute
+  signal: AbortSignal
 }
 
 export interface SandboxProfile {

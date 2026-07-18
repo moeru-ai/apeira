@@ -73,13 +73,14 @@ const approval = hitl({
     allow: ['exec', 'write_stdin', 'apply_patch'],
   })],
 })
+const profile = workspaceWriteProfile()
 
 const plugins = [
   approval,
   sandbox({
-    adapter: createSrtAdapter(),
+    adapter: createSrtAdapter({ networkProfile: profile.network }),
     authorizeEscalation: approval.authorizeEscalation,
-    profile: workspaceWriteProfile(),
+    profile,
   }),
 ]
 ```

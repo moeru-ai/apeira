@@ -52,18 +52,6 @@ export const startNodeProcess = (
     }))
   })
 
-  if (options.signal != null) {
-    const abort = () => child.kill('SIGTERM')
-    if (options.signal.aborted)
-      abort()
-    else
-      options.signal.addEventListener('abort', abort, { once: true })
-    void completed.then(
-      () => options.signal?.removeEventListener('abort', abort),
-      () => options.signal?.removeEventListener('abort', abort),
-    )
-  }
-
   if (options.input != null) {
     void write(child, options.input)
       .then(async () => end(child))
