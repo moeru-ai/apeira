@@ -21,6 +21,7 @@ overrides:
 
 catalog:
   '@ag-ui/core': ^0.0.57
+  '@anthropic-ai/sandbox-runtime': 0.0.65
   '@antfu/eslint-config': ^9.1.0
   '@chat-adapter/telegram': ^4.33.0
   '@copilotkit/react-core': ^1.62.3

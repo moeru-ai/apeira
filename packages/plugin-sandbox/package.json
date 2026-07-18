@@ -1,0 +1,73 @@
+{
+  "name": "@apeira/plugin-sandbox",
+  "type": "module",
+  "version": "0.0.7",
+  "description": "Sandbox execution and baseline coding tools plugin for Apeira.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/plugin-sandbox"
+  },
+  "bugs": {
+    "url": "https://github.com/moeru-ai/apeira/issues"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "sandbox",
+    "security"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./srt": "./src/srt/index.ts",
+    "./tools": "./src/tools/index.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./srt": {
+        "types": "./dist/srt/index.d.ts",
+        "default": "./dist/srt/index.js"
+      },
+      "./tools": {
+        "types": "./dist/tools/index.d.ts",
+        "default": "./dist/tools/index.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll --clean-dist",
+    "test": "vitest run",
+    "typecheck": "tsc -p ../../tsconfig.app.json --noEmit"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:",
+    "@apeira/core": "workspace:"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sandbox-runtime": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@xsai/shared-chat": "catalog:xsai"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:",
+    "@apeira/core": "workspace:"
+  }
+}
