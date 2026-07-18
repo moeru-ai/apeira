@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentInput, CreateAgentOptions, Runner, Tool } from '@apeira/core'
+import type { Agent, AgentEvent, AgentInput, CreateAgentOptions, Runner, Tool } from '@apeira/core'
 
 import type {
   HITLAssessment,
@@ -38,7 +38,12 @@ export interface AutoReviewOptions {
   transformContext?: (
     input: readonly AgentInput[],
     request: Readonly<HITLRequest>,
+    context: AutoReviewTransformContext,
   ) => Promise<readonly AgentInput[]> | readonly AgentInput[]
+}
+
+export interface AutoReviewTransformContext {
+  signal: AbortSignal
 }
 
 const isAssessment = (value: unknown): value is HITLAssessment => {
@@ -57,13 +62,20 @@ const failure = (type: HITLReviewFailure['type'], message?: string) => ({
   type: 'failure' as const,
 })
 
-const waitForAbort = async (signal: AbortSignal) => new Promise<never>((_, reject) => {
-  if (signal.aborted) {
-    reject(signal.reason)
-    return
+const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
+  signal.throwIfAborted()
+  let onAbort = () => {}
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([promise, aborted])
   }
-  signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-})
+  finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
 
 const createSubmitTool = (assessments: HITLAssessment[]) => rawTool<unknown>({
   description: 'Submit the final approval review. Call exactly once as the final action.',
@@ -94,9 +106,8 @@ const consumeReview = async (
   parentSignal: AbortSignal | undefined,
   didTimeOut: () => boolean,
 ) => {
-  const aborted = waitForAbort(signal)
   while (true) {
-    const event = await Promise.race([reader.read(), aborted])
+    const event = await raceAbort(reader.read(), signal)
     if (event.done)
       return undefined
     if (event.value.type === 'turn.failed')
@@ -115,15 +126,12 @@ const executeReview = async (
   request: Readonly<HITLRequest>,
   context: Parameters<HITLReviewer['review']>[1],
 ) => {
-  if (context.signal?.aborted)
-    throw context.signal.reason
+  context.signal?.throwIfAborted()
 
-  const input = options.transformContext == null
-    ? context.input
-    : await options.transformContext(context.input, request)
-  const assessments: HITLAssessment[] = []
   const controller = new AbortController()
   let timedOut = false
+  let reader: ReadableStreamDefaultReader<AgentEvent> | undefined
+  let reviewer: Agent | undefined
   const onAbort = () => controller.abort(context.signal?.reason)
   if (context.signal?.aborted)
     onAbort()
@@ -134,40 +142,54 @@ const executeReview = async (
     controller.abort(new Error('Automatic approval review timed out.'))
   }, Math.max(1, options.timeoutMs ?? DEFAULT_TIMEOUT_MS))
 
-  const reviewer = createAgent({
-    instructions: options.instructions ?? DEFAULT_INSTRUCTIONS,
-    plugins: [],
-    runner: options.runner ?? context.runner,
-    tools: [...tools, createSubmitTool(assessments)],
-  })
-  const reader = run(reviewer, user(buildReviewPrompt(input, request)), {
-    signal: controller.signal,
-  }).getReader()
-
   try {
+    const transformContext = options.transformContext
+    const input = transformContext == null
+      ? context.input
+      : await raceAbort(
+          Promise.resolve().then(async () => transformContext(
+            context.input,
+            request,
+            { signal: controller.signal },
+          )),
+          controller.signal,
+        )
+    const assessments: HITLAssessment[] = []
+    reviewer = createAgent({
+      instructions: options.instructions ?? DEFAULT_INSTRUCTIONS,
+      plugins: [],
+      runner: options.runner ?? context.runner,
+      tools: [...tools, createSubmitTool(assessments)],
+    })
+    reader = run(reviewer, user(buildReviewPrompt(input, request)), {
+      signal: controller.signal,
+    }).getReader()
+
     const runFailure = await consumeReview(reader, controller.signal, context.signal, () => timedOut)
     if (runFailure != null)
       return runFailure
+
+    if (assessments.length !== 1)
+      return failure('invalid_result', `Expected one ${REVIEW_TOOL_NAME} call, received ${assessments.length}.`)
+    return assessments[0]
   }
   catch (error) {
     if (context.signal?.aborted)
       throw context.signal.reason ?? error
     if (timedOut)
       return failure('timeout', 'Automatic approval review timed out.')
+    if (reader == null)
+      throw error
     return failure('runner', error instanceof Error ? error.message : undefined)
   }
   finally {
     clearTimeout(timer)
     context.signal?.removeEventListener('abort', onAbort)
     if (controller.signal.aborted)
-      reviewer.abort(controller.signal.reason)
-    await reader.cancel().catch(() => {})
-    await reviewer.stop()
+      reviewer?.abort(controller.signal.reason)
+    await reader?.cancel().catch(() => {})
+    await reviewer?.stop()
   }
-
-  if (assessments.length !== 1)
-    return failure('invalid_result', `Expected one ${REVIEW_TOOL_NAME} call, received ${assessments.length}.`)
-  return assessments[0]
 }
 
 const createReviewQueue = () => {
@@ -184,7 +206,7 @@ const createReviewQueue = () => {
     if (signal == null)
       return scheduled
 
-    return Promise.race([scheduled, waitForAbort(signal)])
+    return raceAbort(scheduled, signal)
   }
 }
 

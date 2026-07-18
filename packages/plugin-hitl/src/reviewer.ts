@@ -39,25 +39,44 @@ interface ReviewerControllerOptions {
   reviewer?: HITLReviewer
 }
 
+const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
+  signal.throwIfAborted()
+  let onAbort = () => {}
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([promise, aborted])
+  }
+  finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
 const reviewPolicies = async (
   policies: HITLOptions['policies'],
   request: HITLRequest,
+  signal: AbortSignal,
 ): Promise<HITLPolicyResult> => {
   if (policies == null || policies.length === 0)
     return { type: 'ask' }
 
-  const results = await Promise.all(policies.map(async (policy): Promise<HITLPolicyResult | undefined> => {
+  const reviews = Promise.all(policies.map(async (policy): Promise<HITLPolicyResult | undefined> => {
     try {
-      return await policy(request)
+      return await policy(request, { signal })
     }
-    catch {
+    catch (error) {
+      if (signal.aborted)
+        throw signal.reason ?? error
       return { type: 'ask' }
     }
   }))
-  const reviews = results.filter((result): result is HITLPolicyResult => result != null)
-  return reviews.find(result => result.type === 'deny')
-    ?? reviews.find(result => result.type === 'ask')
-    ?? reviews.find(result => result.type === 'allow')
+  const results = await raceAbort(reviews, signal)
+  const policyResults = results.filter((result): result is HITLPolicyResult => result != null)
+  return policyResults.find(result => result.type === 'deny')
+    ?? policyResults.find(result => result.type === 'ask')
+    ?? policyResults.find(result => result.type === 'allow')
     ?? { type: 'ask' }
 }
 
@@ -228,13 +247,15 @@ export const createReviewerController = (
     cacheKey: string,
     signal?: AbortSignal,
   ): Promise<ReviewRoute> => {
-    const policy = await reviewPolicies(options.policies, request)
-    if (signal?.aborted)
-      throw signal.reason ?? new Error('Approval aborted.')
+    const reviewSignal = signal == null
+      ? turnController.signal
+      : AbortSignal.any([turnController.signal, signal])
+    const policy = await reviewPolicies(options.policies, request, reviewSignal)
+    reviewSignal.throwIfAborted()
     if (!active(request))
       return { reason: 'Turn ended before approval.', type: 'deny' }
     const policyRoute = await routePolicy(request, cacheKey, policy)
-    return policyRoute ?? routeReviewer(request, signal)
+    return policyRoute ?? routeReviewer(request, reviewSignal)
   }
 
   const abortTurn = (type: 'stopped' | 'turn_finished') => {

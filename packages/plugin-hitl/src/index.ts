@@ -30,6 +30,7 @@ export type {
   HITLOptions,
   HITLPlugin,
   HITLPolicy,
+  HITLPolicyContext,
   HITLPolicyResult,
   HITLRequest,
   HITLRequestBase,
@@ -62,8 +63,11 @@ interface PendingRequest {
   resolve: (decision: HITLDecision) => void
 }
 
-const matches = (name: string, patterns: ToolNamePattern[]) =>
-  patterns.some(pattern => pattern instanceof RegExp ? pattern.test(name) : pattern === name)
+const matches = (name: string, patterns: ToolNamePattern[]) => patterns.some((pattern) => {
+  if (pattern instanceof RegExp)
+    return new RegExp(pattern.source, pattern.flags).test(name)
+  return pattern === name
+})
 
 const stable = (value: unknown): string => {
   if (Array.isArray(value))
@@ -76,6 +80,14 @@ const stable = (value: unknown): string => {
     return `{${entries}}`
   }
   return JSON.stringify(value)
+}
+
+const toolCacheKey = (toolCall: CompletionToolCall) => {
+  const fingerprint = stable({
+    args: toolCall.args,
+    toolName: toolCall.toolName,
+  })
+  return `tool:${fingerprint}`
 }
 
 const optionFor = (decision: HITLDecision): HITLOption => {
@@ -269,7 +281,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
         turnId: currentTurnId,
         type: 'tool',
       }
-      const cacheKey = `tool:${toolCall.toolName}`
+      const cacheKey = toolCacheKey(toolCall)
       const route = await reviews.route(request, cacheKey, executeOptions.abortSignal)
 
       if (route.type === 'deny')

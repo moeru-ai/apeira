@@ -144,6 +144,57 @@ describe('createSandbox', () => {
     }
   })
 
+  it('waits for an in-flight start and force kills its process during disposal', async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: Array<NodeJS.Signals | undefined> = []
+      let finish: (exit: { signal?: NodeJS.Signals }) => void = _exit => undefined
+      let releaseStart: (process: RunningProcess) => void = _process => undefined
+      let started: () => void = () => undefined
+      const completed = new Promise<{ signal?: NodeJS.Signals }>((resolveCompleted) => {
+        finish = resolveCompleted
+      })
+      const startGate = new Promise<RunningProcess>((resolveStart) => {
+        releaseStart = resolveStart
+      })
+      const didStart = new Promise<void>((resolveStarted) => {
+        started = resolveStarted
+      })
+      const adapter: ExecutionBackend = {
+        check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+        name: 'slow-start',
+        start: async () => {
+          started()
+          return startGate
+        },
+      }
+      const sandbox = trackedSandbox({ adapter, profile: readOnlyProfile() })
+      const execution = sandbox.execute({ command: 'wait forever', yieldTimeMs: 0 })
+      const executionResult = expect(execution).rejects.toMatchObject({ code: 'disposed' })
+      await didStart
+
+      const disposing = sandbox.dispose()
+      releaseStart({
+        completed,
+        end: async () => {},
+        kill: (signal) => {
+          signals.push(signal)
+          if (signal === 'SIGKILL')
+            finish({ signal })
+        },
+        write: async () => {},
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await executionResult
+      await disposing
+      expect(signals).toEqual(['SIGTERM', 'SIGKILL'])
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('fails closed when escalation has no authorizer', async () => {
     const sandbox = trackedSandbox({ adapter: host, profile: readOnlyProfile() })
 

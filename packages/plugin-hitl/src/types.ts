@@ -56,7 +56,12 @@ export interface HITLPlugin extends AgentPlugin {
 
 export type HITLPolicy = (
   request: Readonly<HITLRequest>,
+  context: HITLPolicyContext,
 ) => HITLPolicyResult | Promise<HITLPolicyResult | undefined> | undefined
+
+export interface HITLPolicyContext {
+  signal: AbortSignal
+}
 
 export interface HITLPolicyResult {
   reason?: string

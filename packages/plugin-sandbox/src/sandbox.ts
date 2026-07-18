@@ -243,6 +243,8 @@ const runMiddleware = async (
 
 export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   const activeProcesses = new Set<ManagedProcess>()
+  const inFlightStarts = new Set<Promise<ManagedProcess>>()
+  const lifecycleController = new AbortController()
   const sessions = new Map<string, ManagedProcess>()
   let disposed = false
 
@@ -335,7 +337,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     }
   }
 
-  const start = async (
+  const startProcess = async (
     request: ExecutionRequest & { requestId: string },
     backend: ExecutionBackend,
     profile: Readonly<SandboxProfile>,
@@ -391,6 +393,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
     if (disposed) {
       handle.kill('SIGTERM')
+      scheduleForceKill(session)
       await session.completed
       throw new SandboxError('disposed', 'Sandbox was disposed while execution was starting.')
     }
@@ -398,10 +401,28 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     return session
   }
 
-  const execute: Sandbox['execute'] = async (rawRequest, executeOptions = {}) => {
-    assertAvailable()
+  const start = async (
+    request: ExecutionRequest & { requestId: string },
+    backend: ExecutionBackend,
+    profile: Readonly<SandboxProfile>,
+    signal?: AbortSignal,
+  ): Promise<ManagedProcess> => {
+    const operation = startProcess(request, backend, profile, signal)
+    inFlightStarts.add(operation)
+    try {
+      return await operation
+    }
+    finally {
+      inFlightStarts.delete(operation)
+    }
+  }
+
+  const executeRequest = async (
+    rawRequest: ExecutionRequest,
+    signal: AbortSignal,
+  ): Promise<ExecutionResult> => {
     const request = normalizeRequest(rawRequest)
-    const execution = await resolveExecution(request, executeOptions.signal)
+    const execution = await resolveExecution(request, signal)
     const context: SandboxMiddlewareContext = {
       profile: execution.profile,
       request,
@@ -414,14 +435,14 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
         request,
         execution.backend,
         execution.profile,
-        executeOptions.signal,
+        signal,
       )
       const completed = request.yieldTimeMs == null
         ? (await session.completed.then(() => true))
         : await waitFor(session.completed, request.yieldTimeMs)
 
-      if (executeOptions.signal?.aborted)
-        throw executeOptions.signal.reason ?? new SandboxError('aborted', 'Execution was aborted.')
+      if (signal.aborted)
+        throw signal.reason ?? new SandboxError('aborted', 'Execution was aborted.')
 
       if (completed) {
         if (session.error != null)
@@ -432,6 +453,14 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       sessions.set(session.sessionId, session)
       return resultFor(session, true)
     })
+  }
+
+  const execute: Sandbox['execute'] = async (rawRequest, executeOptions = {}) => {
+    assertAvailable()
+    const signal = executeOptions.signal == null
+      ? lifecycleController.signal
+      : AbortSignal.any([lifecycleController.signal, executeOptions.signal])
+    return executeRequest(rawRequest, signal)
   }
 
   const writeProcess: Sandbox['writeProcess'] = async (sessionId, writeOptions = {}) => {
@@ -477,6 +506,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     if (disposed)
       return
     disposed = true
+    lifecycleController.abort(new SandboxError('disposed', 'Sandbox has been disposed.'))
     const active = [...activeProcesses]
     activeProcesses.clear()
     sessions.clear()
@@ -485,6 +515,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       scheduleForceKill(session)
     }
     await Promise.allSettled(active.map(async session => session.completed))
+    await Promise.allSettled([...inFlightStarts])
     await options.adapter.dispose?.()
     if (options.hostExecutor != null && options.hostExecutor !== options.adapter)
       await options.hostExecutor.dispose?.()

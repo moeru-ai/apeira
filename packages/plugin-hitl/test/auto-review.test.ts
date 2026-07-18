@@ -120,6 +120,26 @@ describe('autoReview', () => {
     })
   })
 
+  it('times out an unresolved context transformation', async () => {
+    let transformSignal: AbortSignal | undefined
+    const reviewer = autoReview({
+      timeoutMs: 5,
+      transformContext: async (_input, _request, context) => {
+        transformSignal = context.signal
+        return new Promise<never>(() => {})
+      },
+    })
+
+    await expect(reviewer.review(request, {
+      input: [],
+      runner: approvingRunner(),
+    })).resolves.toMatchObject({
+      failure: { type: 'timeout' },
+      type: 'failure',
+    })
+    expect(transformSignal?.aborted).toBe(true)
+  })
+
   it('serializes reviews and cancels a queued review immediately', async () => {
     let release = () => {}
     const gate = new Promise<void>((resolve) => {

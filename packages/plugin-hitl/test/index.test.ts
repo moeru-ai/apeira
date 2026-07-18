@@ -119,6 +119,13 @@ describe('toolPolicy', () => {
     expect(policy(toolRequest('delete'))).toEqual({ reason: 'Destructive tool', type: 'deny' })
     expect(policy(toolRequest('write'))).toBeUndefined()
   })
+
+  it('matches global deny patterns consistently', () => {
+    const policy = toolPolicy({ deny: [/^delete_/g] })
+
+    expect(policy(toolRequest('delete_file'))).toEqual({ type: 'deny' })
+    expect(policy(toolRequest('delete_file'))).toEqual({ type: 'deny' })
+  })
 })
 
 describe('hitl', () => {
@@ -343,23 +350,56 @@ describe('hitl', () => {
     await expect(pending).resolves.toMatchObject({ toolName: 'write' })
   })
 
-  it('caches explicit session approvals', async () => {
+  it('aborts policy evaluation without waiting for an unresolved policy', async () => {
+    const controller = new AbortController()
+    let policySignal: AbortSignal | undefined
+    const policy = vi.fn(async (_request: Readonly<HITLRequest>, context: { signal: AbortSignal }) => {
+      policySignal = context.signal
+      return new Promise<never>(() => {})
+    })
+    const plugin = hitl({ policies: [policy] })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(controller.signal))
+    await vi.waitFor(() => expect(policy).toHaveBeenCalledOnce())
+    controller.abort('stop')
+
+    await expect(pending).rejects.toBe('stop')
+    expect(policySignal?.aborted).toBe(true)
+  })
+
+  it('caches explicit session approvals for only the exact tool arguments', async () => {
     const plugin = hitl()
     const agent = createMockAgent()
     await startTurn(plugin, agent)
 
-    const first = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const first = plugin.preToolCall?.(createToolCall({
+      args: '{"content":"hello","path":"./file.txt"}',
+    }), createExecuteOptions())
     const request = await waitForRequest(agent)
     plugin.resolve(request.requestId, { scope: 'session', type: 'approve' })
     await first
 
-    const second = createToolCall({ toolCallId: 'call-2' })
+    const second = createToolCall({
+      args: '{"content":"hello","path":"./file.txt"}',
+      toolCallId: 'call-2',
+    })
     await expect(plugin.preToolCall?.(second, createExecuteOptions())).resolves.toEqual(second)
     expect(plugin.listPending()).toEqual([])
     expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'resolved')?.event).toMatchObject({
       decision: { scope: 'session', type: 'approve' },
       source: 'session',
     })
+
+    const third = plugin.preToolCall?.(createToolCall({
+      args: '{"content":"key","path":".ssh/authorized_keys"}',
+      toolCallId: 'call-3',
+    }), createExecuteOptions())
+    await vi.waitFor(() => expect(plugin.listPending()).toHaveLength(1))
+    const thirdRequest = plugin.listPending()[0]
+    plugin.resolve(thirdRequest.requestId, { type: 'approve' })
+    await expect(third).resolves.toMatchObject({ toolCallId: 'call-3' })
   })
 
   it('emits cancellation instead of a rejection decision on abort', async () => {

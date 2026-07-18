@@ -99,7 +99,7 @@ const possibleResults = [
 ]
 ```
 
-Policies may be asynchronous. Results are combined as `deny > ask > allow`; if every policy abstains, the plugin asks the user. A thrown policy is treated as `ask`. A deny always takes precedence over a cached session approval.
+Policies may be asynchronous. Results are combined as `deny > ask > allow`; if every policy abstains, the plugin asks the user. A thrown policy is treated as `ask`. A deny always takes precedence over a cached session approval. Each policy also receives `{ signal }`; long-running policy I/O should stop when it is aborted.
 
 ```ts
 const approval = hitl({
@@ -143,8 +143,11 @@ autoReview({
   onDeny: 'deny',
   onFailure: 'ask',
   timeoutMs: 90_000,
+  transformContext: async (input, request, { signal }) => projectContext(input, request, signal),
 })
 ```
+
+The timeout covers context transformation and the reviewer run. `transformContext` receives the same abort signal.
 
 `plugin-hitl/auto-review` does not import or create a sandbox. Applications that provide investigation tools are responsible for constraining them. Without tools, the reviewer decides from the projected conversation and request.
 
