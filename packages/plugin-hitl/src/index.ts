@@ -2,6 +2,7 @@ import type { ExecutionGrant } from '@apeira/plugin-sandbox'
 import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
 
 import type {
+  HITLAssessment,
   HITLCancellationReason,
   HITLDecision,
   HITLEvent,
@@ -10,16 +11,17 @@ import type {
   HITLPlugin,
   HITLPolicyResult,
   HITLRequest,
-  HITLResolvedEvent,
   ToolNamePattern,
   ToolPolicyOptions,
 } from './types'
 
 import { name, version } from '../package.json'
+import { createReviewerController } from './reviewer'
 import { createDeferred } from './utils/deferred'
 import { buildRejectionResult } from './utils/message'
 
 export type {
+  HITLAssessment,
   HITLCancellationReason,
   HITLCancelledEvent,
   HITLDecision,
@@ -33,6 +35,13 @@ export type {
   HITLRequestBase,
   HITLRequestEvent,
   HITLResolvedEvent,
+  HITLReviewContext,
+  HITLReviewer,
+  HITLReviewFailedEvent,
+  HITLReviewFailure,
+  HITLReviewingEvent,
+  HITLReviewResult,
+  HITLReviewRoute,
   PermissionRequest,
   RejectionMessageFn,
   ToolNamePattern,
@@ -90,17 +99,15 @@ export const toolPolicy = (options: ToolPolicyOptions): ((request: HITLRequest) 
 
 export const hitl = (options: HITLOptions = {}): HITLPlugin => {
   const pending = new Map<string, PendingRequest>()
-  const sessionApprovals = new Set<string>()
   let abortTurn: (reason?: unknown) => void = () => {}
   let currentTurnId = ''
-  let emit: (event: HITLEvent) => void = () => {}
+  let emit: (event: HITLEvent) => Promise<void> = async () => {}
   let unsubscribeApeira: (() => void) | undefined
-
-  const emitResolved = (
-    request: HITLRequest,
-    decision: HITLDecision,
-    source: HITLResolvedEvent['source'],
-  ) => emit({ decision, request, source, type: 'resolved' })
+  const reviews = createReviewerController({
+    emit: async event => emit(event),
+    policies: options.policies,
+    reviewer: options.reviewer,
+  })
 
   const cancel = (
     requestId: string,
@@ -112,7 +119,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
       return false
 
     pending.delete(requestId)
-    emit({ reason, request: entry.request, type: 'cancelled' })
+    void emit({ reason, request: entry.request, type: 'cancelled' })
     entry.cancel(cause)
     return true
   }
@@ -124,32 +131,12 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
 
     pending.delete(requestId)
     if (decision.type === 'approve' && decision.scope === 'session')
-      sessionApprovals.add(entry.cacheKey)
+      reviews.approveSession(entry.cacheKey)
     entry.resolve(decision)
-    emitResolved(entry.request, decision, 'user')
+    void emit({ decision, request: entry.request, source: 'user', type: 'resolved' })
     if (decision.type === 'reject' && decision.abortTurn === true)
       abortTurn(decision.message ?? 'Approval rejected and turn aborted.')
     return true
-  }
-
-  const review = async (request: HITLRequest): Promise<HITLPolicyResult> => {
-    if (options.policies == null || options.policies.length === 0)
-      return { type: 'ask' }
-
-    const results = await Promise.all(options.policies.map(async (policy): Promise<HITLPolicyResult | undefined> => {
-      try {
-        return await policy(request)
-      }
-      catch {
-        return { type: 'ask' }
-      }
-    }))
-    const reviews = results.filter((result): result is HITLPolicyResult => result != null)
-
-    return reviews.find(result => result.type === 'deny')
-      ?? reviews.find(result => result.type === 'ask')
-      ?? reviews.find(result => result.type === 'allow')
-      ?? { type: 'ask' }
   }
 
   const waitForDecision = async <T>(
@@ -157,6 +144,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     cacheKey: string,
     apply: (decision: HITLDecision) => T,
     signal?: AbortSignal,
+    assessment?: HITLAssessment,
   ): Promise<T> => {
     const deferred = createDeferred<T>()
     const onAbort = () => cancel(request.requestId, 'aborted', signal?.reason)
@@ -175,7 +163,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     }
 
     pending.set(request.requestId, entry)
-    emit({ request, type: 'request' })
+    void emit({ assessment, request, type: 'request' })
 
     if (signal?.aborted)
       onAbort()
@@ -210,37 +198,25 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
       escalation: execution.escalation,
     })
     const cacheKey = `permission:${permissionKey}`
-    const result = options.policies == null || options.policies.length === 0
-      ? { type: 'ask' } as const
-      : await review(request)
+    const route = await reviews.route(request, cacheKey, context.signal)
 
-    if (context.signal?.aborted)
-      throw context.signal.reason ?? new Error('Approval aborted.')
-    if (currentTurnId !== request.turnId)
+    if (route.type === 'deny')
       return undefined
-    if (result.type === 'deny') {
-      emitResolved(request, { message: result.reason, type: 'reject' }, 'policy')
-      return undefined
-    }
-    if (result.type === 'allow') {
-      emitResolved(request, { type: 'approve' }, 'policy')
+    if (route.type === 'approve')
       return context.createGrant()
-    }
-    if (sessionApprovals.has(cacheKey)) {
-      emitResolved(request, { scope: 'session', type: 'approve' }, 'session')
-      return context.createGrant()
-    }
 
     return waitForDecision<ExecutionGrant | undefined>(
       request,
       cacheKey,
       decision => decision.type === 'approve' ? context.createGrant() : undefined,
       context.signal,
+      route.assessment,
     )
   }
 
   const finishTurn = (turnId: string) => {
     currentTurnId = ''
+    reviews.finishTurn(turnId)
     for (const entry of pending.values()) {
       if (entry.request.turnId === turnId)
         cancel(entry.request.requestId, 'turn_finished')
@@ -252,11 +228,12 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     enforce: 'pre',
     init: (agent) => {
       abortTurn = agent.abort
-      // eslint-disable-next-line ts/no-misused-promises
       emit = async event => agent.emit('hitl', event)
+      reviews.init(agent)
       unsubscribeApeira = agent.subscribe('apeira', (event) => {
         if (event.type === 'turn.start') {
           currentTurnId = event.turnId
+          reviews.startTurn(event.turnId)
         }
         else if (
           ['turn.aborted', 'turn.done', 'turn.failed'].includes(event.type)
@@ -271,6 +248,10 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
       entry => entry.request,
     ).filter(request => listOptions?.turnId == null || request.turnId === listOptions.turnId),
     name,
+    prepareStep: (step) => {
+      reviews.captureInput(step.input)
+      return {}
+    },
     preToolCall: async (toolCall, executeOptions) => {
       if (currentTurnId.length === 0) {
         return buildRejectionResult(
@@ -289,29 +270,12 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
         type: 'tool',
       }
       const cacheKey = `tool:${toolCall.toolName}`
-      const result = options.policies == null || options.policies.length === 0
-        ? { type: 'ask' } as const
-        : await review(request)
+      const route = await reviews.route(request, cacheKey, executeOptions.abortSignal)
 
-      if (currentTurnId !== request.turnId) {
-        return buildRejectionResult(
-          toolCall,
-          options.rejectionMessage,
-          'Turn ended before approval.',
-        )
-      }
-      if (result.type === 'deny') {
-        emitResolved(request, { message: result.reason, type: 'reject' }, 'policy')
-        return buildRejectionResult(toolCall, options.rejectionMessage, result.reason)
-      }
-      if (result.type === 'allow') {
-        emitResolved(request, { type: 'approve' }, 'policy')
+      if (route.type === 'deny')
+        return buildRejectionResult(toolCall, options.rejectionMessage, route.reason)
+      if (route.type === 'approve')
         return toolCall
-      }
-      if (sessionApprovals.has(cacheKey)) {
-        emitResolved(request, { scope: 'session', type: 'approve' }, 'session')
-        return toolCall
-      }
 
       return waitForDecision<CompletionToolCall | CompletionToolResult>(
         request,
@@ -324,13 +288,21 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
           return buildRejectionResult(toolCall, options.rejectionMessage, decision.message)
         },
         executeOptions.abortSignal,
+        route.assessment,
       )
     },
     resolve,
+    get reviewer() {
+      return reviews.reviewer
+    },
+    setReviewer: (reviewer) => {
+      reviews.setReviewer(reviewer)
+    },
     stop: () => {
+      reviews.stop()
       for (const entry of pending.values())
         cancel(entry.request.requestId, 'stopped')
-      sessionApprovals.clear()
+      currentTurnId = ''
       unsubscribeApeira?.()
       unsubscribeApeira = undefined
     },

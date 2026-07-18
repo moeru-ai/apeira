@@ -1,10 +1,17 @@
-import type { AgentPlugin } from '@apeira/core'
+import type { AgentInput, AgentPlugin, Runner } from '@apeira/core'
 import type {
   EscalationAuthorizer,
   EscalationRequest,
   SandboxProfile,
 } from '@apeira/plugin-sandbox'
 import type { CompletionToolCall } from '@xsai/shared-chat'
+
+export interface HITLAssessment {
+  rationale: string
+  riskLevel: 'critical' | 'high' | 'low' | 'medium'
+  type: 'approve' | 'deny'
+  userAuthorization: 'high' | 'low' | 'medium' | 'unknown'
+}
 
 export type HITLCancellationReason = 'aborted' | 'stopped' | 'turn_finished'
 
@@ -23,6 +30,8 @@ export type HITLEvent
   = | HITLCancelledEvent
     | HITLRequestEvent
     | HITLResolvedEvent
+    | HITLReviewFailedEvent
+    | HITLReviewingEvent
 
 export type HITLOption
   = | 'approve'
@@ -34,12 +43,15 @@ export type HITLOption
 export interface HITLOptions {
   policies?: HITLPolicy[]
   rejectionMessage?: RejectionMessageFn | string
+  reviewer?: HITLReviewer
 }
 
 export interface HITLPlugin extends AgentPlugin {
   authorizeEscalation: EscalationAuthorizer
   listPending: (options?: { turnId?: string }) => readonly HITLRequest[]
   resolve: (requestId: string, decision: HITLDecision) => boolean
+  readonly reviewer: 'user' | HITLReviewer
+  setReviewer: (reviewer: 'user' | HITLReviewer) => void
 }
 
 export type HITLPolicy = (
@@ -61,16 +73,57 @@ export interface HITLRequestBase {
 }
 
 export interface HITLRequestEvent {
+  assessment?: HITLAssessment
   request: HITLRequest
   type: 'request'
 }
 
 export interface HITLResolvedEvent {
+  assessment?: HITLAssessment
   decision: HITLDecision
+  failure?: HITLReviewFailure
   request: HITLRequest
-  source: 'policy' | 'session' | 'user'
+  source: 'policy' | 'reviewer' | 'reviewer_failure' | 'session' | 'user'
   type: 'resolved'
 }
+
+export interface HITLReviewContext {
+  input: readonly AgentInput[]
+  runner: Runner
+  signal?: AbortSignal
+}
+
+export interface HITLReviewer {
+  name: string
+  onDeny?: HITLReviewRoute
+  onFailure?: HITLReviewRoute
+  review: (
+    request: Readonly<HITLRequest>,
+    context: HITLReviewContext,
+  ) => HITLReviewResult | Promise<HITLReviewResult>
+}
+
+export interface HITLReviewFailedEvent {
+  failure: HITLReviewFailure
+  request: HITLRequest
+  reviewer: string
+  type: 'review_failed'
+}
+
+export interface HITLReviewFailure {
+  message?: string
+  type: 'invalid_result' | 'reviewer_error' | 'runner' | 'timeout'
+}
+
+export interface HITLReviewingEvent {
+  request: HITLRequest
+  reviewer: string
+  type: 'reviewing'
+}
+
+export type HITLReviewResult = HITLAssessment | { failure: HITLReviewFailure, type: 'failure' }
+
+export type HITLReviewRoute = 'ask' | 'deny'
 
 export interface PermissionRequest extends HITLRequestBase {
   command: string

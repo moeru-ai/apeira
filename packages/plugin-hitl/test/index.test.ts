@@ -2,8 +2,9 @@ import type { Agent, AgentChannel, AgentEventListener } from '@apeira/core'
 import type { ExecutionBackend, RunningProcess } from '@apeira/plugin-sandbox'
 import type { CompletionToolCall, ToolExecuteOptions } from '@xsai/shared-chat'
 
-import type { HITLEvent, HITLRequest, HITLRequestEvent } from '../src/index'
+import type { HITLEvent, HITLRequest, HITLRequestEvent, HITLReviewContext } from '../src/index'
 
+import { user } from '@apeira/core'
 import { createSandbox, readOnlyProfile } from '@apeira/plugin-sandbox'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -121,6 +122,146 @@ describe('toolPolicy', () => {
 })
 
 describe('hitl', () => {
+  it('routes ask through a configured reviewer with the live turn input', async () => {
+    const review = vi.fn((_request: Readonly<HITLRequest>, _context: HITLReviewContext) => ({
+      rationale: 'Narrow, authorized write.',
+      riskLevel: 'low' as const,
+      type: 'approve' as const,
+      userAuthorization: 'high' as const,
+    }))
+    const plugin = hitl({ reviewer: { name: 'test-reviewer', review } })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+    await plugin.prepareStep?.({ input: [user('Update the file.')], model: 'test', stepNumber: 0, steps: [] })
+
+    const toolCall = createToolCall()
+    await expect(plugin.preToolCall?.(toolCall, createExecuteOptions())).resolves.toEqual(toolCall)
+
+    expect(review).toHaveBeenCalledOnce()
+    expect(review.mock.calls[0][1].input).toEqual([user('Update the file.')])
+    expect(requestEvent(agent)).toBeUndefined()
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'resolved')?.event).toMatchObject({
+      assessment: { type: 'approve' },
+      source: 'reviewer',
+    })
+  })
+
+  it('asks the user when automatic review fails by default', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({ failure: { type: 'timeout' }, type: 'failure' }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(agent.emitted.some(entry => (entry.event as HITLEvent).type === 'review_failed')).toBe(true)
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
+  it('does not call the reviewer for policy allow or deny', async () => {
+    const review = vi.fn(() => ({
+      rationale: 'Should not run.',
+      riskLevel: 'low' as const,
+      type: 'approve' as const,
+      userAuthorization: 'high' as const,
+    }))
+    const reviewer = { name: 'test-reviewer', review }
+    const allowed = hitl({ policies: [() => ({ type: 'allow' })], reviewer })
+    const allowedAgent = createMockAgent()
+    await startTurn(allowed, allowedAgent)
+    await expect(allowed.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      toolName: 'write',
+    })
+
+    const denied = hitl({ policies: [() => ({ type: 'deny' })], reviewer })
+    const deniedAgent = createMockAgent()
+    await startTurn(denied, deniedAgent)
+    await expect(denied.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved.',
+    })
+    expect(review).not.toHaveBeenCalled()
+  })
+
+  it('denies an explicit automatic review rejection by default', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The operation is too risky.',
+          riskLevel: 'critical',
+          type: 'deny',
+          userAuthorization: 'low',
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved. Reason: The operation is too risky.',
+    })
+    expect(requestEvent(agent)).toBeUndefined()
+  })
+
+  it('cancels an active reviewer without falling back to the user', async () => {
+    const controller = new AbortController()
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: async (_request, context) => new Promise((_, reject) => {
+          context.signal?.addEventListener('abort', () => reject(context.signal?.reason), { once: true })
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(controller.signal))
+    await vi.waitFor(() => expect(agent.emitted.some(
+      entry => (entry.event as HITLEvent).type === 'reviewing',
+    )).toBe(true))
+    controller.abort('stop')
+
+    await expect(pending).rejects.toBe('stop')
+    expect(requestEvent(agent)).toBeUndefined()
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'cancelled')?.event).toMatchObject({
+      reason: 'aborted',
+    })
+  })
+
+  it('auto-review approvals are once-only and reviewer switching affects future requests', async () => {
+    const reviewer = {
+      name: 'test-reviewer',
+      review: vi.fn(() => ({
+        rationale: 'Allowed.',
+        riskLevel: 'low' as const,
+        type: 'approve' as const,
+        userAuthorization: 'high' as const,
+      })),
+    }
+    const plugin = hitl({ reviewer })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    await plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions())
+    expect(reviewer.review).toHaveBeenCalledTimes(2)
+
+    plugin.setReviewer('user')
+    expect(plugin.reviewer).toBe('user')
+    const pending = plugin.preToolCall?.(createToolCall({ toolCallId: 'call-3' }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+    expect(reviewer.review).toHaveBeenCalledTimes(2)
+  })
+
   it('approves and lists a pending tool request', async () => {
     const plugin = hitl()
     const agent = createMockAgent()
