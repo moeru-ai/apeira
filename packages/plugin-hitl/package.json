@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.0.7",
   "private": true,
-  "description": "Human-in-the-loop tool approval for Apeira.",
+  "description": "Human-in-the-loop tool and sandbox permission approval for Apeira.",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",
@@ -43,12 +43,19 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@apeira/core": "workspace:"
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-sandbox": "workspace:"
+  },
+  "peerDependenciesMeta": {
+    "@apeira/plugin-sandbox": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@xsai/shared-chat": "catalog:xsai"
   },
   "devDependencies": {
-    "@apeira/core": "workspace:"
+    "@apeira/core": "workspace:",
+    "@apeira/plugin-sandbox": "workspace:"
   }
 }

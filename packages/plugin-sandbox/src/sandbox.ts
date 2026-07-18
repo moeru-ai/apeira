@@ -246,6 +246,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
   const resolveExecution = async (
     request: ExecutionRequest & { requestId: string },
+    signal?: AbortSignal,
   ): Promise<{ backend: ExecutionBackend, profile: SandboxProfile, route: SandboxRoute }> => {
     if (request.escalation == null) {
       const route = options.profile.route
@@ -272,8 +273,14 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     const grant = await options.authorizeEscalation(request as ExecutionRequest & {
       escalation: NonNullable<ExecutionRequest['escalation']>
     }, {
+      createGrant: grantOptions => createExecutionGrant({
+        escalation: request.escalation!,
+        expiresAt: grantOptions?.expiresAt,
+        requestId: request.requestId,
+      }),
       defaultProfile: options.profile,
       requestId: request.requestId,
+      signal,
     })
 
     if (grant == null) {
@@ -289,7 +296,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       )
     }
 
-    if (request.escalation.kind === 'bypass') {
+    if (request.escalation.type === 'bypass') {
       if (options.hostExecutor == null) {
         throw new SandboxError(
           'host_executor_unavailable',
@@ -388,7 +395,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   const execute: Sandbox['execute'] = async (rawRequest, executeOptions = {}) => {
     assertAvailable()
     const request = normalizeRequest(rawRequest)
-    const execution = await resolveExecution(request)
+    const execution = await resolveExecution(request, executeOptions.signal)
     const context: SandboxMiddlewareContext = {
       profile: execution.profile,
       request,

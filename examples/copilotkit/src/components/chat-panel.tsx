@@ -1,5 +1,5 @@
 import type { AgentEntry } from '@apeira/core'
-import type { HITLRequestEvent } from '@apeira/plugin-hitl'
+import type { ToolRequest } from '@apeira/plugin-hitl'
 
 import { responses } from '@apeira/core/responses'
 import { agui } from '@apeira/plugin-ag-ui'
@@ -30,7 +30,7 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelProps) => {
   const { apiKey, baseURL, model } = useLLMSettings()
-  const [approvalRequests, setApprovalRequests] = useState<HITLRequestEvent[]>([])
+  const [approvalRequests, setApprovalRequests] = useState<ToolRequest[]>([])
 
   const storage = useMemo(() =>
     kv<AgentEntry>({
@@ -38,46 +38,49 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
       prefix: getThreadStorePrefix(threadId),
     }), [threadId])
 
-  const agent = useMemo(() => new AbstractApeiraAgent({
-    instructions: DEFAULT_INSTRUCTIONS,
-    plugins: [
-      hitl({
-        toolPolicies: {
-          'get-weather': {
-            needsApproval: true,
-          },
-        },
+  const { agent, approval } = useMemo(() => {
+    const approval = hitl()
+    const agent = new AbstractApeiraAgent({
+      instructions: DEFAULT_INSTRUCTIONS,
+      plugins: [
+        approval,
+        agui({ threadId }),
+      ],
+      runner: responses({
+        apiKey,
+        baseURL,
+        model,
       }),
-      agui({ threadId }),
-    ],
-    runner: responses({
-      apiKey,
-      baseURL,
-      model,
-    }),
-    storage,
-    tools: [
-      weatherTool,
-    ],
-  }, onThreadUpdated, threadId), [apiKey, baseURL, model, onThreadUpdated, storage, threadId])
+      storage,
+      tools: [
+        weatherTool,
+      ],
+    }, onThreadUpdated, threadId)
+    return { agent, approval }
+  }, [apiKey, baseURL, model, onThreadUpdated, storage, threadId])
 
   useEffect(() => {
     const unsubscribe = agent.subscribeHitl(threadId, (event) => {
       switch (event.type) {
-        case 'control.approve':
-        case 'control.reject':
-        case 'hitl.auto_reviewed':
-          return
+        case 'cancelled':
+          setApprovalRequests(current => current.filter(request => request.requestId !== event.request.requestId))
+          break
 
-        case 'hitl.request':
+        case 'request': {
+          if (event.request.type !== 'tool')
+            return
+
+          const request = event.request
           setApprovalRequests((current) => {
-            const next = current.filter(request => request.toolCallId !== event.toolCallId)
-            return [...next, event]
+            const next = current.filter(item => item.requestId !== request.requestId)
+            return [...next, request]
           })
           return
+        }
 
-        case 'hitl.resolved':
-          setApprovalRequests(current => current.filter(request => request.toolCallId !== event.toolCallId))
+        case 'resolved':
+          setApprovalRequests(current => current.filter(request => request.requestId !== event.request.requestId))
+          break
       }
     })
 
@@ -98,8 +101,8 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
             />
           </div>
           <ApprovalPanel
-            onApprove={toolCallId => agent.approve(toolCallId)}
-            onReject={toolCallId => agent.reject(toolCallId, 'Rejected by user')}
+            onApprove={requestId => approval.resolve(requestId, { type: 'approve' })}
+            onReject={requestId => approval.resolve(requestId, { message: 'Rejected by user', type: 'reject' })}
             requests={approvalRequests}
           />
         </CopilotChatConfigurationProvider>

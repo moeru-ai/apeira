@@ -1,56 +1,84 @@
+import type { AgentPlugin } from '@apeira/core'
+import type {
+  EscalationAuthorizer,
+  EscalationRequest,
+  SandboxProfile,
+} from '@apeira/plugin-sandbox'
 import type { CompletionToolCall } from '@xsai/shared-chat'
 
-export type ApprovalDecision
-  = | { reason?: string, type: 'reject' }
-    | { type: 'approve' }
-    | { type: 'pending' }
+export type HITLCancellationReason = 'aborted' | 'stopped' | 'turn_finished'
 
-export type AutoReviewPolicy = (
-  toolCall: CompletionToolCall,
-  context: { toolPolicies?: Record<string, ToolPolicy> },
-) => ApprovalDecision
-
-export interface HITLAutoReviewedEvent extends HITLBaseEvent {
-  decision: 'approve' | 'reject'
-  reason?: string
-  type: 'hitl.auto_reviewed'
+export interface HITLCancelledEvent {
+  reason: HITLCancellationReason
+  request: HITLRequest
+  type: 'cancelled'
 }
 
-export interface HITLBaseEvent {
-  timestamp: number
-  toolCallId: string
-  toolName: string
-  turnId: string
-}
-
-export interface HITLControlEvent {
-  reason?: string
-  toolCallId: string
-  type: 'control.approve' | 'control.reject'
-}
+export type HITLDecision
+  = | { abortTurn?: boolean, message?: string, type: 'reject' }
+    | { args: string, type: 'edit' }
+    | { scope?: 'once' | 'session', type: 'approve' }
 
 export type HITLEvent
-  = | HITLAutoReviewedEvent
-    | HITLControlEvent
+  = | HITLCancelledEvent
     | HITLRequestEvent
     | HITLResolvedEvent
 
-export interface HITLRequestEvent extends HITLBaseEvent {
-  args: string
-  type: 'hitl.request'
-}
+export type HITLOption
+  = | 'approve'
+    | 'approve_session'
+    | 'edit'
+    | 'reject'
+    | 'reject_abort'
 
-export interface HITLResolvedEvent extends HITLBaseEvent {
-  auto: boolean
-  decision: 'approve' | 'reject'
-  reason?: string
-  type: 'hitl.resolved'
-}
-
-export interface HumanInTheLoopOptions {
-  autoReview?: AutoReviewPolicy
+export interface HITLOptions {
+  policies?: HITLPolicy[]
   rejectionMessage?: RejectionMessageFn | string
-  toolPolicies?: Record<string, ToolPolicy>
+}
+
+export interface HITLPlugin extends AgentPlugin {
+  authorizeEscalation: EscalationAuthorizer
+  listPending: (options?: { turnId?: string }) => readonly HITLRequest[]
+  resolve: (requestId: string, decision: HITLDecision) => boolean
+}
+
+export type HITLPolicy = (
+  request: Readonly<HITLRequest>,
+) => HITLPolicyResult | Promise<HITLPolicyResult | undefined> | undefined
+
+export interface HITLPolicyResult {
+  reason?: string
+  type: 'allow' | 'ask' | 'deny'
+}
+
+export type HITLRequest = PermissionRequest | ToolRequest
+
+export interface HITLRequestBase {
+  createdAt: number
+  options: readonly HITLOption[]
+  requestId: string
+  turnId: string
+}
+
+export interface HITLRequestEvent {
+  request: HITLRequest
+  type: 'request'
+}
+
+export interface HITLResolvedEvent {
+  decision: HITLDecision
+  request: HITLRequest
+  source: 'policy' | 'session' | 'user'
+  type: 'resolved'
+}
+
+export interface PermissionRequest extends HITLRequestBase {
+  command: string
+  cwd?: string
+  defaultProfile: Readonly<SandboxProfile>
+  escalation: EscalationRequest
+  executionRequestId: string
+  type: 'permission'
 }
 
 export type RejectionMessageFn = (
@@ -60,6 +88,13 @@ export type RejectionMessageFn = (
 
 export type ToolNamePattern = RegExp | string
 
-export interface ToolPolicy {
-  needsApproval?: ((args: unknown) => boolean) | boolean
+export interface ToolPolicyOptions {
+  allow?: ToolNamePattern[]
+  deny?: ToolNamePattern[]
+  denyReason?: string
+}
+
+export interface ToolRequest extends HITLRequestBase {
+  toolCall: CompletionToolCall
+  type: 'tool'
 }

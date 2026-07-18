@@ -5,7 +5,6 @@ import type { BaseEvent, Message, RunAgentInput } from '@copilotkit/react-core/v
 import type { Subscriber } from 'rxjs'
 
 import { createAgent, run, toAgentInput } from '@apeira/core'
-import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 import {
   AbstractAgent,
   EventType,
@@ -281,18 +280,10 @@ export class AbstractApeiraAgent extends AbstractAgent {
     this.onThreadUpdated = onThreadUpdated
   }
 
-  approve(toolCallId: string) {
-    void approveToolCall(this.agent, { toolCallId })
-  }
-
   override clone(): this {
     const cloned = new AbstractApeiraAgent(this.agentOptions, this.onThreadUpdated, this.threadId) as this
     cloned.agentId = this.agentId
     return cloned
-  }
-
-  reject(toolCallId: string, reason?: string) {
-    void rejectToolCall(this.agent, { reason, toolCallId })
   }
 
   override run(input: RunAgentInput) {

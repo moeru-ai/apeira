@@ -16,8 +16,10 @@ export interface CreateSandboxOptions {
 }
 
 export interface EscalationAuthorizationContext {
+  createGrant: (options?: { expiresAt?: number }) => ExecutionGrant
   defaultProfile: Readonly<SandboxProfile>
   requestId: string
+  signal?: AbortSignal
 }
 
 export type EscalationAuthorizer = (
@@ -28,12 +30,12 @@ export type EscalationAuthorizer = (
 export type EscalationRequest
   = | {
     justification: string
-    kind: 'bypass'
+    permissions: PermissionDelta
+    type: 'expand'
   }
   | {
     justification: string
-    kind: 'expand'
-    permissions: PermissionDelta
+    type: 'bypass'
   }
 
 export interface ExecutionBackend {

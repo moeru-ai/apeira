@@ -101,7 +101,7 @@ describe('createSandbox', () => {
 
     await expect(sandbox.execute({
       command: 'true',
-      escalation: { justification: 'write a generated file', kind: 'expand', permissions: {} },
+      escalation: { justification: 'write a generated file', permissions: {}, type: 'expand' },
     })).rejects.toMatchObject({ code: 'escalation_denied' })
   })
 
@@ -116,12 +116,9 @@ describe('createSandbox', () => {
         return completedProcess()
       },
     }
-    const authorizeEscalation: EscalationAuthorizer = async (request, context) => {
+    const authorizeEscalation: EscalationAuthorizer = async (_request, context) => {
       authorizationCalls += 1
-      return createExecutionGrant({
-        escalation: request.escalation,
-        requestId: context.requestId,
-      })
+      return context.createGrant()
     }
     const sandbox = trackedSandbox({
       adapter,
@@ -134,8 +131,8 @@ describe('createSandbox', () => {
       cwd: '/workspace/project',
       escalation: {
         justification: 'read generated fixtures',
-        kind: 'expand',
         permissions: { fileSystem: { allowRead: ['fixtures'] } },
+        type: 'expand',
       },
       requestId: 'request-1',
     })
@@ -156,7 +153,7 @@ describe('createSandbox', () => {
 
     await expect(sandbox.execute({
       command: 'true',
-      escalation: { justification: 'run an unsupported operation', kind: 'bypass' },
+      escalation: { justification: 'run an unsupported operation', type: 'bypass' },
     })).rejects.toEqual(expect.objectContaining({
       code: 'host_executor_unavailable',
       name: SandboxError.name,
@@ -167,7 +164,7 @@ describe('createSandbox', () => {
     const sandbox = trackedSandbox({
       adapter: host,
       authorizeEscalation: async (_request, context) => createExecutionGrant({
-        escalation: { justification: 'different request', kind: 'bypass' },
+        escalation: { justification: 'different request', type: 'bypass' },
         requestId: context.requestId,
       }),
       profile: readOnlyProfile(),
@@ -177,8 +174,8 @@ describe('createSandbox', () => {
       command: 'true',
       escalation: {
         justification: 'read one path',
-        kind: 'expand',
         permissions: { fileSystem: { allowRead: ['/example/read-only'] } },
+        type: 'expand',
       },
     })).rejects.toMatchObject({ code: 'invalid_grant' })
   })

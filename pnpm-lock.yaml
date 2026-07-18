@@ -521,6 +521,9 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../core
+      '@apeira/plugin-sandbox':
+        specifier: 'workspace:'
+        version: link:../plugin-sandbox
 
   packages/plugin-mcp:
     dependencies:

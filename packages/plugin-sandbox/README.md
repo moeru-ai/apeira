@@ -45,7 +45,6 @@ Applications that need manual runtime ownership can use `createSandbox()` and th
 
 ```ts
 import {
-  createExecutionGrant,
   createHostExecutor,
   createSandbox,
   workspaceWriteProfile,
@@ -58,15 +57,14 @@ const sandbox = createSandbox({
     if (!approved)
       return
 
-    return createExecutionGrant({
-      escalation: request.escalation,
-      requestId: context.requestId,
-    })
+    return context.createGrant()
   },
   hostExecutor: createHostExecutor(),
   profile: workspaceWriteProfile(),
 })
 ```
+
+`context.createGrant()` binds the grant to the current request id and exact escalation. The lower-level `createExecutionGrant()` export remains available for authorizers that need to mint a grant explicitly.
 
 ## SRT constraints
 

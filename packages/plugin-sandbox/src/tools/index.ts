@@ -59,8 +59,8 @@ const toEscalation = (input: ToolPermissionInput): EscalationRequest | undefined
 
   const permissions = toPermissionDelta(input.additional_permissions)
   return permissions == null
-    ? { justification, kind: 'bypass' }
-    : { justification, kind: 'expand', permissions }
+    ? { justification, type: 'bypass' }
+    : { justification, permissions, type: 'expand' }
 }
 
 const permissionProperties = {
