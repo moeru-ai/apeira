@@ -195,6 +195,33 @@ describe('createSandbox', () => {
     }
   })
 
+  it('disposes without waiting for a backend start that ignores abort', async () => {
+    let start: () => void = () => undefined
+    const didStart = new Promise<void>((resolveStart) => {
+      start = resolveStart
+    })
+    const dispose = vi.fn(async () => {})
+    const adapter: ExecutionBackend = {
+      check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+      dispose,
+      name: 'unresponsive-start',
+      start: async () => {
+        start()
+        return new Promise<RunningProcess>(() => {})
+      },
+    }
+    const sandbox = trackedSandbox({ adapter, profile: readOnlyProfile() })
+    const execution = sandbox.execute({ command: 'never starts' })
+    const executionResult = expect(execution).rejects.toMatchObject({ code: 'disposed' })
+    await didStart
+
+    const disposing = sandbox.dispose()
+
+    await executionResult
+    await expect(disposing).resolves.toBeUndefined()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
   it('fails closed when escalation has no authorizer', async () => {
     const sandbox = trackedSandbox({ adapter: host, profile: readOnlyProfile() })
 

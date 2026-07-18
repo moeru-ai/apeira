@@ -212,6 +212,38 @@ const waitFor = async (promise: Promise<unknown>, timeoutMs: number): Promise<bo
   return completed
 }
 
+const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
+  signal.throwIfAborted()
+  let onAbort = () => {}
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([promise, aborted])
+  }
+  finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+const terminateLateProcess = (handle: RunningProcess) => {
+  try {
+    handle.kill('SIGTERM')
+  }
+  catch {}
+
+  const forceKill = setTimeout(() => {
+    try {
+      handle.kill('SIGKILL')
+    }
+    catch {}
+  }, FORCE_KILL_DELAY_MS)
+  forceKill.unref?.()
+  const clearForceKill = () => clearTimeout(forceKill)
+  void handle.completed.then(clearForceKill, clearForceKill)
+}
+
 const scheduleForceKill = (session: ManagedProcess) => {
   if (session.forceKill != null)
     clearTimeout(session.forceKill)
@@ -341,13 +373,14 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     request: ExecutionRequest & { requestId: string },
     backend: ExecutionBackend,
     profile: Readonly<SandboxProfile>,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<ManagedProcess> => {
-    if (signal?.aborted)
+    if (signal.aborted)
       throw signal.reason ?? new SandboxError('aborted', 'Execution was aborted before it started.')
 
     const collector = new OutputCollector(request.maxOutputBytes!)
-    const handle = await backend.start({
+    let claimed = false
+    const starting = backend.start({
       command: request.command,
       cwd: request.cwd!,
       env: request.env ?? {},
@@ -358,6 +391,17 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       stderr: chunk => collector.appendStderr(chunk),
       stdout: chunk => collector.appendStdout(chunk),
     })
+    void starting.then((handle) => {
+      if (claimed || (!signal.aborted && !disposed))
+        return
+      terminateLateProcess(handle)
+    }, () => {})
+    const handle = await raceAbort(starting, signal)
+    claimed = true
+    if (signal.aborted || disposed) {
+      terminateLateProcess(handle)
+      throw signal.reason ?? new SandboxError('disposed', 'Sandbox was disposed while execution was starting.')
+    }
     const session: ManagedProcess = {
       collector,
       completed: Promise.resolve(),
@@ -391,13 +435,6 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     })
     activeProcesses.add(session)
 
-    if (disposed) {
-      handle.kill('SIGTERM')
-      scheduleForceKill(session)
-      await session.completed
-      throw new SandboxError('disposed', 'Sandbox was disposed while execution was starting.')
-    }
-
     return session
   }
 
@@ -405,7 +442,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     request: ExecutionRequest & { requestId: string },
     backend: ExecutionBackend,
     profile: Readonly<SandboxProfile>,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<ManagedProcess> => {
     const operation = startProcess(request, backend, profile, signal)
     inFlightStarts.add(operation)
