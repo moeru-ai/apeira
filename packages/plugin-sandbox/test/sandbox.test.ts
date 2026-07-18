@@ -109,6 +109,46 @@ describe('createSandbox', () => {
     expect(result.signal).toBe('SIGTERM')
   })
 
+  it('force kills explicitly terminated processes that ignore SIGTERM', async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: Array<NodeJS.Signals | undefined> = []
+      let finish: (exit: { signal?: NodeJS.Signals }) => void = _exit => undefined
+      const completed = new Promise<{ signal?: NodeJS.Signals }>((resolveCompleted) => {
+        finish = resolveCompleted
+      })
+      const adapter: ExecutionBackend = {
+        check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+        name: 'stubborn',
+        start: async () => ({
+          completed,
+          end: async () => {},
+          kill: (signal) => {
+            signals.push(signal)
+            if (signal === 'SIGKILL')
+              finish({ signal })
+          },
+          write: async () => {},
+        }),
+      }
+      const sandbox = trackedSandbox({ adapter, profile: readOnlyProfile() })
+      const started = await sandbox.execute({ command: 'wait forever', yieldTimeMs: 0 })
+
+      const terminated = await sandbox.writeProcess(started.sessionId!, {
+        terminate: true,
+        yieldTimeMs: 0,
+      })
+      expect(terminated.running).toBe(true)
+      expect(signals).toEqual(['SIGTERM'])
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(signals).toEqual(['SIGTERM', 'SIGKILL'])
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('force kills processes that ignore SIGTERM during disposal', async () => {
     vi.useFakeTimers()
     try {

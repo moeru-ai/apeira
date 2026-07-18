@@ -21,7 +21,7 @@ import { name, version } from '../package.json'
 import { createReviewerController } from './reviewer'
 import { createDeferred } from './utils/deferred'
 import { buildRejectionResult } from './utils/message'
-import { redactEvent } from './utils/redact'
+import { redactEvent, redactRequest } from './utils/redact'
 
 export type {
   HITLAssessment,
@@ -270,7 +270,9 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     listPending: listOptions => Array.from(
       pending.values(),
       entry => entry.request,
-    ).filter(request => listOptions?.turnId == null || request.turnId === listOptions.turnId),
+    )
+      .filter(request => listOptions?.turnId == null || request.turnId === listOptions.turnId)
+      .map(redactRequest),
     name,
     prepareStep: (step) => {
       reviews.captureInput(step.input)

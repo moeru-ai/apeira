@@ -198,10 +198,7 @@ export const createReviewerController = (
     reviewer: HITLReviewer,
     assessment: HITLAssessment,
   ): Promise<ReviewRoute> => {
-    if (assessment.userAuthorization === 'unknown' || assessment.riskLevel === 'high')
-      return { assessment, type: 'ask' }
-
-    if (assessment.riskLevel === 'critical' && assessment.type === 'approve') {
+    if (assessment.type === 'approve' && assessment.riskLevel === 'critical') {
       await emitResolved(request, 'reviewer', {
         assessment,
         message: 'Critical-risk actions cannot be automatically approved.',
@@ -210,6 +207,8 @@ export const createReviewerController = (
       return { reason: 'Critical-risk actions cannot be automatically approved.', type: 'deny' }
     }
     if (assessment.type === 'approve') {
+      if (assessment.userAuthorization === 'unknown' || assessment.riskLevel === 'high')
+        return { assessment, type: 'ask' }
       await emitResolved(request, 'reviewer', { assessment, type: 'approve' })
       return { type: 'approve' }
     }

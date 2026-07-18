@@ -523,7 +523,8 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     }
 
     if (writeOptions.terminate) {
-      session.handle.kill('SIGTERM')
+      killProcess(session.handle, 'SIGTERM')
+      scheduleForceKill(session)
     }
     else {
       if (writeOptions.data != null)

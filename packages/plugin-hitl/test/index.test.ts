@@ -176,6 +176,51 @@ describe('hitl', () => {
     await expect(pending).resolves.toMatchObject({ toolName: 'write' })
   })
 
+  it('honors reviewer denials before applying risk routing', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The action is not allowed.',
+          riskLevel: 'high',
+          type: 'deny',
+          userAuthorization: 'high',
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions()))
+      .resolves
+      .toMatchObject({ result: 'Tool execution was not approved. Reason: The action is not allowed.' })
+    expect(plugin.listPending()).toEqual([])
+  })
+
+  it('can route reviewer denials to the user', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        onDeny: 'ask',
+        review: () => ({
+          rationale: 'The action is not allowed automatically.',
+          riskLevel: 'high',
+          type: 'deny',
+          userAuthorization: 'high',
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(requestEvent(agent)?.assessment).toMatchObject({ riskLevel: 'high', type: 'deny' })
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
   it('redacts sensitive tool arguments in emitted requests', async () => {
     const plugin = hitl()
     const agent = createMockAgent()
@@ -191,6 +236,37 @@ describe('hitl', () => {
       expect(request.toolCall.args).toContain('[REDACTED]')
       expect(request.toolCall.args).not.toContain('do-not-leak')
     }
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+  })
+
+  it('redacts shell credentials in emitted and pending requests', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const authorization = 'sk-secret-value'
+    const cookie = 'session-cookie-value'
+    const pending = plugin.preToolCall?.(createToolCall({
+      args: JSON.stringify({
+        command: `curl -H "Authorization: Bearer ${authorization}" --cookie "session=${cookie}"`,
+      }),
+    }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+
+    expect(request.type).toBe('tool')
+    if (request.type === 'tool') {
+      expect(request.toolCall.args).not.toContain(authorization)
+      expect(request.toolCall.args).not.toContain(cookie)
+      expect(request.toolCall.args).toContain('[REDACTED]')
+    }
+    const listed = plugin.listPending()[0]
+    expect(listed?.type).toBe('tool')
+    if (listed?.type === 'tool') {
+      expect(listed.toolCall.args).not.toContain(authorization)
+      expect(listed.toolCall.args).not.toContain(cookie)
+    }
+
     plugin.resolve(request.requestId, { type: 'approve' })
     await pending
   })
