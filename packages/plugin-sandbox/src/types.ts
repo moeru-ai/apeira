@@ -10,9 +10,9 @@ export interface BackendStartOptions {
 
 export interface CreateSandboxOptions {
   adapter: SandboxAdapter
+  audit?: (event: SandboxEvent) => Promise<void> | void
   authorizeEscalation?: EscalationAuthorizer
   hostExecutor?: HostExecutor
-  middleware?: SandboxMiddleware[]
   profile: SandboxProfile
 }
 
@@ -130,6 +130,7 @@ export interface ProcessSink {
   stderr: (chunk: string | Uint8Array) => void
   stdout: (chunk: string | Uint8Array) => void
 }
+
 export interface RunningProcess {
   readonly completed: Promise<ExecutionExit>
   end: () => Promise<void>
@@ -137,7 +138,6 @@ export interface RunningProcess {
   readonly pid?: number
   write: (data: string) => Promise<void>
 }
-
 export interface Sandbox {
   check: () => Promise<SandboxCapabilityReport>
   dispose: () => Promise<void>
@@ -155,18 +155,37 @@ export interface SandboxCapabilityReport {
   warnings: string[]
 }
 
-export type SandboxMiddleware = (
-  context: SandboxMiddlewareContext,
-  next: () => Promise<ExecutionResult>,
-) => Promise<ExecutionResult>
-
-export interface SandboxMiddlewareContext {
-  profile: Readonly<SandboxProfile>
-  request: Readonly<ExecutionRequest>
-  requestId: string
-  route: SandboxRoute
-  signal: AbortSignal
-}
+export type SandboxEvent
+  = | {
+    backend: string
+    requestId: string
+    route: SandboxRoute
+    type: 'execution'
+  }
+  | {
+    code: string
+    requestId: string
+    type: 'failed'
+  }
+  | {
+    expiresAt: number
+    requestId: string
+    route: SandboxRoute
+    type: 'grant'
+  }
+  | {
+    reason: 'aborted' | 'disposed' | 'failed'
+    requestId: string
+    type: 'cancelled'
+  }
+  | {
+    requestId: string
+    type: 'request'
+  }
+  | {
+    requestId: string
+    type: 'resolved'
+  }
 
 export interface SandboxProfile {
   fileSystem: FileSystemProfile

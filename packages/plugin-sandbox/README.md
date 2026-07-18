@@ -36,7 +36,7 @@ The baseline tool set contains:
 - `write_stdin` for polling and interacting with persistent commands
 - `apply_patch` for applying a standard unified diff with `git apply`
 
-`apply_patch` requires Git on the execution path. It runs `git apply --recount --whitespace=nowarn -` inside the configured sandbox, does not use `--unsafe-paths`, and does not request automatic permission escalation. A patch that exceeds the active filesystem profile fails normally.
+`apply_patch` requires Git on the execution path and lets `git apply --recount --whitespace=nowarn -` validate and apply the patch inside the configured sandbox.
 
 Escalation is fail-closed. A request using `require_escalated` is rejected unless the application supplies an `authorizeEscalation` callback and returns an `ExecutionGrant` minted for that exact request. Host bypass additionally requires an explicit `HostExecutor`.
 
@@ -65,9 +65,9 @@ const sandbox = createSandbox({
 })
 ```
 
-`context.createGrant()` binds the grant to the current request id and exact escalation. The lower-level `createExecutionGrant()` export remains available for authorizers that need to mint a grant explicitly.
+`context.createGrant()` binds a one-time grant to the complete normalized execution request. Reusing a grant or changing the command, cwd, environment, or escalation invalidates it. The lower-level `createExecutionGrant()` export accepts the same normalized request shape for custom authorizers.
 
-The sandbox owns cancellation across escalation authorization, middleware, backend startup, and running processes. Authorizers and middleware receive `context.signal` so they can stop their own I/O, but ignoring it does not prevent `execute()` from returning. Once a backend returns a process handle, the sandbox terminates it with SIGTERM and a one-second SIGKILL fallback when execution is aborted.
+The sandbox owns cancellation across escalation authorization, backend startup, and running processes. The authorizer receives `context.signal` so it can stop its own I/O, but ignoring it does not prevent `execute()` from returning. Once a backend returns a process handle, the sandbox terminates it with SIGTERM and a one-second SIGKILL fallback when execution is aborted.
 
 ## SRT constraints
 

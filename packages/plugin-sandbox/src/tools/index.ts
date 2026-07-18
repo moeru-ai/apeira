@@ -6,7 +6,7 @@ import { rawTool } from '@apeira/core'
 
 import { name as packageName, version } from '../../package.json'
 
-interface ToolPermissionInput {
+export interface ToolPermissionInput {
   additional_permissions?: {
     file_system?: {
       read?: string[]
@@ -101,9 +101,12 @@ const permissionProperties = {
 } as const
 
 export interface ApplyPatchToolInput {
+  additional_permissions?: NonNullable<ToolPermissionInput['additional_permissions']>
   cwd?: string
+  justification?: string
   /** A standard unified diff accepted by git apply. */
   patch: string
+  sandbox_permissions?: NonNullable<ToolPermissionInput['sandbox_permissions']>
   timeout_ms?: number
 }
 
@@ -189,19 +192,24 @@ export const createWriteStdinTool = (options: SandboxToolsOptions) => rawTool<Wr
 
 export const createApplyPatchTool = (options: SandboxToolsOptions) => rawTool<ApplyPatchToolInput>({
   description: 'Apply a standard unified diff to the working tree with git apply inside the configured sandbox.',
-  execute: async (input, executeOptions) => options.sandbox.execute({
-    command: 'git apply --recount --whitespace=nowarn -',
-    cwd: input.cwd,
-    input: input.patch,
-    ownerId: options.ownerId,
-    requestId: executeOptions.toolCallId,
-    timeoutMs: input.timeout_ms,
-  }, { signal: executeOptions.abortSignal }),
+  execute: async (input, executeOptions) => {
+    const escalation = toEscalation(input)
+    return options.sandbox.execute({
+      command: 'git apply --recount --whitespace=nowarn -',
+      cwd: input.cwd,
+      escalation,
+      input: input.patch,
+      ownerId: options.ownerId,
+      requestId: executeOptions.toolCallId,
+      timeoutMs: input.timeout_ms,
+    }, { signal: executeOptions.abortSignal })
+  },
   name: 'apply_patch',
   parameters: {
     additionalProperties: false,
     properties: {
       cwd: { description: 'Base directory for patch paths.', type: 'string' },
+      ...permissionProperties,
       patch: { description: 'A standard unified diff accepted by git apply.', type: 'string' },
       timeout_ms: { description: 'Kill git apply after this duration.', type: 'integer' },
     },

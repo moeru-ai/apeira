@@ -2,6 +2,8 @@ import type { AgentInput } from '@apeira/core'
 
 import type { HITLRequest } from '../types'
 
+import { redactRequest, redactString } from '../utils/redact'
+
 const ENTRY_CHARS = 4_000
 const ACTION_STRING_CHARS = 32_000
 const USER_INTENT_LIMIT = 8
@@ -63,7 +65,7 @@ const collectEvidence = (input: readonly AgentInput[]) => {
   const entries: EvidenceEntry[] = []
   const toolNames = new Map<string, string>()
   const push = (entry: Omit<EvidenceEntry, 'sequence'>) => {
-    const content = entry.content.trim()
+    const content = redactString(entry.content.trim())
     if (content.length > 0)
       entries.push({ ...entry, content: truncate(content, ENTRY_CHARS), sequence: entries.length + 1 })
   }
@@ -126,7 +128,7 @@ export const buildReviewPrompt = (input: readonly AgentInput[], request: HITLReq
       recentActivity: activity.slice(-ACTIVITY_LIMIT),
       recentUserIntents: userIntents.slice(-USER_INTENT_LIMIT),
     },
-    request: truncateAction(actionFor(request)),
+    request: truncateAction(actionFor(redactRequest(request))),
     type: 'apeira_approval_review',
   }
 

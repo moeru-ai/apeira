@@ -21,6 +21,7 @@ import { name, version } from '../package.json'
 import { createReviewerController } from './reviewer'
 import { createDeferred } from './utils/deferred'
 import { buildRejectionResult } from './utils/message'
+import { redactEvent } from './utils/redact'
 
 export type {
   HITLAssessment,
@@ -177,6 +178,35 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     })
   }
 
+  const routeApproval = async <T>(options: {
+    applyApprove: () => T
+    applyEdit?: (args: string) => T
+    applyReject: (reason?: string) => T
+    cacheKey: string
+    request: HITLRequest
+    signal?: AbortSignal
+  }): Promise<T> => {
+    const route = await reviews.route(options.request, options.cacheKey, options.signal)
+    if (route.type === 'deny')
+      return options.applyReject(route.reason)
+    if (route.type === 'approve')
+      return options.applyApprove()
+
+    return waitForDecision(
+      options.request,
+      options.cacheKey,
+      (decision) => {
+        if (decision.type === 'approve')
+          return options.applyApprove()
+        if (decision.type === 'edit' && options.applyEdit != null)
+          return options.applyEdit(decision.args)
+        return options.applyReject(decision.type === 'reject' ? decision.message : undefined)
+      },
+      options.signal,
+      route.assessment,
+    )
+  }
+
   const authorizeEscalation: HITLPlugin['authorizeEscalation'] = async (execution, context) => {
     if (currentTurnId.length === 0)
       return undefined
@@ -199,20 +229,13 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
       escalation: execution.escalation,
     })
     const cacheKey = `permission:${permissionKey}`
-    const route = await reviews.route(request, cacheKey, context.signal)
-
-    if (route.type === 'deny')
-      return undefined
-    if (route.type === 'approve')
-      return context.createGrant()
-
-    return waitForDecision<ExecutionGrant | undefined>(
-      request,
+    return routeApproval<ExecutionGrant | undefined>({
+      applyApprove: () => context.createGrant(),
+      applyReject: () => undefined,
       cacheKey,
-      decision => decision.type === 'approve' ? context.createGrant() : undefined,
-      context.signal,
-      route.assessment,
-    )
+      request,
+      signal: context.signal,
+    })
   }
 
   const finishTurn = (turnId: string) => {
@@ -229,7 +252,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     enforce: 'pre',
     init: (agent) => {
       abortTurn = agent.abort
-      emit = async event => agent.emit('hitl', event)
+      emit = async event => agent.emit('hitl', redactEvent(event))
       reviews.init(agent)
       unsubscribeApeira = agent.subscribe('apeira', (event) => {
         if (event.type === 'turn.start') {
@@ -271,26 +294,14 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
         type: 'tool',
       }
       const cacheKey = toolCacheKey(toolCall)
-      const route = await reviews.route(request, cacheKey, executeOptions.abortSignal)
-
-      if (route.type === 'deny')
-        return buildRejectionResult(toolCall, options.rejectionMessage, route.reason)
-      if (route.type === 'approve')
-        return toolCall
-
-      return waitForDecision<CompletionToolCall | CompletionToolResult>(
-        request,
+      return routeApproval<CompletionToolCall | CompletionToolResult>({
+        applyApprove: () => toolCall,
+        applyEdit: args => ({ ...toolCall, args }),
+        applyReject: reason => buildRejectionResult(toolCall, options.rejectionMessage, reason),
         cacheKey,
-        (decision) => {
-          if (decision.type === 'approve')
-            return toolCall
-          if (decision.type === 'edit')
-            return { ...toolCall, args: decision.args }
-          return buildRejectionResult(toolCall, options.rejectionMessage, decision.message)
-        },
-        executeOptions.abortSignal,
-        route.assessment,
-      )
+        request,
+        signal: executeOptions.abortSignal,
+      })
     },
     resolve,
     get reviewer() {

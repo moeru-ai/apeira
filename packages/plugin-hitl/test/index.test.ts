@@ -153,6 +153,48 @@ describe('hitl', () => {
     })
   })
 
+  it('routes high-risk reviewer approvals to the user', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The user intent is explicit, but the action is high risk.',
+          riskLevel: 'high',
+          type: 'approve',
+          userAuthorization: 'high',
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(requestEvent(agent)?.assessment).toMatchObject({ riskLevel: 'high' })
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
+  it('redacts sensitive tool arguments in emitted requests', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall({
+      args: '{"token":"do-not-leak","path":"./file.txt"}',
+    }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+
+    expect(request.type).toBe('tool')
+    if (request.type === 'tool') {
+      expect(request.toolCall.args).toContain('[REDACTED]')
+      expect(request.toolCall.args).not.toContain('do-not-leak')
+    }
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+  })
+
   it('asks the user when automatic review fails by default', async () => {
     const plugin = hitl({
       reviewer: {

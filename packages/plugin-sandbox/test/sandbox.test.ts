@@ -5,7 +5,6 @@ import type {
   ExecutionRequest,
   RunningProcess,
   Sandbox,
-  SandboxMiddlewareContext,
   SandboxProfile,
 } from '../src'
 
@@ -248,37 +247,6 @@ describe('createSandbox', () => {
     expect(authorizationSignal?.aborted).toBe(true)
   })
 
-  it('aborts middleware that never returns through an external signal', async () => {
-    const controller = new AbortController()
-    let middlewareSignal: AbortSignal | undefined
-    const middleware = vi.fn(async (context: SandboxMiddlewareContext) => {
-      middlewareSignal = context.signal
-      return new Promise<never>(() => {})
-    })
-    const sandbox = trackedSandbox({ adapter: host, middleware: [middleware], profile: readOnlyProfile() })
-    const execution = sandbox.execute({ command: 'true' }, { signal: controller.signal })
-    const executionResult = expect(execution).rejects.toBe('stop')
-    await vi.waitFor(() => expect(middleware).toHaveBeenCalledOnce())
-
-    controller.abort('stop')
-
-    await executionResult
-    expect(middlewareSignal?.aborted).toBe(true)
-  })
-
-  it('aborts middleware that never returns during disposal', async () => {
-    const middleware = vi.fn(async () => new Promise<never>(() => {}))
-    const sandbox = trackedSandbox({ adapter: host, middleware: [middleware], profile: readOnlyProfile() })
-    const execution = sandbox.execute({ command: 'true' })
-    const executionResult = expect(execution).rejects.toMatchObject({ code: 'disposed' })
-    await vi.waitFor(() => expect(middleware).toHaveBeenCalledOnce())
-
-    const disposing = sandbox.dispose()
-
-    await executionResult
-    await expect(disposing).resolves.toBeUndefined()
-  })
-
   it('terminates a running process when its execution is aborted', async () => {
     vi.useFakeTimers()
     try {
@@ -338,6 +306,7 @@ describe('createSandbox', () => {
 
   it('applies only a grant minted for the exact escalation request', async () => {
     let authorizationCalls = 0
+    const auditEvents: string[] = []
     let observedProfile: Readonly<SandboxProfile> | undefined
     const adapter: ExecutionBackend = {
       check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
@@ -353,6 +322,9 @@ describe('createSandbox', () => {
     }
     const sandbox = trackedSandbox({
       adapter,
+      audit: (event) => {
+        auditEvents.push(event.type)
+      },
       authorizeEscalation,
       profile: readOnlyProfile(),
     })
@@ -370,14 +342,14 @@ describe('createSandbox', () => {
 
     expect(authorizationCalls).toBe(1)
     expect(observedProfile?.fileSystem.allowRead).toEqual([resolve('/workspace/project/fixtures')])
+    expect(auditEvents).toEqual(['request', 'grant', 'execution', 'resolved'])
   })
 
   it('requires a host executor for an approved bypass', async () => {
     const sandbox = trackedSandbox({
       adapter: host,
       authorizeEscalation: async (request, context) => createExecutionGrant({
-        escalation: request.escalation,
-        requestId: context.requestId,
+        request: { ...request, requestId: context.requestId },
       }),
       profile: readOnlyProfile(),
     })
@@ -395,8 +367,11 @@ describe('createSandbox', () => {
     const sandbox = trackedSandbox({
       adapter: host,
       authorizeEscalation: async (_request, context) => createExecutionGrant({
-        escalation: { justification: 'different request', type: 'bypass' },
-        requestId: context.requestId,
+        request: {
+          command: 'true',
+          escalation: { justification: 'different request', type: 'bypass' },
+          requestId: context.requestId,
+        },
       }),
       profile: readOnlyProfile(),
     })

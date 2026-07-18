@@ -100,7 +100,7 @@ export const createReviewerController = (
   let runner: Agent['runner'] | undefined
   let turnController = new AbortController()
 
-  const active = (request: HITLRequest) => currentTurnId === request.turnId
+  const isRequestInCurrentTurn = (request: HITLRequest) => currentTurnId === request.turnId
 
   const emitResolved = async (
     request: HITLRequest,
@@ -198,6 +198,17 @@ export const createReviewerController = (
     reviewer: HITLReviewer,
     assessment: HITLAssessment,
   ): Promise<ReviewRoute> => {
+    if (assessment.userAuthorization === 'unknown' || assessment.riskLevel === 'high')
+      return { assessment, type: 'ask' }
+
+    if (assessment.riskLevel === 'critical' && assessment.type === 'approve') {
+      await emitResolved(request, 'reviewer', {
+        assessment,
+        message: 'Critical-risk actions cannot be automatically approved.',
+        type: 'reject',
+      })
+      return { reason: 'Critical-risk actions cannot be automatically approved.', type: 'deny' }
+    }
     if (assessment.type === 'approve') {
       await emitResolved(request, 'reviewer', { assessment, type: 'approve' })
       return { type: 'approve' }
@@ -222,7 +233,7 @@ export const createReviewerController = (
       return { type: 'ask' }
 
     const result = await runReviewer(reviewer, request, signal)
-    if (!active(request))
+    if (!isRequestInCurrentTurn(request))
       return { reason: 'Turn ended before approval.', type: 'deny' }
     return result.type === 'failure'
       ? routeFailure(request, reviewer, result.failure)
@@ -239,7 +250,7 @@ export const createReviewerController = (
       : AbortSignal.any([turnController.signal, signal])
     const policy = await reviewPolicies(options.policies, request, reviewSignal)
     reviewSignal.throwIfAborted()
-    if (!active(request))
+    if (!isRequestInCurrentTurn(request))
       return { reason: 'Turn ended before approval.', type: 'deny' }
     const policyRoute = await routePolicy(request, cacheKey, policy)
     return policyRoute ?? routeReviewer(request, reviewSignal)

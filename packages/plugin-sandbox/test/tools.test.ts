@@ -1,6 +1,6 @@
-import type { ExecutionResult, Sandbox } from '../src'
+import type { Sandbox } from '../src'
 
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -130,7 +130,7 @@ deleted file mode 100644
     await expect(readFile(join(testDir!, 'result.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('rejects patch paths outside the working directory', async () => {
+  it('lets git apply reject paths outside the working directory', async () => {
     const instance = await createTestSandbox()
     const tool = createApplyPatchTool({ sandbox: instance })
     const result = await tool.execute({
@@ -143,8 +143,36 @@ new file mode 100644
 +escaped
 `,
     }, EXECUTE_OPTIONS)
+    if (typeof result !== 'object' || result == null || !('stderr' in result))
+      throw new Error('Expected an execution result.')
+    expect(result).toMatchObject({ exitCode: 128 })
+    expect(result.stderr).toContain('invalid path \'../escaped.txt\'')
+  })
 
-    expect(result).not.toMatchObject({ exitCode: 0 })
-    expect((result as ExecutionResult).stderr).toContain('../escaped.txt')
+  it('lets git apply reject paths that escape through a symlink', async () => {
+    const instance = await createTestSandbox()
+    const tool = createApplyPatchTool({ sandbox: instance })
+    const outsideDir = await mkdtemp(join(tmpdir(), 'apeira-sandbox-outside-'))
+    await symlink(outsideDir, join(testDir!, 'link'), 'dir')
+
+    try {
+      const result = await tool.execute({
+        cwd: testDir,
+        patch: `diff --git a/link/escaped.txt b/link/escaped.txt
+new file mode 100644
+--- /dev/null
++++ b/link/escaped.txt
+@@ -0,0 +1 @@
++escaped
+`,
+      }, EXECUTE_OPTIONS)
+      if (typeof result !== 'object' || result == null || !('stderr' in result))
+        throw new Error('Expected an execution result.')
+      expect(result).toMatchObject({ exitCode: 1 })
+      expect(result.stderr).toContain('beyond a symbolic link')
+    }
+    finally {
+      await rm(outsideDir, { force: true, recursive: true })
+    }
   })
 })

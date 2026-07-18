@@ -8,8 +8,7 @@ import type {
   ExecutionResult,
   RunningProcess,
   Sandbox,
-  SandboxMiddleware,
-  SandboxMiddlewareContext,
+  SandboxEvent,
   SandboxProfile,
   SandboxRoute,
 } from './types'
@@ -17,11 +16,10 @@ import type {
 import process from 'node:process'
 
 import { Buffer } from 'node:buffer'
-import { resolve } from 'node:path'
 
 import { raceAbort, stableStringify } from '@apeira/internal-utils'
 
-import { applyPermissionDelta } from './profiles'
+import { applyPermissionDelta, canonicalizePath } from './profiles'
 
 export type SandboxErrorCode
   = | 'aborted'
@@ -47,19 +45,36 @@ export class SandboxError extends Error {
 }
 
 const issuedGrants = new WeakSet<object>()
+const consumedGrants = new WeakSet<object>()
 
-const escalationFingerprint = (escalation: Readonly<EscalationRequest>) => stableStringify(escalation)
+type AuthorizedExecutionRequest = ExecutionRequest & {
+  escalation: EscalationRequest
+  requestId: string
+}
+
+const executionFingerprint = (request: Readonly<AuthorizedExecutionRequest>) => stableStringify({
+  command: request.command,
+  cwd: request.cwd,
+  env: request.env,
+  escalation: request.escalation,
+  input: request.input,
+  maxOutputBytes: request.maxOutputBytes,
+  ownerId: request.ownerId,
+  requestId: request.requestId,
+  shell: request.shell,
+  timeoutMs: request.timeoutMs,
+  yieldTimeMs: request.yieldTimeMs,
+})
 
 export const createExecutionGrant = (options: {
-  escalation: Readonly<EscalationRequest>
   expiresAt?: number
-  requestId: string
+  request: Readonly<AuthorizedExecutionRequest>
 }): ExecutionGrant => {
-  const grant = Object.freeze({
+  const grant = {
     expiresAt: options.expiresAt ?? Date.now() + 60_000,
-    fingerprint: escalationFingerprint(options.escalation),
-    requestId: options.requestId,
-  })
+    fingerprint: executionFingerprint(options.request),
+    requestId: options.request.requestId,
+  }
 
   issuedGrants.add(grant)
   return grant
@@ -67,13 +82,13 @@ export const createExecutionGrant = (options: {
 
 const isValidExecutionGrant = (
   grant: ExecutionGrant | undefined,
-  requestId: string,
-  escalation: Readonly<EscalationRequest>,
+  request: Readonly<AuthorizedExecutionRequest>,
 ) => grant != null
   && issuedGrants.has(grant)
-  && grant.requestId === requestId
+  && !consumedGrants.has(grant)
+  && grant.requestId === request.requestId
   && grant.expiresAt >= Date.now()
-  && grant.fingerprint === escalationFingerprint(escalation)
+  && grant.fingerprint === executionFingerprint(request)
 
 const appendWithinLimit = (
   current: Buffer,
@@ -174,8 +189,8 @@ const normalizeRequest = (request: ExecutionRequest): ExecutionRequest & { reque
   }
 
   return {
-    ...request,
-    cwd: resolve(request.cwd ?? process.cwd()),
+    ...structuredClone(request),
+    cwd: canonicalizePath(request.cwd ?? process.cwd()),
     maxOutputBytes,
     requestId: request.requestId ?? crypto.randomUUID(),
     timeoutMs,
@@ -222,34 +237,18 @@ const scheduleForceKill = (session: ManagedProcess) => {
   session.forceKill.unref?.()
 }
 
-const runMiddleware = async (
-  middleware: readonly SandboxMiddleware[],
-  context: SandboxMiddlewareContext,
-  dispatch: () => Promise<ExecutionResult>,
-) => {
-  const invoke = async (index: number): Promise<ExecutionResult> => {
-    const current = middleware[index]
-    if (current == null)
-      return dispatch()
-
-    let called = false
-    return current(context, async () => {
-      if (called)
-        throw new SandboxError('invalid_request', 'Sandbox middleware called next() more than once.')
-      called = true
-      return invoke(index + 1)
-    })
-  }
-
-  return invoke(0)
-}
-
 export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   const activeProcesses = new Set<ManagedProcess>()
   const inFlightStarts = new Set<Promise<ManagedProcess>>()
   const lifecycleController = new AbortController()
   const sessions = new Map<string, ManagedProcess>()
+  const sandboxOwnerId = crypto.randomUUID()
+  const defaultProfile = structuredClone(options.profile)
   let disposed = false
+
+  const audit = (event: SandboxEvent) => {
+    void Promise.resolve(options.audit?.(event)).catch(() => {})
+  }
 
   const assertAvailable = () => {
     if (disposed)
@@ -259,9 +258,11 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   const resolveExecution = async (
     request: ExecutionRequest & { requestId: string },
     signal: AbortSignal,
-  ): Promise<{ backend: ExecutionBackend, profile: SandboxProfile, route: SandboxRoute }> => {
+  ): Promise<{ backend: ExecutionBackend, profile: Readonly<SandboxProfile>, route: SandboxRoute }> => {
+    if (request.escalation != null)
+      audit({ requestId: request.requestId, type: 'request' })
     if (request.escalation == null) {
-      const route = options.profile.route
+      const route = defaultProfile.route
       if (route === 'host' && options.hostExecutor == null) {
         throw new SandboxError(
           'host_executor_unavailable',
@@ -270,7 +271,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       }
       return {
         backend: route === 'host' ? options.hostExecutor! : options.adapter,
-        profile: options.profile,
+        profile: defaultProfile,
         route,
       }
     }
@@ -287,11 +288,10 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
         escalation: NonNullable<ExecutionRequest['escalation']>
       }, {
         createGrant: grantOptions => createExecutionGrant({
-          escalation: request.escalation!,
           expiresAt: grantOptions?.expiresAt,
-          requestId: request.requestId,
+          request: request as AuthorizedExecutionRequest,
         }),
-        defaultProfile: options.profile,
+        defaultProfile,
         requestId: request.requestId,
         signal,
       }),
@@ -304,12 +304,13 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
         'The execution escalation request was denied.',
       )
     }
-    if (!isValidExecutionGrant(grant, request.requestId, request.escalation)) {
+    if (!isValidExecutionGrant(grant, request as AuthorizedExecutionRequest)) {
       throw new SandboxError(
         'invalid_grant',
         'The escalation authorizer returned an invalid or expired grant.',
       )
     }
+    consumedGrants.add(grant)
 
     if (request.escalation.type === 'bypass') {
       if (options.hostExecutor == null) {
@@ -318,12 +319,14 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
           'Sandbox bypass was approved, but no HostExecutor is configured.',
         )
       }
-      return { backend: options.hostExecutor, profile: options.profile, route: 'host' }
+      audit({ expiresAt: grant.expiresAt, requestId: request.requestId, route: 'host', type: 'grant' })
+      return { backend: options.hostExecutor, profile: defaultProfile, route: 'host' }
     }
 
+    audit({ expiresAt: grant.expiresAt, requestId: request.requestId, route: 'sandbox', type: 'grant' })
     return {
       backend: options.adapter,
-      profile: applyPermissionDelta(options.profile, request.escalation.permissions, request.cwd),
+      profile: applyPermissionDelta(defaultProfile, request.escalation.permissions, request.cwd),
       route: 'sandbox',
     }
   }
@@ -387,7 +390,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       collector,
       completed: Promise.resolve(),
       handle,
-      ownerId: request.ownerId,
+      ownerId: request.ownerId ?? sandboxOwnerId,
       requestId: request.requestId,
       sessionId: crypto.randomUUID(),
       startedAt: Date.now(),
@@ -451,15 +454,8 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     const request = normalizeRequest(rawRequest)
     const execution = await resolveExecution(request, signal)
     signal.throwIfAborted()
-    const context: SandboxMiddlewareContext = {
-      profile: execution.profile,
-      request,
-      requestId: request.requestId,
-      route: execution.route,
-      signal,
-    }
-
-    const operation = runMiddleware(options.middleware ?? [], context, async () => {
+    try {
+      audit({ backend: execution.backend.name, requestId: request.requestId, route: execution.route, type: 'execution' })
       const session = await start(
         request,
         execution.backend,
@@ -476,13 +472,28 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
       if (completed) {
         if (session.error != null)
           throw session.error
+        audit({ requestId: request.requestId, type: 'resolved' })
         return resultFor(session, false)
       }
 
       sessions.set(session.sessionId, session)
       return resultFor(session, true)
-    })
-    return raceAbort(operation, signal)
+    }
+    catch (error) {
+      audit({
+        code: error instanceof SandboxError ? error.code : 'execution_failed',
+        requestId: request.requestId,
+        type: 'failed',
+      })
+      if (signal.aborted) {
+        audit({
+          reason: signal.reason instanceof SandboxError && signal.reason.code === 'disposed' ? 'disposed' : 'aborted',
+          requestId: request.requestId,
+          type: 'cancelled',
+        })
+      }
+      throw error
+    }
   }
 
   const execute: Sandbox['execute'] = async (rawRequest, executeOptions = {}) => {
@@ -504,7 +515,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
         `No sandbox process session exists with id ${sessionId}.`,
       )
     }
-    if (session.ownerId != null && session.ownerId !== writeOptions.ownerId) {
+    if (session.ownerId !== (writeOptions.ownerId ?? sandboxOwnerId)) {
       throw new SandboxError(
         'process_owner_mismatch',
         'The process session belongs to a different owner.',
@@ -550,7 +561,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
   return {
     check: async () => {
       assertAvailable()
-      const backend = options.profile.route === 'host' ? options.hostExecutor : options.adapter
+      const backend = defaultProfile.route === 'host' ? options.hostExecutor : options.adapter
       if (backend == null) {
         return {
           errors: ['The configured profile requires a HostExecutor, but none was provided.'],
@@ -563,7 +574,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     },
     dispose,
     execute,
-    profile: options.profile,
+    profile: defaultProfile,
     writeProcess,
   }
 }
