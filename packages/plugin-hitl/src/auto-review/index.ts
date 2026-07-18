@@ -9,6 +9,7 @@ import type {
 } from '../types'
 
 import { createAgent, rawTool, run, user } from '@apeira/core'
+import { raceAbort } from '@apeira/internal-utils'
 
 import { name as packageName } from '../../package.json'
 import { buildReviewPrompt } from './prompt'
@@ -61,21 +62,6 @@ const failure = (type: HITLReviewFailure['type'], message?: string) => ({
   failure: { message, type },
   type: 'failure' as const,
 })
-
-const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
-  signal.throwIfAborted()
-  let onAbort = () => {}
-  const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-  try {
-    return await Promise.race([promise, aborted])
-  }
-  finally {
-    signal.removeEventListener('abort', onAbort)
-  }
-}
 
 const createSubmitTool = (assessments: HITLAssessment[]) => rawTool<unknown>({
   description: 'Submit the final approval review. Call exactly once as the final action.',

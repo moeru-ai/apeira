@@ -19,6 +19,8 @@ import process from 'node:process'
 import { Buffer } from 'node:buffer'
 import { resolve } from 'node:path'
 
+import { raceAbort, stableStringify } from '@apeira/internal-utils'
+
 import { applyPermissionDelta } from './profiles'
 
 export type SandboxErrorCode
@@ -46,22 +48,7 @@ export class SandboxError extends Error {
 
 const issuedGrants = new WeakSet<object>()
 
-const stable = (value: unknown): string => {
-  if (Array.isArray(value))
-    return `[${value.map(stable).join(',')}]`
-
-  if (value != null && typeof value === 'object') {
-    const entries = Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
-      .join(',')
-    return `{${entries}}`
-  }
-
-  return JSON.stringify(value)
-}
-
-const escalationFingerprint = (escalation: Readonly<EscalationRequest>) => stable(escalation)
+const escalationFingerprint = (escalation: Readonly<EscalationRequest>) => stableStringify(escalation)
 
 export const createExecutionGrant = (options: {
   escalation: Readonly<EscalationRequest>
@@ -210,21 +197,6 @@ const waitFor = async (promise: Promise<unknown>, timeoutMs: number): Promise<bo
   if (timer != null)
     clearTimeout(timer)
   return completed
-}
-
-const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
-  signal.throwIfAborted()
-  let onAbort = () => {}
-  const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-  try {
-    return await Promise.race([promise, aborted])
-  }
-  finally {
-    signal.removeEventListener('abort', onAbort)
-  }
 }
 
 const terminateLateProcess = (handle: RunningProcess) => {

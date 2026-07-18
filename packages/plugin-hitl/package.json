@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@apeira/core": "workspace:",
+    "@apeira/internal-utils": "workspace:",
     "@apeira/plugin-sandbox": "workspace:"
   }
 }

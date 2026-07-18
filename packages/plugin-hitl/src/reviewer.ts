@@ -11,6 +11,8 @@ import type {
   HITLReviewFailure,
 } from './types'
 
+import { raceAbort } from '@apeira/internal-utils'
+
 export interface ReviewerController {
   approveSession: (key: string) => void
   captureInput: (input: readonly AgentInput[]) => void
@@ -37,21 +39,6 @@ interface ReviewerControllerOptions {
   emit: (event: HITLEvent) => Promise<void>
   policies: HITLOptions['policies']
   reviewer?: HITLReviewer
-}
-
-const raceAbort = async <T>(promise: Promise<T>, signal: AbortSignal): Promise<T> => {
-  signal.throwIfAborted()
-  let onAbort = () => {}
-  const aborted = new Promise<never>((_resolve, reject) => {
-    onAbort = () => reject(signal.reason)
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-  try {
-    return await Promise.race([promise, aborted])
-  }
-  finally {
-    signal.removeEventListener('abort', onAbort)
-  }
 }
 
 const reviewPolicies = async (

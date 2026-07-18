@@ -68,6 +68,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sandbox-runtime": "catalog:",
-    "@apeira/core": "workspace:"
+    "@apeira/core": "workspace:",
+    "@apeira/internal-utils": "workspace:"
   }
 }

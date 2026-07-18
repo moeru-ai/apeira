@@ -15,6 +15,8 @@ import type {
   ToolPolicyOptions,
 } from './types'
 
+import { stableStringify } from '@apeira/internal-utils'
+
 import { name, version } from '../package.json'
 import { createReviewerController } from './reviewer'
 import { createDeferred } from './utils/deferred'
@@ -69,21 +71,8 @@ const matches = (name: string, patterns: ToolNamePattern[]) => patterns.some((pa
   return pattern === name
 })
 
-const stable = (value: unknown): string => {
-  if (Array.isArray(value))
-    return `[${value.map(stable).join(',')}]`
-  if (value != null && typeof value === 'object') {
-    const entries = Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
-      .join(',')
-    return `{${entries}}`
-  }
-  return JSON.stringify(value)
-}
-
 const toolCacheKey = (toolCall: CompletionToolCall) => {
-  const fingerprint = stable({
+  const fingerprint = stableStringify({
     args: toolCall.args,
     toolName: toolCall.toolName,
   })
@@ -204,7 +193,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
       turnId: currentTurnId,
       type: 'permission',
     }
-    const permissionKey = stable({
+    const permissionKey = stableStringify({
       command: execution.escalation.type === 'bypass' ? execution.command : undefined,
       cwd: execution.cwd,
       escalation: execution.escalation,

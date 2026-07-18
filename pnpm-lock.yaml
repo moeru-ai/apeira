@@ -471,6 +471,8 @@ importers:
         specifier: 'catalog:'
         version: 0.1.0-beta.19
 
+  packages/internal-utils: {}
+
   packages/plugin-ag-ui:
     dependencies:
       '@ag-ui/core':
@@ -521,6 +523,9 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../core
+      '@apeira/internal-utils':
+        specifier: 'workspace:'
+        version: link:../internal-utils
       '@apeira/plugin-sandbox':
         specifier: 'workspace:'
         version: link:../plugin-sandbox
@@ -560,6 +565,9 @@ importers:
       '@apeira/core':
         specifier: 'workspace:'
         version: link:../core
+      '@apeira/internal-utils':
+        specifier: 'workspace:'
+        version: link:../internal-utils
 
   packages/plugin-skills:
     dependencies:

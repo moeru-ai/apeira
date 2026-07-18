@@ -1,0 +1,14 @@
+{
+  "name": "@apeira/internal-utils",
+  "type": "module",
+  "version": "0.0.7",
+  "private": true,
+  "description": "Internal shared utilities for Apeira workspace packages.",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
