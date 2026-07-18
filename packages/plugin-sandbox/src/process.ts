@@ -40,6 +40,7 @@ export const startNodeProcess = (
     stdio: ['pipe', 'pipe', 'pipe'],
   })
 
+  child.stdin.on('error', () => undefined)
   child.stdout.on('data', (chunk: Buffer) => sink.stdout(chunk))
   child.stderr.on('data', (chunk: Buffer) => sink.stderr(chunk))
 

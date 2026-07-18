@@ -1,6 +1,7 @@
 import type {
   EscalationAuthorizer,
   ExecutionBackend,
+  ExecutionRequest,
   RunningProcess,
   Sandbox,
   SandboxProfile,
@@ -8,7 +9,7 @@ import type {
 
 import { resolve } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   createExecutionGrant,
@@ -39,6 +40,14 @@ afterEach(async () => {
 })
 
 describe('createSandbox', () => {
+  it('rejects a missing execution command', async () => {
+    const sandbox = trackedSandbox({ adapter: host, profile: readOnlyProfile() })
+
+    await expect(sandbox.execute({} as ExecutionRequest))
+      .rejects
+      .toMatchObject({ code: 'invalid_request' })
+  })
+
   it('captures stdout and stderr from the sandbox backend', async () => {
     const sandbox = trackedSandbox({ adapter: host, profile: readOnlyProfile() })
     const result = await sandbox.execute({
@@ -75,6 +84,9 @@ describe('createSandbox', () => {
     await expect(sandbox.writeProcess(started.sessionId!, { ownerId: 'agent-b' }))
       .rejects
       .toMatchObject({ code: 'process_owner_mismatch' })
+    await expect(sandbox.writeProcess(started.sessionId!, { yieldTimeMs: -1 }))
+      .rejects
+      .toMatchObject({ code: 'invalid_request' })
 
     const finished = await sandbox.writeProcess(started.sessionId!, {
       data: 'done\n',
@@ -94,6 +106,42 @@ describe('createSandbox', () => {
     expect(result.running).toBe(false)
     expect(result.timedOut).toBe(true)
     expect(result.signal).toBe('SIGTERM')
+  })
+
+  it('force kills processes that ignore SIGTERM during disposal', async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: Array<NodeJS.Signals | undefined> = []
+      let finish: (exit: { signal?: NodeJS.Signals }) => void = _exit => undefined
+      const completed = new Promise<{ signal?: NodeJS.Signals }>((resolveCompleted) => {
+        finish = resolveCompleted
+      })
+      const adapter: ExecutionBackend = {
+        check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+        name: 'stubborn',
+        start: async () => ({
+          completed,
+          end: async () => {},
+          kill: (signal) => {
+            signals.push(signal)
+            if (signal === 'SIGKILL')
+              finish({ signal })
+          },
+          write: async () => {},
+        }),
+      }
+      const sandbox = trackedSandbox({ adapter, profile: readOnlyProfile() })
+      await sandbox.execute({ command: 'wait forever', yieldTimeMs: 0 })
+
+      const disposing = sandbox.dispose()
+      await vi.advanceTimersByTimeAsync(1_000)
+      await disposing
+
+      expect(signals).toEqual(['SIGTERM', 'SIGKILL'])
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('fails closed when escalation has no authorizer', async () => {

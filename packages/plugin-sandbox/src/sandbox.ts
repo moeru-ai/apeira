@@ -170,7 +170,7 @@ const ensurePositiveInteger = (value: number, name: string, allowZero = false) =
 }
 
 const normalizeRequest = (request: ExecutionRequest): ExecutionRequest & { requestId: string } => {
-  if (request.command.trim().length === 0)
+  if (typeof request.command !== 'string' || request.command.trim().length === 0)
     throw new SandboxError('invalid_request', 'Execution command cannot be empty.')
 
   const timeoutMs = request.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -210,6 +210,13 @@ const waitFor = async (promise: Promise<unknown>, timeoutMs: number): Promise<bo
   if (timer != null)
     clearTimeout(timer)
   return completed
+}
+
+const scheduleForceKill = (session: ManagedProcess) => {
+  if (session.forceKill != null)
+    clearTimeout(session.forceKill)
+  session.forceKill = setTimeout(() => session.handle.kill('SIGKILL'), FORCE_KILL_DELAY_MS)
+  session.forceKill.unref?.()
 }
 
 const runMiddleware = async (
@@ -363,8 +370,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     const timeout = setTimeout(() => {
       session.timedOut = true
       handle.kill('SIGTERM')
-      session.forceKill = setTimeout(() => handle.kill('SIGKILL'), FORCE_KILL_DELAY_MS)
-      session.forceKill.unref?.()
+      scheduleForceKill(session)
     }, request.timeoutMs)
     timeout.unref?.()
 
@@ -430,6 +436,8 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
 
   const writeProcess: Sandbox['writeProcess'] = async (sessionId, writeOptions = {}) => {
     assertAvailable()
+    const yieldTimeMs = writeOptions.yieldTimeMs ?? 250
+    ensurePositiveInteger(yieldTimeMs, 'yieldTimeMs', true)
     const session = sessions.get(sessionId)
     if (session == null) {
       throw new SandboxError(
@@ -455,7 +463,7 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     }
 
     const completed = session.exit != null
-      || await waitFor(session.completed, writeOptions.yieldTimeMs ?? 250)
+      || await waitFor(session.completed, yieldTimeMs)
     if (completed) {
       await session.completed
       sessions.delete(sessionId)
@@ -472,8 +480,10 @@ export const createSandbox = (options: CreateSandboxOptions): Sandbox => {
     const active = [...activeProcesses]
     activeProcesses.clear()
     sessions.clear()
-    for (const session of active)
+    for (const session of active) {
       session.handle.kill('SIGTERM')
+      scheduleForceKill(session)
+    }
     await Promise.allSettled(active.map(async session => session.completed))
     await options.adapter.dispose?.()
     if (options.hostExecutor != null && options.hostExecutor !== options.adapter)

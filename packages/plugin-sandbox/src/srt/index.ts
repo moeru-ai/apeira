@@ -34,6 +34,15 @@ export interface SrtAdapterOptions {
 const adapterState: { active?: symbol } = {}
 const alphabetical = (left: string, right: string) => left.localeCompare(right)
 
+const serializeNetworkPolicy = (
+  policy: Readonly<SandboxProfile['network']>,
+) => JSON.stringify({
+  allowedDomains: [...policy.allowedDomains].sort(alphabetical),
+  allowLocalBinding: policy.allowLocalBinding,
+  allowUnixSockets: [...policy.allowUnixSockets].sort(alphabetical),
+  deniedDomains: [...policy.deniedDomains].sort(alphabetical),
+})
+
 const toSrtConfig = (
   profile: Readonly<SandboxProfile>,
   options: SrtAdapterOptions,
@@ -61,17 +70,7 @@ const toSrtConfig = (
 const sameNetworkPolicy = (
   left: Readonly<SandboxProfile['network']>,
   right: Readonly<SandboxProfile['network']>,
-) => JSON.stringify({
-  ...left,
-  allowedDomains: [...left.allowedDomains].sort(alphabetical),
-  allowUnixSockets: [...left.allowUnixSockets].sort(alphabetical),
-  deniedDomains: [...left.deniedDomains].sort(alphabetical),
-}) === JSON.stringify({
-  ...right,
-  allowedDomains: [...right.allowedDomains].sort(alphabetical),
-  allowUnixSockets: [...right.allowUnixSockets].sort(alphabetical),
-  deniedDomains: [...right.deniedDomains].sort(alphabetical),
-})
+) => serializeNetworkPolicy(left) === serializeNetworkPolicy(right)
 
 export const createSrtAdapter = (options: SrtAdapterOptions = {}): SandboxAdapter => {
   const instance = Symbol('apeira-srt-adapter')
