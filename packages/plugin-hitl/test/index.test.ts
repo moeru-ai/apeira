@@ -253,7 +253,7 @@ describe('hitl', () => {
     const bearer = 'oauth-secret-token'
     const pending = plugin.preToolCall?.(createToolCall({
       args: JSON.stringify({
-        command: `curl -H "Authorization: Bearer ${authorization}" -b "session=${cookie}; csrf=${csrf}" -b"attached=${cookie}" -u alice:${basicAuthValue} -ualice:${basicAuthValue} -U proxy:${proxyAuthValue} -Uproxy:${proxyAuthValue} --oauth2-bearer ${bearer}; printf 'Cookie: session=${cookie}; csrf=${csrf}'`,
+        command: `curl -H "Authorization: Bearer ${authorization}" -b "session=${cookie}; csrf=${csrf}" -b"attached=${cookie}" -u alice:${basicAuthValue} -ualice:${basicAuthValue} -U proxy:${proxyAuthValue} -Uproxy:${proxyAuthValue} --oauth2-bearer ${bearer}; printf 'Cookie: session=${cookie}; csrf=${csrf}'; rm -rf ./important`,
       }),
     }), createExecuteOptions())
     const request = await waitForRequest(agent)
@@ -267,6 +267,7 @@ describe('hitl', () => {
       expect(request.toolCall.args).not.toContain(proxyAuthValue)
       expect(request.toolCall.args).not.toContain(bearer)
       expect(request.toolCall.args).toContain('[REDACTED]')
+      expect(request.toolCall.args).toContain('rm -rf ./important')
     }
     const listed = plugin.listPending()[0]
     expect(listed?.type).toBe('tool')
@@ -277,6 +278,7 @@ describe('hitl', () => {
       expect(listed.toolCall.args).not.toContain(basicAuthValue)
       expect(listed.toolCall.args).not.toContain(proxyAuthValue)
       expect(listed.toolCall.args).not.toContain(bearer)
+      expect(listed.toolCall.args).toContain('rm -rf ./important')
     }
 
     plugin.resolve(request.requestId, { type: 'approve' })

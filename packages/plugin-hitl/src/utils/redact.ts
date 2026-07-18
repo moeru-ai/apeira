@@ -13,7 +13,9 @@ const redactPlainString = (value: string) => value
   .replace(/((?:^|\s)(?:-b|-u|-U)(?:\s+|=))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/g, '$1[REDACTED]')
   .replace(/((?:^|\s)(?:-b|-u|-U))(?:"[^"]*"|'[^']*'|[^\s;&|]+)/g, '$1[REDACTED]')
   // Authorization and Cookie values commonly contain a scheme or several key/value pairs.
-  .replace(/(?:authorization|cookie)\s*:\s*(?:"[^"]*"|'[^']*'|[^"&|]+)/gi, redactAssignment)
+  .replace(/'((?:authorization|cookie)\s*:)[^']*'/gi, '\'$1[REDACTED]\'')
+  .replace(/"((?:authorization|cookie)\s*:)[^"]*"/gi, '"$1[REDACTED]"')
+  .replace(/(?:authorization|cookie)\s*:[^"';&|]+/gi, redactAssignment)
   .replace(/(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*(?:"[^"]*"|'[^']*')/gi, redactAssignment)
   .replace(/(?:api[_-]?key|password|private[_-]?key|secret|token)\s*[:=]\s*[^"'\s,;&|]+/gi, redactAssignment)
   .replace(/--(?:api-key|password|secret|token)(?:=|\s+)(?:"[^"]*"|'[^']*'|[^\s;&|]+)/gi, '[REDACTED]')

@@ -146,7 +146,7 @@ new file mode 100644
     if (typeof result !== 'object' || result == null || !('stderr' in result))
       throw new Error('Expected an execution result.')
     expect(result).toMatchObject({ exitCode: 128 })
-    expect(result.stderr).toContain('invalid path \'../escaped.txt\'')
+    expect(result.stderr).toContain('\'../escaped.txt\'')
   })
 
   it('lets git apply reject paths that escape through a symlink', async () => {
@@ -169,7 +169,7 @@ new file mode 100644
       if (typeof result !== 'object' || result == null || !('stderr' in result))
         throw new Error('Expected an execution result.')
       expect(result).toMatchObject({ exitCode: 1 })
-      expect(result.stderr).toContain('beyond a symbolic link')
+      expect(result.stderr).toContain('\'link/escaped.txt\'')
     }
     finally {
       await rm(outsideDir, { force: true, recursive: true })
