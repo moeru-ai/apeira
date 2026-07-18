@@ -91,10 +91,12 @@ The baseline tools are allowed by tool policy, while requests for additional fil
 Policies are separate from human decisions. They return:
 
 ```ts
-{ type: 'allow' }
-{ type: 'ask' }
-{ type: 'deny', reason: '...' }
-undefined // no opinion
+const possibleResults = [
+  { type: 'allow' },
+  { type: 'ask' },
+  { reason: '...', type: 'deny' },
+  undefined, // no opinion
+]
 ```
 
 Policies may be asynchronous. Results are combined as `deny > ask > allow`; if every policy abstains, the plugin asks the user. A thrown policy is treated as `ask`. A deny always takes precedence over a cached session approval.

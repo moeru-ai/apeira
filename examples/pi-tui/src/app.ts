@@ -634,6 +634,10 @@ export const createPiTuiExampleApp = () => {
       case 'resolved':
         handleHitlResolved(event)
         break
+
+      case 'review_failed':
+      case 'reviewing':
+        break
     }
 
     syncApprovalOverlay()

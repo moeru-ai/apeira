@@ -81,6 +81,10 @@ export const ChatPanel = ({ className, onThreadUpdated, threadId }: ChatPanelPro
         case 'resolved':
           setApprovalRequests(current => current.filter(request => request.requestId !== event.request.requestId))
           break
+
+        case 'review_failed':
+        case 'reviewing':
+          break
       }
     })
 
