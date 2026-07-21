@@ -1,5 +1,5 @@
 import type { Agent, AgentPlugin } from '@apeira/core'
-import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
+import type { CompletionToolCall, CompletionToolResult, ToolExecuteOptions } from '@xsai/shared-chat'
 
 import type { ApprovalDecision, HITLEvent, HumanInTheLoopOptions } from './types'
 
@@ -30,6 +30,12 @@ declare module '@apeira/core' {
   }
 }
 
+declare module '@xsai/shared-chat' {
+  interface ToolExecuteOptions {
+    approvalResolution?: unknown
+  }
+}
+
 interface PendingResolution {
   deferred: ReturnType<typeof createDeferred<CompletionToolCall | CompletionToolResult>>
   event: {
@@ -38,6 +44,7 @@ interface PendingResolution {
     toolName: string
     turnId: string
   }
+  executeOptions: ToolExecuteOptions
   key: string
   rejectionMessage: HumanInTheLoopOptions['rejectionMessage']
   toolCall: CompletionToolCall
@@ -45,8 +52,8 @@ interface PendingResolution {
 
 type ResolvePending = (toolCallId: string, resolution: ApprovalDecision) => boolean
 
-export const approveToolCall = async (agent: Agent, params: { toolCallId: string }) =>
-  agent.emit('hitl', { toolCallId: params.toolCallId, type: 'control.approve' })
+export const approveToolCall = async (agent: Agent, params: { resolution?: unknown, toolCallId: string }) =>
+  agent.emit('hitl', { resolution: params.resolution, toolCallId: params.toolCallId, type: 'control.approve' })
 
 export const rejectToolCall = async (agent: Agent, params: { reason?: string, toolCallId: string }) =>
   agent.emit('hitl', { reason: params.reason, toolCallId: params.toolCallId, type: 'control.reject' })
@@ -78,6 +85,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
     removePending(toolCallId, key)
 
     if (resolution.type === 'approve') {
+      pending.executeOptions.approvalResolution = resolution.resolution
       pending.deferred.resolve(pending.toolCall)
     }
     else if (resolution.type === 'reject') {
@@ -118,7 +126,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       })
       unsubscribeHitl = agent.subscribe('hitl', (event: HITLEvent) => {
         if (event.type === 'control.approve') {
-          resolvePendingForPlugin(event.toolCallId, { type: 'approve' })
+          resolvePendingForPlugin(event.toolCallId, { resolution: event.resolution, type: 'approve' })
         }
         else if (event.type === 'control.reject') {
           resolvePendingForPlugin(event.toolCallId, { reason: event.reason, type: 'reject' })
@@ -149,6 +157,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       }
 
       if (decision.type === 'approve') {
+        executeOptions.approvalResolution = decision.resolution
         emit({
           ...eventBase,
           decision: 'approve',
@@ -185,6 +194,7 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
       const pending: PendingResolution = {
         deferred,
         event: eventBase,
+        executeOptions,
         key,
         rejectionMessage: options.rejectionMessage,
         toolCall,

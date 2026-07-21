@@ -2,7 +2,7 @@ import type { CompletionToolCall } from '@xsai/shared-chat'
 
 export type ApprovalDecision
   = | { reason?: string, type: 'reject' }
-    | { type: 'approve' }
+    | { resolution?: unknown, type: 'approve' }
     | { type: 'pending' }
 
 export type AutoReviewPolicy = (
@@ -25,6 +25,7 @@ export interface HITLBaseEvent {
 
 export interface HITLControlEvent {
   reason?: string
+  resolution?: unknown
   toolCallId: string
   type: 'control.approve' | 'control.reject'
 }

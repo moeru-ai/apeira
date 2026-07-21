@@ -1,0 +1,69 @@
+{
+  "name": "@apeira/plugin-coding-tools",
+  "type": "module",
+  "version": "0.0.7",
+  "private": true,
+  "description": "Coding tools for Apeira agents.",
+  "author": "Moeru AI",
+  "license": "MIT",
+  "homepage": "https://github.com/moeru-ai/apeira",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moeru-ai/apeira.git",
+    "directory": "packages/plugin-coding-tools"
+  },
+  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "keywords": [
+    "agent",
+    "ai",
+    "xsai",
+    "tools",
+    "dev-tools"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./sandbox": "./src/backends/sandbox.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./sandbox": {
+        "types": "./dist/backends/sandbox.d.ts",
+        "default": "./dist/backends/sandbox.js"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "build": "pkgroll",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sandbox-runtime": "^0.0.66",
+    "@apeira/core": "workspace:"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sandbox-runtime": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@xsai/shared-chat": "catalog:xsai",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:",
+    "@apeira/core": "workspace:",
+    "@moeru/std": "catalog:"
+  }
+}

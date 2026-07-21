@@ -44,7 +44,7 @@ agent.subscribe('hitl', (event) => {
   if (event.type !== 'hitl.request')
     return
   console.log(`Approve ${event.toolName}: ${event.toolCallId}`)
-  approveToolCall(agent, { toolCallId: event.toolCallId })
+approveToolCall(agent, { toolCallId: event.toolCallId })
   // or: rejectToolCall(agent, { toolCallId: event.toolCallId, reason: 'User rejected' })
 })
 ```
@@ -57,6 +57,20 @@ agent.emit('hitl', { reason: 'Unsafe', toolCallId: 'call_123', type: 'control.re
 ```
 
 Approval state is bound to the plugin instance (and therefore to the agent). Multiple agents do not share pending state.
+
+Approvals may carry an optional structured resolution for tools that support one:
+
+```ts
+approveToolCall(agent, {
+  toolCallId: 'call_123',
+  resolution: {
+    permissions: { network: { enabled: true } },
+    scope: 'turn',
+  },
+})
+```
+
+The resolution is delivered through the tool execution context without changing model-provided arguments. Tools that do not use structured resolutions are unaffected.
 
 ## Events
 
