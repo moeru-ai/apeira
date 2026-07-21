@@ -19,7 +19,6 @@ import { stableStringify } from '@apeira/internal-utils'
 
 import { name, version } from '../package.json'
 import { createReviewerController } from './reviewer'
-import { createDeferred } from './utils/deferred'
 import { buildRejectionResult } from './utils/message'
 import { redactEvent, redactRequest } from './utils/redact'
 
@@ -148,7 +147,7 @@ export const hitl = (options: HITLOptions = {}): HITLPlugin => {
     signal?: AbortSignal,
     assessment?: HITLAssessment,
   ): Promise<T> => {
-    const deferred = createDeferred<T>()
+    const deferred = Promise.withResolvers<T>()
     const onAbort = () => cancel(request.requestId, 'aborted', signal?.reason)
     const entry: PendingRequest = {
       cacheKey,
