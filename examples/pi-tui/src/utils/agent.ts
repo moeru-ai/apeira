@@ -1,7 +1,7 @@
 import { createAgent } from '@apeira/core'
 import { responses } from '@apeira/core/responses'
 import { commonTools } from '@apeira/plugin-common-tools'
-import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
+import { hitl, toolPolicy } from '@apeira/plugin-hitl'
 import { skills } from '@apeira/plugin-skills'
 import { fsSkillSet } from '@apeira/plugin-skills/fs'
 
@@ -13,15 +13,16 @@ export const skillSet = fsSkillSet({
   directory: skillsDir,
 })
 
+export const approval = hitl({
+  policies: [toolPolicy({
+    allow: ['fetch', 'read', 'search'],
+  })],
+})
+
 export const agent = createAgent({
   instructions,
   plugins: [
-    humanInTheLoop({
-      autoReview: autoReviewByPattern({
-        always: ['bash', 'edit', 'write'],
-        never: ['fetch', 'read', 'search'],
-      }),
-    }),
+    approval,
     commonTools(),
     skills({
       refresh: 'turn',

@@ -1,24 +1,32 @@
 import type { Agent, AgentChannel, AgentEventListener } from '@apeira/core'
+import type { ExecutionBackend, RunningProcess } from '@apeira/plugin-sandbox'
 import type { CompletionToolCall, ToolExecuteOptions } from '@xsai/shared-chat'
 
-import { describe, expect, it } from 'vitest'
+import type { HITLEvent, HITLRequest, HITLRequestEvent, HITLReviewContext } from '../src/index'
 
-import { approveToolCall, autoReviewByPattern, humanInTheLoop, rejectToolCall } from '../src/index'
+import { user } from '@apeira/core'
+import { createSandbox, readOnlyProfile } from '@apeira/plugin-sandbox'
+import { describe, expect, it, vi } from 'vitest'
+
+import { hitl, toolPolicy } from '../src/index'
 
 interface MockAgent extends Agent {
+  aborted: unknown[]
   emitted: Array<{ channel: string, event: unknown }>
 }
 
 const createMockAgent = (): MockAgent => {
+  const aborted: unknown[] = []
   const emitted: Array<{ channel: string, event: unknown }> = []
   const listeners = new Map<string, Set<AgentEventListener>>()
 
   return {
-    abort: () => {},
+    abort: reason => aborted.push(reason),
+    aborted,
     clear: async () => {},
     emit: async (channel: string, event: unknown) => {
       emitted.push({ channel, event })
-      await Promise.all(Array.from(listeners.get(channel) ?? []).map(async l => l(event)))
+      await Promise.all(Array.from(listeners.get(channel) ?? []).map(async listener => listener(event)))
     },
     emitted,
     getActiveTurnId: () => undefined,
@@ -39,10 +47,9 @@ const createMockAgent = (): MockAgent => {
       if (!listeners.has(channel))
         listeners.set(channel, new Set())
       listeners.get(channel)!.add(listener)
-      return () => {
-        listeners.get(channel)?.delete(listener)
-      }
+      return () => listeners.get(channel)?.delete(listener)
     }) as AgentChannel['subscribe'],
+    tools: [],
     wait: async () => {},
   }
 }
@@ -61,230 +68,572 @@ const createExecuteOptions = (signal?: AbortSignal): ToolExecuteOptions => ({
   toolCallId: 'call-1',
 })
 
-describe('autoReviewByPattern', () => {
-  it('auto-approves matching never patterns and leaves others pending', () => {
-    const review = autoReviewByPattern({
-      always: ['bash'],
-      never: ['read'],
-    })
+const completedProcess = (): RunningProcess => ({
+  completed: Promise.resolve({ exitCode: 0 }),
+  end: async () => {},
+  kill: () => {},
+  write: async () => {},
+})
 
-    expect(review(createToolCall({ toolName: 'read' }), {})).toEqual({ type: 'approve' })
-    expect(review(createToolCall({ toolName: 'bash' }), {})).toEqual({ type: 'pending' })
-    expect(review(createToolCall({ toolName: 'edit' }), {})).toEqual({ type: 'pending' })
+const backend: ExecutionBackend = {
+  check: async () => ({ errors: [], platform: process.platform, supported: true, warnings: [] }),
+  name: 'mock',
+  start: async () => completedProcess(),
+}
+
+const requestEvent = (agent: MockAgent): HITLRequestEvent | undefined =>
+  agent.emitted
+    .filter(entry => entry.channel === 'hitl')
+    .map(entry => entry.event as HITLEvent)
+    .findLast(event => event.type === 'request')
+
+const startTurn = async (plugin: ReturnType<typeof hitl>, agent: MockAgent) => {
+  await plugin.init?.(agent)
+  await agent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+}
+
+const waitForRequest = async (agent: MockAgent) => {
+  await vi.waitFor(() => expect(requestEvent(agent)).toBeDefined())
+  return requestEvent(agent)!.request
+}
+
+describe('toolPolicy', () => {
+  const toolRequest = (toolName: string): HITLRequest => ({
+    createdAt: 1,
+    options: ['approve', 'reject'],
+    requestId: 'request-1',
+    toolCall: createToolCall({ toolName }),
+    turnId: 'turn-1',
+    type: 'tool',
   })
 
-  it('supports regular expression patterns', () => {
-    const review = autoReviewByPattern({
-      always: [/^write_/, /_delete$/],
-      never: [/^read_/, /_list$/],
+  it('allows, denies, or abstains by tool name', () => {
+    const policy = toolPolicy({
+      allow: ['read', /^search_/],
+      deny: ['delete'],
+      denyReason: 'Destructive tool',
     })
 
-    expect(review(createToolCall({ toolName: 'read_file' }), {})).toEqual({ type: 'approve' })
-    expect(review(createToolCall({ toolName: 'user_list' }), {})).toEqual({ type: 'approve' })
-    expect(review(createToolCall({ toolName: 'write_file' }), {})).toEqual({ type: 'pending' })
-    expect(review(createToolCall({ toolName: 'hard_delete' }), {})).toEqual({ type: 'pending' })
+    expect(policy(toolRequest('read'))).toEqual({ type: 'allow' })
+    expect(policy(toolRequest('search_web'))).toEqual({ type: 'allow' })
+    expect(policy(toolRequest('delete'))).toEqual({ reason: 'Destructive tool', type: 'deny' })
+    expect(policy(toolRequest('write'))).toBeUndefined()
   })
 
-  it('supports exact strings alongside regular expressions', () => {
-    const review = autoReviewByPattern({
-      always: [/^write_/],
-      never: ['read'],
-    })
+  it('matches global deny patterns consistently', () => {
+    const policy = toolPolicy({ deny: [/^delete_/g] })
 
-    expect(review(createToolCall({ toolName: 'read' }), {})).toEqual({ type: 'approve' })
-    expect(review(createToolCall({ toolName: 'write_file' }), {})).toEqual({ type: 'pending' })
-    expect(review(createToolCall({ toolName: 'anything' }), {})).toEqual({ type: 'pending' })
+    expect(policy(toolRequest('delete_file'))).toEqual({ type: 'deny' })
+    expect(policy(toolRequest('delete_file'))).toEqual({ type: 'deny' })
   })
 })
 
-describe('humanInTheLoop', () => {
-  it('auto-approves when per-tool policy disables approval', async () => {
-    const plugin = humanInTheLoop({
-      toolPolicies: {
-        read: { needsApproval: false },
+describe('hitl', () => {
+  it('routes ask through a configured reviewer with the live turn input', async () => {
+    const review = vi.fn((_request: Readonly<HITLRequest>, _context: HITLReviewContext) => ({
+      rationale: 'Narrow, authorized write.',
+      riskLevel: 'low' as const,
+      type: 'approve' as const,
+      userAuthorization: 'high' as const,
+    }))
+    const plugin = hitl({ reviewer: { name: 'test-reviewer', review } })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+    await plugin.prepareStep?.({ input: [user('Update the file.')], model: 'test', stepNumber: 0, steps: [] })
+
+    const toolCall = createToolCall()
+    await expect(plugin.preToolCall?.(toolCall, createExecuteOptions())).resolves.toEqual(toolCall)
+
+    expect(review).toHaveBeenCalledOnce()
+    expect(review.mock.calls[0][1].input).toEqual([user('Update the file.')])
+    expect(requestEvent(agent)).toBeUndefined()
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'resolved')?.event).toMatchObject({
+      assessment: { type: 'approve' },
+      source: 'reviewer',
+    })
+  })
+
+  it('routes high-risk reviewer approvals to the user', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The user intent is explicit, but the action is high risk.',
+          riskLevel: 'high',
+          type: 'approve',
+          userAuthorization: 'high',
+        }),
       },
     })
-    const mockAgent = createMockAgent()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
 
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(requestEvent(agent)?.assessment).toMatchObject({ riskLevel: 'high' })
+    plugin.resolve(request.requestId, { type: 'approve' })
 
-    const toolCall = createToolCall({ toolName: 'read' })
-    const result = await plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
-
-    expect(result).toEqual(toolCall)
-    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual([
-      'hitl.auto_reviewed',
-      'hitl.resolved',
-    ])
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
   })
 
-  it('auto-rejects through autoReview and returns a tool result', async () => {
-    const plugin = humanInTheLoop({
-      autoReview: () => ({ reason: 'Policy blocked', type: 'reject' }),
+  it('honors reviewer denials before applying risk routing', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The action is not allowed.',
+          riskLevel: 'high',
+          type: 'deny',
+          userAuthorization: 'high',
+        }),
+      },
     })
-    const mockAgent = createMockAgent()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
 
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions()))
+      .resolves
+      .toMatchObject({ result: 'Tool execution was not approved. Reason: The action is not allowed.' })
+    expect(plugin.listPending()).toEqual([])
+  })
 
-    const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
+  it('can route reviewer denials to the user', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        onDeny: 'ask',
+        review: () => ({
+          rationale: 'The action is not allowed automatically.',
+          riskLevel: 'high',
+          type: 'deny',
+          userAuthorization: 'high',
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
 
-    expect(result).toMatchObject({
-      result: 'Tool execution was not approved. Reason: Policy blocked',
-      toolCallId: 'call-1',
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(requestEvent(agent)?.assessment).toMatchObject({ riskLevel: 'high', type: 'deny' })
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
+  it('redacts sensitive tool arguments in emitted requests', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall({
+      args: '{"token":"do-not-leak","path":"./file.txt"}',
+    }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+
+    expect(request.type).toBe('tool')
+    if (request.type === 'tool') {
+      expect(request.toolCall.args).toContain('[REDACTED]')
+      expect(request.toolCall.args).not.toContain('do-not-leak')
+    }
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+  })
+
+  it('redacts shell credentials in emitted and pending requests', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const authorization = 'sk-secret-value'
+    const cookie = 'session-cookie-value'
+    const csrf = 'csrf-cookie-value'
+    const basicAuthValue = 'super-secret-password'
+    const proxyAuthValue = 'proxy-secret-password'
+    const bearer = 'oauth-secret-token'
+    const pending = plugin.preToolCall?.(createToolCall({
+      args: JSON.stringify({
+        command: `curl -H "Authorization: Bearer ${authorization}" -b "session=${cookie}; csrf=${csrf}" -b"attached=${cookie}" -u alice:${basicAuthValue} -ualice:${basicAuthValue} -U proxy:${proxyAuthValue} -Uproxy:${proxyAuthValue} --oauth2-bearer ${bearer}; printf 'Cookie: session=${cookie}; csrf=${csrf}'; rm -rf ./important`,
+      }),
+    }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+
+    expect(request.type).toBe('tool')
+    if (request.type === 'tool') {
+      expect(request.toolCall.args).not.toContain(authorization)
+      expect(request.toolCall.args).not.toContain(cookie)
+      expect(request.toolCall.args).not.toContain(csrf)
+      expect(request.toolCall.args).not.toContain(basicAuthValue)
+      expect(request.toolCall.args).not.toContain(proxyAuthValue)
+      expect(request.toolCall.args).not.toContain(bearer)
+      expect(request.toolCall.args).toContain('[REDACTED]')
+      expect(request.toolCall.args).toContain('rm -rf ./important')
+    }
+    const listed = plugin.listPending()[0]
+    expect(listed?.type).toBe('tool')
+    if (listed?.type === 'tool') {
+      expect(listed.toolCall.args).not.toContain(authorization)
+      expect(listed.toolCall.args).not.toContain(cookie)
+      expect(listed.toolCall.args).not.toContain(csrf)
+      expect(listed.toolCall.args).not.toContain(basicAuthValue)
+      expect(listed.toolCall.args).not.toContain(proxyAuthValue)
+      expect(listed.toolCall.args).not.toContain(bearer)
+      expect(listed.toolCall.args).toContain('rm -rf ./important')
+    }
+
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+  })
+
+  it('asks the user when automatic review fails by default', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({ failure: { type: 'timeout' }, type: 'failure' }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    expect(agent.emitted.some(entry => (entry.event as HITLEvent).type === 'review_failed')).toBe(true)
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
+  it('does not call the reviewer for policy allow or deny', async () => {
+    const review = vi.fn(() => ({
+      rationale: 'Should not run.',
+      riskLevel: 'low' as const,
+      type: 'approve' as const,
+      userAuthorization: 'high' as const,
+    }))
+    const reviewer = { name: 'test-reviewer', review }
+    const allowed = hitl({ policies: [() => ({ type: 'allow' })], reviewer })
+    const allowedAgent = createMockAgent()
+    await startTurn(allowed, allowedAgent)
+    await expect(allowed.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
       toolName: 'write',
     })
-    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual([
-      'hitl.auto_reviewed',
-      'hitl.resolved',
-    ])
+
+    const denied = hitl({ policies: [() => ({ type: 'deny' })], reviewer })
+    const deniedAgent = createMockAgent()
+    await startTurn(denied, deniedAgent)
+    await expect(denied.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved.',
+    })
+    expect(review).not.toHaveBeenCalled()
   })
 
-  it('fails secure when execution context is missing for a gated tool', async () => {
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-
-    const result = await plugin.preToolCall?.(createToolCall(), createExecuteOptions())
-
-    expect(result).toMatchObject({
-      result: 'Tool execution was not approved. Reason: Tool execution blocked: missing or untracked execution context.',
-      toolCallId: 'call-1',
-      toolName: 'write',
+  it('denies an explicit automatic review rejection by default', async () => {
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: () => ({
+          rationale: 'The operation is too risky.',
+          riskLevel: 'critical',
+          type: 'deny',
+          userAuthorization: 'low',
+        }),
+      },
     })
-    expect(mockAgent.emitted).toEqual([])
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved. Reason: The operation is too risky.',
+    })
+    expect(requestEvent(agent)).toBeUndefined()
   })
 
-  it('emits a request and resumes execution when approved', async () => {
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const toolCall = createToolCall()
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
-
-    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
-    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
-    await expect(pending).resolves.toEqual(toolCall)
-
-    const resolved = mockAgent.emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')
-    expect(resolved?.event).toMatchObject({
-      auto: false,
-      decision: 'approve',
-      type: 'hitl.resolved',
-    })
-  })
-
-  it('returns a rejection result when rejected by a human', async () => {
-    const plugin = humanInTheLoop({
-      rejectionMessage: 'Denied.',
-    })
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(new AbortController().signal))
-    await mockAgent.emit('hitl', { reason: 'No write access', toolCallId: 'call-1', type: 'control.reject' })
-
-    await expect(pending).resolves.toMatchObject({
-      result: 'Denied.',
-      toolCallId: 'call-1',
-      toolName: 'write',
-    })
-    expect(mockAgent.emitted.findLast(entry => (entry.event as { type: string }).type === 'hitl.resolved')?.event).toMatchObject({
-      auto: false,
-      decision: 'reject',
-      reason: 'No write access',
-      type: 'hitl.resolved',
-    })
-  })
-
-  it('ignores duplicate approvals after the first resolution', async () => {
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const toolCall = createToolCall()
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
-
-    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
-    await mockAgent.emit('hitl', { toolCallId: toolCall.toolCallId, type: 'control.approve' })
-    await expect(pending).resolves.toEqual(toolCall)
-    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(1)
-  })
-
-  it('rejects pending work on abort and cleans up resolver state', async () => {
+  it('cancels an active reviewer without falling back to the user', async () => {
     const controller = new AbortController()
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
+    const plugin = hitl({
+      reviewer: {
+        name: 'test-reviewer',
+        review: async (_request, context) => new Promise((_, reject) => {
+          context.signal?.addEventListener('abort', () => reject(context.signal?.reason), { once: true })
+        }),
+      },
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
 
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const pending = plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal))
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(controller.signal))
+    await vi.waitFor(() => expect(agent.emitted.some(
+      entry => (entry.event as HITLEvent).type === 'reviewing',
+    )).toBe(true))
     controller.abort('stop')
 
     await expect(pending).rejects.toBe('stop')
-    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
-    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.reject' })
-    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(0)
-  })
-
-  it('rejects immediately when the signal is already aborted', async () => {
-    const controller = new AbortController()
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    controller.abort('already-aborted')
-
-    await expect(
-      plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions(controller.signal)),
-    ).rejects.toBe('already-aborted')
-    await mockAgent.emit('hitl', { toolCallId: 'call-2', type: 'control.approve' })
-    expect(mockAgent.emitted.filter(entry => (entry.event as { type: string }).type === 'hitl.resolved')).toHaveLength(0)
-  })
-
-  it('approves via sugar function', async () => {
-    const plugin = humanInTheLoop()
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const toolCall = createToolCall({ toolCallId: 'call-sugar' })
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
-
-    expect(mockAgent.emitted.filter(entry => entry.channel === 'hitl').map(entry => (entry.event as { type: string }).type)).toEqual(['hitl.request'])
-
-    await approveToolCall(mockAgent, { toolCallId: 'call-sugar' })
-    await expect(pending).resolves.toEqual(toolCall)
-  })
-
-  it('rejects via sugar function', async () => {
-    const plugin = humanInTheLoop({ rejectionMessage: 'Sugar denied.' })
-    const mockAgent = createMockAgent()
-
-    await plugin.init?.(mockAgent)
-    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
-
-    const toolCall = createToolCall({ toolCallId: 'call-sugar-reject' })
-    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions(new AbortController().signal))
-
-    await rejectToolCall(mockAgent, { reason: 'Too sweet', toolCallId: 'call-sugar-reject' })
-    await expect(pending).resolves.toMatchObject({
-      result: 'Sugar denied.',
-      toolCallId: 'call-sugar-reject',
-      toolName: 'write',
+    expect(requestEvent(agent)).toBeUndefined()
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'cancelled')?.event).toMatchObject({
+      reason: 'aborted',
     })
+  })
+
+  it('auto-review approvals are once-only and reviewer switching affects future requests', async () => {
+    const reviewer = {
+      name: 'test-reviewer',
+      review: vi.fn(() => ({
+        rationale: 'Allowed.',
+        riskLevel: 'low' as const,
+        type: 'approve' as const,
+        userAuthorization: 'high' as const,
+      })),
+    }
+    const plugin = hitl({ reviewer })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    await plugin.preToolCall?.(createToolCall({ toolCallId: 'call-2' }), createExecuteOptions())
+    expect(reviewer.review).toHaveBeenCalledTimes(2)
+
+    plugin.setReviewer('user')
+    expect(plugin.reviewer).toBe('user')
+    const pending = plugin.preToolCall?.(createToolCall({ toolCallId: 'call-3' }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await pending
+    expect(reviewer.review).toHaveBeenCalledTimes(2)
+  })
+
+  it('approves and lists a pending tool request', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const toolCall = createToolCall()
+    const pending = plugin.preToolCall?.(toolCall, createExecuteOptions())
+    const request = await waitForRequest(agent)
+
+    expect(plugin.listPending()).toEqual([request])
+    expect(plugin.resolve(request.requestId, { type: 'approve' })).toBe(true)
+    await expect(pending).resolves.toEqual(toolCall)
+    expect(plugin.listPending()).toEqual([])
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'resolved')?.event).toMatchObject({
+      decision: { type: 'approve' },
+      request,
+      source: 'user',
+      type: 'resolved',
+    })
+  })
+
+  it('rejects a tool and can abort its turn explicitly', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, {
+      abortTurn: true,
+      message: 'User rejected',
+      type: 'reject',
+    })
+
+    await expect(pending).resolves.toMatchObject({
+      result: 'Tool execution was not approved. Reason: User rejected',
+    })
+    expect(agent.aborted).toEqual(['User rejected'])
+  })
+
+  it('edits tool arguments before execution', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, { args: '{"path":"./safe.txt"}', type: 'edit' })
+
+    await expect(pending).resolves.toMatchObject({ args: '{"path":"./safe.txt"}' })
+  })
+
+  it('automatically applies policies with deny precedence', async () => {
+    const plugin = hitl({
+      policies: [
+        () => ({ type: 'allow' }),
+        () => ({ type: 'ask' }),
+        () => ({ reason: 'Denied by policy', type: 'deny' }),
+      ],
+    })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved. Reason: Denied by policy',
+    })
+    expect(requestEvent(agent)).toBeUndefined()
+  })
+
+  it('asks when every policy abstains', async () => {
+    const plugin = hitl({ policies: [toolPolicy({ allow: ['read'] })] })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, { type: 'approve' })
+
+    await expect(pending).resolves.toMatchObject({ toolName: 'write' })
+  })
+
+  it('aborts policy evaluation without waiting for an unresolved policy', async () => {
+    const controller = new AbortController()
+    let policySignal: AbortSignal | undefined
+    const policy = vi.fn(async (_request: Readonly<HITLRequest>, context: { signal: AbortSignal }) => {
+      policySignal = context.signal
+      return new Promise<never>(() => {})
+    })
+    const plugin = hitl({ policies: [policy] })
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(controller.signal))
+    await vi.waitFor(() => expect(policy).toHaveBeenCalledOnce())
+    controller.abort('stop')
+
+    await expect(pending).rejects.toBe('stop')
+    expect(policySignal?.aborted).toBe(true)
+  })
+
+  it('caches explicit session approvals for only the exact tool arguments', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const first = plugin.preToolCall?.(createToolCall({
+      args: '{"content":"hello","path":"./file.txt"}',
+    }), createExecuteOptions())
+    const request = await waitForRequest(agent)
+    plugin.resolve(request.requestId, { scope: 'session', type: 'approve' })
+    await first
+
+    const second = createToolCall({
+      args: '{"content":"hello","path":"./file.txt"}',
+      toolCallId: 'call-2',
+    })
+    await expect(plugin.preToolCall?.(second, createExecuteOptions())).resolves.toEqual(second)
+    expect(plugin.listPending()).toEqual([])
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'resolved')?.event).toMatchObject({
+      decision: { scope: 'session', type: 'approve' },
+      source: 'session',
+    })
+
+    const third = plugin.preToolCall?.(createToolCall({
+      args: '{"content":"key","path":".ssh/authorized_keys"}',
+      toolCallId: 'call-3',
+    }), createExecuteOptions())
+    await vi.waitFor(() => expect(plugin.listPending()).toHaveLength(1))
+    const thirdRequest = plugin.listPending()[0]
+    plugin.resolve(thirdRequest.requestId, { type: 'approve' })
+    await expect(third).resolves.toMatchObject({ toolCallId: 'call-3' })
+  })
+
+  it('emits cancellation instead of a rejection decision on abort', async () => {
+    const controller = new AbortController()
+    const plugin = hitl()
+    const agent = createMockAgent()
+    await startTurn(plugin, agent)
+
+    const pending = plugin.preToolCall?.(createToolCall(), createExecuteOptions(controller.signal))
+    const request = await waitForRequest(agent)
+    controller.abort('stop')
+
+    await expect(pending).rejects.toBe('stop')
+    expect(plugin.resolve(request.requestId, { type: 'approve' })).toBe(false)
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'cancelled')?.event).toMatchObject({
+      reason: 'aborted',
+      request,
+      type: 'cancelled',
+    })
+  })
+
+  it('fails closed without an active turn', async () => {
+    const plugin = hitl({ policies: [() => ({ type: 'allow' })] })
+    const agent = createMockAgent()
+    await plugin.init?.(agent)
+
+    await expect(plugin.preToolCall?.(createToolCall(), createExecuteOptions())).resolves.toMatchObject({
+      result: 'Tool execution was not approved. Reason: Tool execution blocked: missing or untracked execution context.',
+    })
+    expect(requestEvent(agent)).toBeUndefined()
+  })
+
+  it('uses the same request lifecycle for sandbox permissions', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    const sandbox = createSandbox({
+      adapter: backend,
+      authorizeEscalation: plugin.authorizeEscalation,
+      profile: readOnlyProfile(),
+    })
+    await startTurn(plugin, agent)
+
+    const pending = sandbox.execute({
+      command: 'true',
+      escalation: { justification: 'read fixtures', permissions: {}, type: 'expand' },
+      requestId: 'execution-1',
+    })
+    const request = await waitForRequest(agent)
+
+    expect(request).toMatchObject({ executionRequestId: 'execution-1', type: 'permission' })
+    expect(request.options).not.toContain('edit')
+    plugin.resolve(request.requestId, { type: 'approve' })
+    await expect(pending).resolves.toMatchObject({ requestId: 'execution-1' })
+    await sandbox.dispose()
+  })
+
+  it('cancels pending permissions when the turn ends', async () => {
+    const plugin = hitl()
+    const agent = createMockAgent()
+    const sandbox = createSandbox({
+      adapter: backend,
+      authorizeEscalation: plugin.authorizeEscalation,
+      profile: readOnlyProfile(),
+    })
+    await startTurn(plugin, agent)
+
+    const pending = sandbox.execute({
+      command: 'true',
+      escalation: { justification: 'read fixtures', permissions: {}, type: 'expand' },
+    })
+    await waitForRequest(agent)
+    await agent.emit('apeira', { turnId: 'turn-1', type: 'turn.aborted' })
+
+    await expect(pending).rejects.toThrow('Approval cancelled.')
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'cancelled')?.event).toMatchObject({
+      reason: 'turn_finished',
+    })
+    await sandbox.dispose()
+  })
+
+  it('cancels a permission request through the sandbox abort signal', async () => {
+    const controller = new AbortController()
+    const plugin = hitl()
+    const agent = createMockAgent()
+    const sandbox = createSandbox({
+      adapter: backend,
+      authorizeEscalation: plugin.authorizeEscalation,
+      profile: readOnlyProfile(),
+    })
+    await startTurn(plugin, agent)
+
+    const pending = sandbox.execute({
+      command: 'true',
+      escalation: { justification: 'read fixtures', permissions: {}, type: 'expand' },
+    }, { signal: controller.signal })
+    await waitForRequest(agent)
+    controller.abort('stop')
+
+    await expect(pending).rejects.toBe('stop')
+    expect(agent.emitted.findLast(entry => (entry.event as HITLEvent).type === 'cancelled')?.event).toMatchObject({
+      reason: 'aborted',
+    })
+    await sandbox.dispose()
   })
 })

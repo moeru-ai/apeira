@@ -1,28 +1,30 @@
 {
-  "name": "@apeira/plugin-hitl",
+  "name": "@apeira/plugin-sandbox",
   "type": "module",
   "version": "0.0.7",
-  "private": true,
-  "description": "Human-in-the-loop tool and sandbox permission approval for Apeira.",
+  "description": "Sandbox execution and baseline coding tools plugin for Apeira.",
   "author": "Moeru AI",
   "license": "MIT",
   "homepage": "https://github.com/moeru-ai/apeira",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/moeru-ai/apeira.git",
-    "directory": "packages/plugin-hitl"
+    "directory": "packages/plugin-sandbox"
   },
-  "bugs": "https://github.com/moeru-ai/apeira/issues",
+  "bugs": {
+    "url": "https://github.com/moeru-ai/apeira/issues"
+  },
   "keywords": [
     "agent",
     "ai",
-    "xsai",
-    "hitl"
+    "sandbox",
+    "security"
   ],
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./auto-review": "./src/auto-review/index.ts",
+    "./srt": "./src/srt/index.ts",
+    "./tools": "./src/tools/index.ts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -34,9 +36,13 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       },
-      "./auto-review": {
-        "types": "./dist/auto-review/index.d.ts",
-        "default": "./dist/auto-review/index.js"
+      "./srt": {
+        "types": "./dist/srt/index.d.ts",
+        "default": "./dist/srt/index.js"
+      },
+      "./tools": {
+        "types": "./dist/tools/index.d.ts",
+        "default": "./dist/tools/index.js"
       },
       "./package.json": "./package.json"
     },
@@ -45,14 +51,15 @@
   },
   "scripts": {
     "build": "pkgroll --clean-dist",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc -p ../../tsconfig.app.json --noEmit"
   },
   "peerDependencies": {
-    "@apeira/core": "workspace:",
-    "@apeira/plugin-sandbox": "workspace:"
+    "@anthropic-ai/sandbox-runtime": "catalog:",
+    "@apeira/core": "workspace:"
   },
   "peerDependenciesMeta": {
-    "@apeira/plugin-sandbox": {
+    "@anthropic-ai/sandbox-runtime": {
       "optional": true
     }
   },
@@ -60,8 +67,8 @@
     "@xsai/shared-chat": "catalog:xsai"
   },
   "devDependencies": {
+    "@anthropic-ai/sandbox-runtime": "catalog:",
     "@apeira/core": "workspace:",
-    "@apeira/internal-utils": "workspace:",
-    "@apeira/plugin-sandbox": "workspace:"
+    "@apeira/internal-utils": "workspace:"
   }
 }

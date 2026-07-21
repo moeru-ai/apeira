@@ -1,5 +1,5 @@
 import type { AgentEvent } from '@apeira/core'
-import type { HITLEvent, HITLRequestEvent } from '@apeira/plugin-hitl'
+import type { HITLEvent, HITLRequest } from '@apeira/plugin-hitl'
 import type { Component, MarkdownTheme, SlashCommand } from '@earendil-works/pi-tui'
 
 import type { TranscriptEntry, TranscriptRole } from './types/transcript'
@@ -8,14 +8,14 @@ import process from 'node:process'
 
 import c from 'tinyrainbow'
 
-import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 import { formatSkillInvocation } from '@apeira/plugin-skills'
 import { Box, CombinedAutocompleteProvider, Container, Editor, Markdown, matchesKey, ProcessTerminal, SelectList, Spacer, Text, truncateToWidth, TUI, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 
-import { agent, skillsDir, skillSet } from './utils/agent'
+import { agent, approval, skillsDir, skillSet } from './utils/agent'
 import { model, workspaceRoot } from './utils/config'
 
 type ReasoningMode = 'compact' | 'full'
+type ToolApprovalRequest = Extract<HITLRequest, { type: 'tool' }>
 
 const markdownTheme: MarkdownTheme = {
   bold: c.bold,
@@ -174,14 +174,14 @@ const isApprovalRejectionResult = (output: unknown) =>
 class ApprovalDialog implements Component {
   private readonly actions: SelectList
   private readonly borderColor: (text: string) => string
-  private readonly onApprove: (request: HITLRequestEvent) => void
-  private readonly onReject: (request: HITLRequestEvent) => void
-  private request: HITLRequestEvent | undefined
+  private readonly onApprove: (request: ToolApprovalRequest) => void
+  private readonly onReject: (request: ToolApprovalRequest) => void
+  private request: ToolApprovalRequest | undefined
 
   constructor(options: {
     borderColor: (text: string) => string
-    onApprove: (request: HITLRequestEvent) => void
-    onReject: (request: HITLRequestEvent) => void
+    onApprove: (request: ToolApprovalRequest) => void
+    onReject: (request: ToolApprovalRequest) => void
     selectListTheme: ConstructorParameters<typeof SelectList>[2]
   }) {
     this.borderColor = options.borderColor
@@ -225,15 +225,15 @@ class ApprovalDialog implements Component {
 
     const innerWidth = Math.max(36, width - 4)
     const contentWidth = Math.max(20, innerWidth - 4)
-    const summary = formatToolCallSummary(this.request.toolName, parseToolArguments(this.request.args))
+    const summary = formatToolCallSummary(this.request.toolCall.toolName, parseToolArguments(this.request.toolCall.args))
     const body = [
       c.bold('Approval required'),
-      `${c.cyan(this.request.toolName)}  ${c.dim(this.request.toolCallId)}`,
+      `${c.cyan(this.request.toolCall.toolName)}  ${c.dim(this.request.toolCall.toolCallId)}`,
       '',
       `${c.bold('Summary')} ${summary}`,
       '',
       c.bold('Arguments'),
-      this.request.args,
+      this.request.toolCall.args,
       '',
       c.dim('Use Up/Down to choose. Press Enter to confirm. Esc still cancels the active turn.'),
     ]
@@ -258,7 +258,7 @@ class ApprovalDialog implements Component {
     return [top, ...rows, bottom]
   }
 
-  setRequest(request: HITLRequestEvent | undefined) {
+  setRequest(request: ToolApprovalRequest | undefined) {
     this.request = request
     this.actions.setSelectedIndex(0)
   }
@@ -286,15 +286,18 @@ export const createPiTuiExampleApp = () => {
   const reasoningEntries = new Map<string, TranscriptEntry>()
   const toolEntries = new Map<string, TranscriptEntry>()
   const toolArguments = new Map<string, unknown>()
-  const pendingApprovals = new Map<string, HITLRequestEvent>()
+  const pendingApprovals = new Map<string, ToolApprovalRequest>()
   const approvalDialog = new ApprovalDialog({
     borderColor: c.cyan,
     onApprove: (request) => {
-      void approveToolCall(agent, { toolCallId: request.toolCallId })
+      approval.resolve(request.requestId, { type: 'approve' })
       tui.requestRender()
     },
     onReject: (request) => {
-      void rejectToolCall(agent, { reason: 'Rejected by user', toolCallId: request.toolCallId })
+      approval.resolve(request.requestId, {
+        message: 'Rejected by user',
+        type: 'reject',
+      })
       tui.requestRender()
     },
     selectListTheme: {
@@ -466,35 +469,49 @@ export const createPiTuiExampleApp = () => {
     syncApprovalOverlay()
   }
 
-  const handleHitlRequest = (event: HITLRequestEvent) => {
-    pendingApprovals.set(event.toolCallId, event)
+  const handleHitlRequest = (event: Extract<HITLEvent, { type: 'request' }>) => {
+    if (event.request.type !== 'tool')
+      return
 
-    const toolEntry = toolEntries.get(event.toolCallId)
+    const request = event.request
+    pendingApprovals.set(request.toolCall.toolCallId, request)
+
+    const toolEntry = toolEntries.get(request.toolCall.toolCallId)
     if (toolEntry != null)
       toolEntry.state = 'approval'
 
     pushSystem([
-      `Approval needed: ${event.toolName} (${event.toolCallId})`,
+      `Approval needed: ${request.toolCall.toolName} (${request.toolCall.toolCallId})`,
       'Use the approval dialog to approve or reject.',
     ].join('\n'))
   }
 
-  const handleHitlResolved = (event: Extract<HITLEvent, { type: 'hitl.resolved' }>) => {
-    pendingApprovals.delete(event.toolCallId)
+  const handleHitlResolved = (event: Extract<HITLEvent, { type: 'resolved' }>) => {
+    if (event.request.type !== 'tool')
+      return
 
-    const toolEntry = toolEntries.get(event.toolCallId)
-    if (toolEntry != null && event.decision === 'approve')
+    const toolCall = event.request.toolCall
+    pendingApprovals.delete(toolCall.toolCallId)
+
+    const toolEntry = toolEntries.get(toolCall.toolCallId)
+    if (toolEntry != null && ['approve', 'edit'].includes(event.decision.type))
       toolEntry.state = 'running'
-    else if (toolEntry != null && event.decision === 'reject')
+    else if (toolEntry != null && event.decision.type === 'reject')
       toolEntry.state = 'error'
 
-    if (event.auto === false) {
+    if (event.source === 'user') {
       pushSystem(
-        event.decision === 'approve'
-          ? `Approved ${event.toolName} (${event.toolCallId}).`
-          : `Rejected ${event.toolName} (${event.toolCallId})${event.reason != null && event.reason.length > 0 ? `: ${event.reason}` : '.'}`,
+        event.decision.type !== 'reject'
+          ? `Approved ${toolCall.toolName} (${toolCall.toolCallId}).`
+          : `Rejected ${toolCall.toolName} (${toolCall.toolCallId})${event.decision.message != null && event.decision.message.length > 0 ? `: ${event.decision.message}` : '.'}`,
       )
     }
+  }
+
+  const handleHitlCancelled = (event: Extract<HITLEvent, { type: 'cancelled' }>) => {
+    if (event.request.type !== 'tool')
+      return
+    pendingApprovals.delete(event.request.toolCall.toolCallId)
   }
 
   // eslint-disable-next-line sonarjs/cognitive-complexity
@@ -605,17 +622,21 @@ export const createPiTuiExampleApp = () => {
   }
 
   const onHitlEvent = (event: HITLEvent) => {
-    // eslint-disable-next-line ts/switch-exhaustiveness-check
     switch (event.type) {
-      case 'hitl.auto_reviewed':
+      case 'cancelled':
+        handleHitlCancelled(event)
         break
 
-      case 'hitl.request':
+      case 'request':
         handleHitlRequest(event)
         break
 
-      case 'hitl.resolved':
+      case 'resolved':
         handleHitlResolved(event)
+        break
+
+      case 'review_failed':
+      case 'reviewing':
         break
     }
 

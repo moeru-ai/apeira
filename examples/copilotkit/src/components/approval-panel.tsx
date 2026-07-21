@@ -1,4 +1,4 @@
-import type { HITLRequestEvent } from '@apeira/plugin-hitl'
+import type { ToolRequest } from '@apeira/plugin-hitl'
 
 import { Check, ShieldAlert, X } from 'lucide-react'
 
@@ -7,9 +7,9 @@ import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 
 interface ApprovalPanelProps {
-  onApprove: (toolCallId: string) => void
-  onReject: (toolCallId: string) => void
-  requests: HITLRequestEvent[]
+  onApprove: (requestId: string) => void
+  onReject: (requestId: string) => void
+  requests: ToolRequest[]
 }
 
 const compactJson = (value: string) => {
@@ -35,26 +35,26 @@ export const ApprovalPanel = ({
   )
   const requestList = (
     <div className="space-y-3">
-      {requests.map((request: HITLRequestEvent) => (
+      {requests.map(request => (
         <section
           className={cn('rounded-md border bg-card p-3 text-card-foreground shadow-sm')}
-          key={request.toolCallId}
+          key={request.requestId}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium">{request.toolName}</div>
-              <div className="truncate text-xs text-muted-foreground">{request.toolCallId}</div>
+              <div className="truncate text-sm font-medium">{request.toolCall.toolName}</div>
+              <div className="truncate text-xs text-muted-foreground">{request.toolCall.toolCallId}</div>
             </div>
             <div className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 font-medium">
               Waiting
             </div>
           </div>
           <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs text-muted-foreground leading-5">
-            {compactJson(request.args)}
+            {compactJson(request.toolCall.args)}
           </pre>
           <div className="mt-3 flex items-center justify-end gap-2">
             <Button
-              onClick={() => onReject(request.toolCallId)}
+              onClick={() => onReject(request.requestId)}
               size="sm"
               type="button"
               variant="outline"
@@ -63,7 +63,7 @@ export const ApprovalPanel = ({
               Reject
             </Button>
             <Button
-              onClick={() => onApprove(request.toolCallId)}
+              onClick={() => onApprove(request.requestId)}
               size="sm"
               type="button"
             >

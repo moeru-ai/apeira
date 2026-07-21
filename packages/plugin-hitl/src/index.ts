@@ -1,27 +1,55 @@
-import type { Agent, AgentPlugin } from '@apeira/core'
+import type { ExecutionGrant } from '@apeira/plugin-sandbox'
 import type { CompletionToolCall, CompletionToolResult } from '@xsai/shared-chat'
 
-import type { ApprovalDecision, HITLEvent, HumanInTheLoopOptions } from './types'
+import type {
+  HITLAssessment,
+  HITLCancellationReason,
+  HITLDecision,
+  HITLEvent,
+  HITLOption,
+  HITLOptions,
+  HITLPlugin,
+  HITLPolicyResult,
+  HITLRequest,
+  ToolNamePattern,
+  ToolPolicyOptions,
+} from './types'
+
+import { stableStringify } from '@apeira/internal-utils'
 
 import { name, version } from '../package.json'
-import { resolveDecision } from './utils/decision'
-import { createDeferred } from './utils/deferred'
+import { createReviewerController } from './reviewer'
 import { buildRejectionResult } from './utils/message'
-import { autoReviewByPattern } from './utils/policy'
+import { redactEvent, redactRequest } from './utils/redact'
 
 export type {
-  ApprovalDecision,
-  AutoReviewPolicy,
-  HITLAutoReviewedEvent,
-  HITLBaseEvent,
-  HITLControlEvent,
+  HITLAssessment,
+  HITLCancellationReason,
+  HITLCancelledEvent,
+  HITLDecision,
   HITLEvent,
+  HITLOption,
+  HITLOptions,
+  HITLPlugin,
+  HITLPolicy,
+  HITLPolicyContext,
+  HITLPolicyResult,
+  HITLRequest,
+  HITLRequestBase,
   HITLRequestEvent,
   HITLResolvedEvent,
-  HumanInTheLoopOptions,
+  HITLReviewContext,
+  HITLReviewer,
+  HITLReviewFailedEvent,
+  HITLReviewFailure,
+  HITLReviewingEvent,
+  HITLReviewResult,
+  HITLReviewRoute,
+  PermissionRequest,
   RejectionMessageFn,
   ToolNamePattern,
-  ToolPolicy,
+  ToolPolicyOptions,
+  ToolRequest,
 } from './types'
 
 declare module '@apeira/core' {
@@ -30,110 +58,227 @@ declare module '@apeira/core' {
   }
 }
 
-interface PendingResolution {
-  deferred: ReturnType<typeof createDeferred<CompletionToolCall | CompletionToolResult>>
-  event: {
-    timestamp: number
-    toolCallId: string
-    toolName: string
-    turnId: string
-  }
-  key: string
-  rejectionMessage: HumanInTheLoopOptions['rejectionMessage']
-  toolCall: CompletionToolCall
+interface PendingRequest {
+  cacheKey: string
+  cancel: (cause?: unknown) => void
+  request: HITLRequest
+  resolve: (decision: HITLDecision) => void
 }
 
-type ResolvePending = (toolCallId: string, resolution: ApprovalDecision) => boolean
+const matches = (name: string, patterns: ToolNamePattern[]) => patterns.some((pattern) => {
+  if (pattern instanceof RegExp)
+    return new RegExp(pattern.source, pattern.flags).test(name)
+  return pattern === name
+})
 
-export const approveToolCall = async (agent: Agent, params: { toolCallId: string }) =>
-  agent.emit('hitl', { toolCallId: params.toolCallId, type: 'control.approve' })
+const toolCacheKey = (toolCall: CompletionToolCall) => {
+  const fingerprint = stableStringify({
+    args: toolCall.args,
+    toolName: toolCall.toolName,
+  })
+  return `tool:${fingerprint}`
+}
 
-export const rejectToolCall = async (agent: Agent, params: { reason?: string, toolCallId: string }) =>
-  agent.emit('hitl', { reason: params.reason, toolCallId: params.toolCallId, type: 'control.reject' })
+const optionFor = (decision: HITLDecision): HITLOption => {
+  if (decision.type === 'edit')
+    return 'edit'
+  if (decision.type === 'reject')
+    return decision.abortTurn === true ? 'reject_abort' : 'reject'
+  return decision.scope === 'session' ? 'approve_session' : 'approve'
+}
 
-export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin => {
-  const pendingByKey = new Map<string, PendingResolution>()
-  const pendingKeyByToolCallId = new Map<string, string>()
-  let currentTurnId = ''
-  let emit: (event: HITLEvent) => void = () => {}
-  let unsubscribeApeira: (() => void) | undefined
-  let unsubscribeHitl: (() => void) | undefined
-
-  const removePending = (toolCallId: string, key?: string) => {
-    const resolvedKey = key ?? pendingKeyByToolCallId.get(toolCallId)
-
-    pendingKeyByToolCallId.delete(toolCallId)
-
-    if (resolvedKey != null)
-      pendingByKey.delete(resolvedKey)
+export const toolPolicy = (options: ToolPolicyOptions): ((request: HITLRequest) => HITLPolicyResult | undefined) =>
+  (request) => {
+    if (request.type !== 'tool')
+      return undefined
+    if (matches(request.toolCall.toolName, options.deny ?? []))
+      return { reason: options.denyReason, type: 'deny' }
+    if (matches(request.toolCall.toolName, options.allow ?? []))
+      return { type: 'allow' }
+    return undefined
   }
 
-  const resolvePendingForPlugin: ResolvePending = (toolCallId, resolution) => {
-    const key = pendingKeyByToolCallId.get(toolCallId)
-    const pending = key == null ? undefined : pendingByKey.get(key)
+export const hitl = (options: HITLOptions = {}): HITLPlugin => {
+  const pending = new Map<string, PendingRequest>()
+  let abortTurn: (reason?: unknown) => void = () => {}
+  let currentTurnId = ''
+  let emit: (event: HITLEvent) => Promise<void> = async () => {}
+  let unsubscribeApeira: (() => void) | undefined
+  const reviews = createReviewerController({
+    emit: async event => emit(event),
+    policies: options.policies,
+    reviewer: options.reviewer,
+  })
 
-    if (pending == null)
+  const cancel = (
+    requestId: string,
+    reason: HITLCancellationReason,
+    cause?: unknown,
+  ) => {
+    const entry = pending.get(requestId)
+    if (entry == null)
       return false
 
-    removePending(toolCallId, key)
-
-    if (resolution.type === 'approve') {
-      pending.deferred.resolve(pending.toolCall)
-    }
-    else if (resolution.type === 'reject') {
-      pending.deferred.resolve(buildRejectionResult(
-        pending.toolCall,
-        pending.rejectionMessage,
-        resolution.reason,
-      ))
-    }
-    else {
-      return false
-    }
-
-    emit({
-      ...pending.event,
-      auto: false,
-      decision: resolution.type,
-      reason: resolution.type === 'reject' ? resolution.reason : undefined,
-      type: 'hitl.resolved',
-    })
-
+    pending.delete(requestId)
+    void emit({ reason, request: entry.request, type: 'cancelled' })
+    entry.cancel(cause)
     return true
   }
 
+  const resolve: HITLPlugin['resolve'] = (requestId, decision) => {
+    const entry = pending.get(requestId)
+    if (entry == null || !entry.request.options.includes(optionFor(decision)))
+      return false
+
+    pending.delete(requestId)
+    if (decision.type === 'approve' && decision.scope === 'session')
+      reviews.approveSession(entry.cacheKey)
+    entry.resolve(decision)
+    void emit({ decision, request: entry.request, source: 'user', type: 'resolved' })
+    if (decision.type === 'reject' && decision.abortTurn === true)
+      abortTurn(decision.message ?? 'Approval rejected and turn aborted.')
+    return true
+  }
+
+  const waitForDecision = async <T>(
+    request: HITLRequest,
+    cacheKey: string,
+    apply: (decision: HITLDecision) => T,
+    signal?: AbortSignal,
+    assessment?: HITLAssessment,
+  ): Promise<T> => {
+    const deferred = Promise.withResolvers<T>()
+    const onAbort = () => cancel(request.requestId, 'aborted', signal?.reason)
+    const entry: PendingRequest = {
+      cacheKey,
+      cancel: cause => deferred.reject(cause ?? new Error('Approval cancelled.')),
+      request,
+      resolve: (decision) => {
+        try {
+          deferred.resolve(apply(decision))
+        }
+        catch (error) {
+          deferred.reject(error)
+        }
+      },
+    }
+
+    pending.set(request.requestId, entry)
+    void emit({ assessment, request, type: 'request' })
+
+    if (signal?.aborted)
+      onAbort()
+    else
+      signal?.addEventListener('abort', onAbort, { once: true })
+
+    return deferred.promise.finally(() => {
+      signal?.removeEventListener('abort', onAbort)
+      pending.delete(request.requestId)
+    })
+  }
+
+  const routeApproval = async <T>(options: {
+    applyApprove: () => T
+    applyEdit?: (args: string) => T
+    applyReject: (reason?: string) => T
+    cacheKey: string
+    request: HITLRequest
+    signal?: AbortSignal
+  }): Promise<T> => {
+    const route = await reviews.route(options.request, options.cacheKey, options.signal)
+    if (route.type === 'deny')
+      return options.applyReject(route.reason)
+    if (route.type === 'approve')
+      return options.applyApprove()
+
+    return waitForDecision(
+      options.request,
+      options.cacheKey,
+      (decision) => {
+        if (decision.type === 'approve')
+          return options.applyApprove()
+        if (decision.type === 'edit' && options.applyEdit != null)
+          return options.applyEdit(decision.args)
+        return options.applyReject(decision.type === 'reject' ? decision.message : undefined)
+      },
+      options.signal,
+      route.assessment,
+    )
+  }
+
+  const authorizeEscalation: HITLPlugin['authorizeEscalation'] = async (execution, context) => {
+    if (currentTurnId.length === 0)
+      return undefined
+
+    const request: HITLRequest = {
+      command: execution.command,
+      createdAt: Date.now(),
+      cwd: execution.cwd,
+      defaultProfile: context.defaultProfile,
+      escalation: execution.escalation,
+      executionRequestId: context.requestId,
+      options: ['approve', 'approve_session', 'reject', 'reject_abort'],
+      requestId: crypto.randomUUID(),
+      turnId: currentTurnId,
+      type: 'permission',
+    }
+    const permissionKey = stableStringify({
+      command: execution.escalation.type === 'bypass' ? execution.command : undefined,
+      cwd: execution.cwd,
+      escalation: execution.escalation,
+    })
+    const cacheKey = `permission:${permissionKey}`
+    return routeApproval<ExecutionGrant | undefined>({
+      applyApprove: () => context.createGrant(),
+      applyReject: () => undefined,
+      cacheKey,
+      request,
+      signal: context.signal,
+    })
+  }
+
+  const finishTurn = (turnId: string) => {
+    currentTurnId = ''
+    reviews.finishTurn(turnId)
+    for (const entry of pending.values()) {
+      if (entry.request.turnId === turnId)
+        cancel(entry.request.requestId, 'turn_finished')
+    }
+  }
+
   return {
+    authorizeEscalation,
     enforce: 'pre',
     init: (agent) => {
-      // eslint-disable-next-line ts/no-misused-promises
-      emit = async event => agent.emit('hitl', event)
+      abortTurn = agent.abort
+      emit = async event => agent.emit('hitl', redactEvent(event))
+      reviews.init(agent)
       unsubscribeApeira = agent.subscribe('apeira', (event) => {
         if (event.type === 'turn.start') {
           currentTurnId = event.turnId
+          reviews.startTurn(event.turnId)
         }
-        else if (['turn.aborted', 'turn.done', 'turn.failed'].includes(event.type)) {
-          if (currentTurnId === event.turnId)
-            currentTurnId = ''
-        }
-      })
-      unsubscribeHitl = agent.subscribe('hitl', (event: HITLEvent) => {
-        if (event.type === 'control.approve') {
-          resolvePendingForPlugin(event.toolCallId, { type: 'approve' })
-        }
-        else if (event.type === 'control.reject') {
-          resolvePendingForPlugin(event.toolCallId, { reason: event.reason, type: 'reject' })
+        else if (
+          ['turn.aborted', 'turn.done', 'turn.failed'].includes(event.type)
+          && currentTurnId === event.turnId
+        ) {
+          finishTurn(event.turnId)
         }
       })
     },
+    listPending: listOptions => Array.from(
+      pending.values(),
+      entry => entry.request,
+    )
+      .filter(request => listOptions?.turnId == null || request.turnId === listOptions.turnId)
+      .map(redactRequest),
     name,
+    prepareStep: (step) => {
+      reviews.captureInput(step.input)
+      return {}
+    },
     preToolCall: async (toolCall, executeOptions) => {
-      const turnId = currentTurnId
-      const decision = resolveDecision(toolCall, options)
-
-      if (turnId.length === 0) {
-        if (decision.type === 'approve')
-          return toolCall
-
+      if (currentTurnId.length === 0) {
         return buildRejectionResult(
           toolCall,
           options.rejectionMessage,
@@ -141,94 +286,39 @@ export const humanInTheLoop = (options: HumanInTheLoopOptions = {}): AgentPlugin
         )
       }
 
-      const eventBase = {
-        timestamp: Date.now(),
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
-        turnId,
-      }
-
-      if (decision.type === 'approve') {
-        emit({
-          ...eventBase,
-          decision: 'approve',
-          type: 'hitl.auto_reviewed',
-        })
-        emit({
-          ...eventBase,
-          auto: true,
-          decision: 'approve',
-          type: 'hitl.resolved',
-        })
-        return toolCall
-      }
-
-      if (decision.type === 'reject') {
-        emit({
-          ...eventBase,
-          decision: 'reject',
-          reason: decision.reason,
-          type: 'hitl.auto_reviewed',
-        })
-        emit({
-          ...eventBase,
-          auto: true,
-          decision: 'reject',
-          reason: decision.reason,
-          type: 'hitl.resolved',
-        })
-        return buildRejectionResult(toolCall, options.rejectionMessage, decision.reason)
-      }
-
-      const key = `${turnId}:${toolCall.toolCallId}`
-      const deferred = createDeferred<CompletionToolCall | CompletionToolResult>()
-      const pending: PendingResolution = {
-        deferred,
-        event: eventBase,
-        key,
-        rejectionMessage: options.rejectionMessage,
+      const request: HITLRequest = {
+        createdAt: Date.now(),
+        options: ['approve', 'approve_session', 'edit', 'reject', 'reject_abort'],
+        requestId: crypto.randomUUID(),
         toolCall,
+        turnId: currentTurnId,
+        type: 'tool',
       }
-
-      pendingByKey.set(key, pending)
-      pendingKeyByToolCallId.set(toolCall.toolCallId, key)
-
-      emit({
-        ...eventBase,
-        args: toolCall.args,
-        type: 'hitl.request',
+      const cacheKey = toolCacheKey(toolCall)
+      return routeApproval<CompletionToolCall | CompletionToolResult>({
+        applyApprove: () => toolCall,
+        applyEdit: args => ({ ...toolCall, args }),
+        applyReject: reason => buildRejectionResult(toolCall, options.rejectionMessage, reason),
+        cacheKey,
+        request,
+        signal: executeOptions.abortSignal,
       })
-
-      const onAbort = () => {
-        removePending(toolCall.toolCallId, key)
-        deferred.reject(executeOptions.abortSignal?.reason ?? new Error('aborted'))
-      }
-
-      if (executeOptions.abortSignal?.aborted) {
-        onAbort()
-      }
-      else {
-        executeOptions.abortSignal?.addEventListener('abort', onAbort, { once: true })
-      }
-
-      try {
-        return await deferred.promise
-      }
-      finally {
-        executeOptions.abortSignal?.removeEventListener('abort', onAbort)
-        removePending(toolCall.toolCallId, key)
-      }
+    },
+    resolve,
+    get reviewer() {
+      return reviews.reviewer
+    },
+    setReviewer: (reviewer) => {
+      reviews.setReviewer(reviewer)
     },
     stop: () => {
+      reviews.stop()
+      for (const entry of pending.values())
+        cancel(entry.request.requestId, 'stopped')
+      currentTurnId = ''
       unsubscribeApeira?.()
       unsubscribeApeira = undefined
-      unsubscribeHitl?.()
-      unsubscribeHitl = undefined
     },
     version,
   }
 }
-
-export const hitl = humanInTheLoop
-
-export { autoReviewByPattern }

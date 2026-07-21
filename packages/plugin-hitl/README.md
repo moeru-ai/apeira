@@ -1,104 +1,185 @@
 # @apeira/plugin-hitl
 
-Human-in-the-loop tool approval for Apeira agents.
-
-## Install
-
-```sh
-pnpm add @apeira/plugin-hitl
-```
+One approval service for Apeira tool calls and sandbox permissions.
 
 ## Usage
 
 ```ts
 import { createAgent } from '@apeira/core'
-import { responses } from '@apeira/core/responses'
-import { commonTools } from '@apeira/plugin-common-tools'
-import { autoReviewByPattern, humanInTheLoop } from '@apeira/plugin-hitl'
+import { hitl, toolPolicy } from '@apeira/plugin-hitl'
+
+const approval = hitl({
+  policies: [toolPolicy({
+    allow: ['read', /^search_/],
+    deny: ['delete_everything'],
+    denyReason: 'Destructive tools are disabled.',
+  })],
+})
 
 const agent = createAgent({
-  instructions: 'You are a helpful assistant.',
-  plugins: [
-    humanInTheLoop({
-      autoReview: autoReviewByPattern({
-        always: ['bash', 'write', 'edit'],
-        never: ['read', /^search_/],
-      }),
-    }),
-    commonTools(),
-  ],
-  runner: responses({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: 'https://api.openai.com/v1/',
-    model: 'gpt-5.5',
-  }),
+  // ...
+  plugins: [approval],
 })
-```
-
-Subscribe to the `hitl` channel to render approval UI:
-
-```ts
-import { approveToolCall, rejectToolCall } from '@apeira/plugin-hitl'
 
 agent.subscribe('hitl', (event) => {
-  if (event.type !== 'hitl.request')
+  if (event.type !== 'request')
     return
-  console.log(`Approve ${event.toolName}: ${event.toolCallId}`)
-  approveToolCall(agent, { toolCallId: event.toolCallId })
-  // or: rejectToolCall(agent, { toolCallId: event.toolCallId, reason: 'User rejected' })
+
+  renderApproval(event.request, decision =>
+    approval.resolve(event.request.requestId, decision))
 })
 ```
 
-You can also drive approvals by emitting control events directly on the agent's `hitl` channel:
+Every request uses `request.type` to distinguish its subject:
 
 ```ts
-agent.emit('hitl', { toolCallId: 'call_123', type: 'control.approve' })
-agent.emit('hitl', { reason: 'Unsafe', toolCallId: 'call_123', type: 'control.reject' })
+if (request.type === 'tool')
+  console.log(request.toolCall)
+else
+  console.log(request.command, request.escalation)
 ```
 
-Approval state is bound to the plugin instance (and therefore to the agent). Multiple agents do not share pending state.
+## Decisions
 
-## Events
+`resolve()` accepts terminal decisions only:
 
-The plugin emits and listens on the `hitl` channel.
+```ts
+approval.resolve(requestId, { type: 'approve' })
+approval.resolve(requestId, { scope: 'session', type: 'approve' })
+approval.resolve(requestId, { args: editedJson, type: 'edit' })
+approval.resolve(requestId, { message: 'Try another approach', type: 'reject' })
+approval.resolve(requestId, {
+  abortTurn: true,
+  message: 'Stop this turn',
+  type: 'reject',
+})
+```
 
-### Output events (from plugin)
+`request.options` tells the UI which decisions are valid. Permission requests do not support `edit`. Session approval is an in-memory exact cache and is cleared when the plugin stops; it does not modify persistent policy.
+
+`resolve()` returns `false` when the request is missing, already finished, or does not support the supplied decision.
+
+## Sandbox permissions
+
+The plugin instance is also a sandbox escalation authorizer:
+
+```ts
+import { hitl, toolPolicy } from '@apeira/plugin-hitl'
+import { sandbox, workspaceWriteProfile } from '@apeira/plugin-sandbox'
+import { createSrtAdapter } from '@apeira/plugin-sandbox/srt'
+
+const approval = hitl({
+  policies: [toolPolicy({
+    allow: ['exec', 'write_stdin', 'apply_patch'],
+  })],
+})
+const profile = workspaceWriteProfile()
+
+const plugins = [
+  approval,
+  sandbox({
+    adapter: createSrtAdapter({ networkProfile: profile.network }),
+    authorizeEscalation: approval.authorizeEscalation,
+    profile,
+  }),
+]
+```
+
+The baseline tools are allowed by tool policy, while requests for additional filesystem/network access or host bypass enter the same pending request queue. Only the sandbox authorizer can mint an `ExecutionGrant`, bound to the exact execution request.
+
+## Policies
+
+Policies are separate from human decisions. They return:
+
+```ts
+const possibleResults = [
+  { type: 'allow' },
+  { type: 'ask' },
+  { reason: '...', type: 'deny' },
+  undefined, // no opinion
+]
+```
+
+Policies may be asynchronous. Results are combined as `deny > ask > allow`; if every policy abstains, the plugin asks the user. A thrown policy is treated as `ask`. A deny always takes precedence over a cached session approval. Each policy also receives `{ signal }`; long-running policy I/O should stop when it is aborted.
+
+```ts
+const approval = hitl({
+  policies: [
+    toolPolicy({ allow: ['read'] }),
+    request => request.type === 'permission' && request.escalation.type === 'bypass'
+      ? { reason: 'Host bypass is disabled.', type: 'deny' }
+      : undefined,
+  ],
+})
+```
+
+Without policies, every tracked request asks the user. Requests without an active turn fail closed.
+
+## Approve for me
+
+Automatic review is an optional subpath:
+
+```ts
+import { hitl } from '@apeira/plugin-hitl'
+import { autoReview } from '@apeira/plugin-hitl/auto-review'
+
+const reviewer = autoReview({
+  // Defaults to the parent agent runner when omitted.
+  runner: cheaperReviewRunner,
+  // The application must ensure these tools are read-only.
+  tools: readonlyInvestigationTools,
+})
+
+const approval = hitl({ reviewer })
+```
+
+Only requests that remain `ask` after policies and the session cache are reviewed. An automatic approval applies once and is never added to the session cache.
+
+Each review creates and stops a temporary agent with no plugins. It receives a bounded projection of the current conversation, the exact requested action, the supplied investigation tools, and an internal structured decision tool. Review requests are processed serially.
+
+The defaults deny an explicit reviewer denial and ask the user after a reviewer system failure:
+
+```ts
+autoReview({
+  onDeny: 'deny',
+  onFailure: 'ask',
+  timeoutMs: 90_000,
+  transformContext: async (input, request, { signal }) => projectContext(input, request, signal),
+})
+```
+
+The timeout covers context transformation and the reviewer run. `transformContext` receives the same abort signal.
+
+`plugin-hitl/auto-review` does not import or create a sandbox. Applications that provide investigation tools are responsible for constraining them. Without tools, the reviewer decides from the projected conversation and request.
+
+Reviewer selection can change at runtime. The change affects future requests only:
+
+```ts
+approval.setReviewer('user')
+approval.setReviewer(reviewer)
+```
+
+## Events and pending state
+
+The `hitl` channel emits:
 
 | Type | Description |
 |------|-------------|
-| `hitl.auto_reviewed` | A decision was made automatically by policy |
-| `hitl.request` | A tool call is pending human approval |
-| `hitl.resolved` | A pending tool call was resolved |
+| `reviewing` | An automatic reviewer started assessing the request |
+| `review_failed` | Automatic review failed before producing a decision |
+| `request` | A tool or permission request needs a decision |
+| `resolved` | A policy, reviewer, session cache, or user produced a terminal decision |
+| `cancelled` | Abort, turn completion, or plugin shutdown cancelled the request |
 
-### Control events (to plugin)
+Cancellation is not represented as rejection: rejection is a user/security decision and lets the agent continue unless `abortTurn` is set.
 
-| Type | Description |
-|------|-------------|
-| `control.approve` | Approve a pending tool call by `toolCallId` |
-| `control.reject` | Reject a pending tool call by `toolCallId`, with optional `reason` |
+Applications can recover missed in-memory events through `approval.listPending({ turnId? })`. Pending resolvers and abort signals remain process-local; durable resume is not part of this version.
 
 ## API
 
-### `humanInTheLoop(options?)`
-
-Installs a `preToolCall` hook that evaluates each tool call and either:
-
-- auto-approves it
-- auto-rejects it
-- suspends execution until an approval control event is received
-
-### `approveToolCall(agent, { toolCallId })`
-
-Emits a `control.approve` event on the agent's `hitl` channel to resolve one pending tool call and let the original tool execute.
-
-### `rejectToolCall(agent, { toolCallId, reason? })`
-
-Emits a `control.reject` event on the agent's `hitl` channel to resolve one pending tool call with a rejection result instead of executing it.
-
-### `autoReviewByPattern({ always, never })`
-
-Creates a simple tool-name based policy using exact strings or `RegExp` patterns:
-
-- `never`: auto-approve
-- `always`: require approval
-- unmatched tools: remain pending
+- `hitl(options?)`: create the plugin, approval service, and sandbox authorizer.
+- `approval.resolve(requestId, decision)`: resolve one pending request.
+- `approval.listPending({ turnId? })`: list current pending requests.
+- `approval.setReviewer('user' | reviewer)`: select who handles future `ask` requests.
+- `toolPolicy(options)`: create a tool-name allow/deny policy from strings or regular expressions.
+- `autoReview(options?)`: create the optional temporary-agent reviewer from `@apeira/plugin-hitl/auto-review`.
