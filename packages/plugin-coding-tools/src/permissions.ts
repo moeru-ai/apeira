@@ -1,6 +1,8 @@
 import type { PermissionGrant, PermissionProfile } from './types'
 
-import { isAbsolute, relative, resolve } from 'node:path'
+import { resolve } from 'node:path'
+
+import { isWithin } from './utils/is-within'
 
 const unique = (items: string[]) => [...new Set(items)]
 
@@ -25,13 +27,6 @@ export const normalizePermissionProfile = (
       : {}),
     ...(profile.network?.enabled === true ? { network: { enabled: true } } : {}),
   }
-}
-
-const isWithin = (candidate: string, root: string) => {
-  if (!isAbsolute(candidate) || !isAbsolute(root))
-    return false
-  const nested = relative(root, candidate)
-  return nested === '' || (!nested.startsWith('..') && !isAbsolute(nested))
 }
 
 const intersectPaths = (requested: string[] | undefined, granted: string[] | undefined) => {

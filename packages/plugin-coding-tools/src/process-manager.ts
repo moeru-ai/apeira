@@ -11,6 +11,7 @@ import process from 'node:process'
 
 import { spawn } from 'node:child_process'
 import { basename } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const DEFAULT_OUTPUT_TOKENS = 10_000
 const TRANSCRIPT_LIMIT = 10 * 1024 * 1024
@@ -41,38 +42,40 @@ interface Session {
 }
 
 class Transcript {
-  private content = ''
+  private chunks: string[] = []
+  private currentLength = 0
   private totalCharacters = 0
 
   append(value: string) {
     this.totalCharacters += value.length
-    this.content += value
-    if (this.content.length > TRANSCRIPT_LIMIT) {
+    this.chunks.push(value)
+    this.currentLength += value.length
+
+    if (this.currentLength > TRANSCRIPT_LIMIT * 1.2) {
+      const content = this.chunks.join('')
       const half = Math.floor(TRANSCRIPT_LIMIT / 2)
-      this.content = `${this.content.slice(0, half)}\n... output truncated ...\n${this.content.slice(-half)}`
+      const truncated = `${content.slice(0, half)}\n... output truncated ...\n${content.slice(-half)}`
+      this.chunks = [truncated]
+      this.currentLength = truncated.length
     }
   }
 
   drain(maxTokens = DEFAULT_OUTPUT_TOKENS) {
     const originalTokenCount = Math.ceil(this.totalCharacters / 4)
     const maxCharacters = Math.max(1, Math.floor(maxTokens)) * 4
-    let output = this.content
+    let output = this.chunks.join('')
 
     if (output.length > maxCharacters) {
       const half = Math.max(1, Math.floor((maxCharacters - 32) / 2))
       output = `${output.slice(0, half)}\n... output truncated ...\n${output.slice(-half)}`
     }
 
-    this.content = ''
+    this.chunks = []
+    this.currentLength = 0
     this.totalCharacters = 0
     return { originalTokenCount, output }
   }
 }
-
-const delay = async (milliseconds: number) => new Promise<void>((resolve) => {
-  const timer = setTimeout(resolve, milliseconds)
-  timer.unref?.()
-})
 
 const clamp = (value: number | undefined, fallback: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value ?? fallback))
@@ -120,7 +123,7 @@ export class ProcessManager {
 
     await Promise.race([
       session.exitPromise,
-      delay(clamp(input.yield_time_ms, 10_000, 250, 30_000)),
+      delay(clamp(input.yield_time_ms, 10_000, 250, 30_000), undefined, { ref: false }),
     ])
 
     const response = this.response(session, input.max_output_tokens, Date.now() - startedAt)
@@ -169,7 +172,7 @@ export class ProcessManager {
     const maxYield = chars.length > 0 ? 30_000 : 300_000
     await Promise.race([
       session.exitPromise,
-      delay(clamp(input.yield_time_ms, defaultYield, 250, maxYield)),
+      delay(clamp(input.yield_time_ms, defaultYield, 250, maxYield), undefined, { ref: false }),
     ])
 
     const response = this.response(session, input.max_output_tokens, Date.now() - startedAt)
@@ -216,6 +219,7 @@ export class ProcessManager {
 
     child.stdout.on('data', chunk => transcript.append(String(chunk)))
     child.stderr.on('data', chunk => transcript.append(String(chunk)))
+    child.stdin.on('error', () => {})
     child.once('error', (error) => {
       transcript.append(`Command failed to start: ${error.message}\n`)
       session.exitCode = 1

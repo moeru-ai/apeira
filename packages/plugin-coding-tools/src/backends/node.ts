@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import { ProcessManager } from '../process-manager'
+import { isWithin } from '../utils/is-within'
 
 const MIME_SIGNATURES: Array<{ mime: string, test: (bytes: Uint8Array) => boolean }> = [
   {
@@ -32,14 +33,21 @@ export interface ProcessBackendOptions {
   readImage?: (path: string, permissions: PermissionProfile, signal?: AbortSignal) => Promise<Uint8Array>
   wrapCommand?: CommandWrapper
 }
-
 export const createProcessBackend = (options: ProcessBackendOptions = {}): CodingToolsBackend => {
   const manager = new ProcessManager(options.wrapCommand)
   const readImage = options.readImage ?? (async path => readFile(path))
 
+  const resolveWorkdir = (base: string, workdir: string | undefined): string => {
+    const resolved = resolve(base, workdir ?? '.')
+    if (!isWithin(resolved, base)) {
+      throw new Error(`Directory traversal detected: workdir "${workdir}" is outside of the workspace "${base}".`)
+    }
+    return resolved
+  }
+
   return {
     applyPatch: async (input, context) => {
-      const cwd = resolve(context.cwd, input.workdir ?? '.')
+      const cwd = resolveWorkdir(context.cwd, input.workdir)
       const result = await manager.run('git apply --', {
         cwd,
         permissions: context.permissions,
@@ -50,16 +58,22 @@ export const createProcessBackend = (options: ProcessBackendOptions = {}): Codin
       return result.output.trim() || 'Done!'
     },
     execCommand: async (input, context) => manager.exec(input, {
-      cwd: resolve(context.cwd, input.workdir ?? '.'),
+      cwd: resolveWorkdir(context.cwd, input.workdir),
       permissions: context.permissions,
       signal: context.signal,
     }),
     stop: async () => manager.stop(),
-    viewImage: async (input, context) => imageDataUrl(await readImage(
-      resolve(context.cwd, input.path),
-      context.permissions,
-      context.signal,
-    )),
+    viewImage: async (input, context) => {
+      const resolvedPath = resolve(context.cwd, input.path)
+      if (!isWithin(resolvedPath, context.cwd)) {
+        throw new Error(`Directory traversal detected: path "${input.path}" is outside of the workspace "${context.cwd}".`)
+      }
+      return imageDataUrl(await readImage(
+        resolvedPath,
+        context.permissions,
+        context.signal,
+      ))
+    },
     writeStdin: async input => manager.write(input),
   }
 }
