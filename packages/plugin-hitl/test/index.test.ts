@@ -43,6 +43,7 @@ const createMockAgent = (): MockAgent => {
         listeners.get(channel)?.delete(listener)
       }
     }) as AgentChannel['subscribe'],
+    tools: [],
     wait: async () => {},
   }
 }
@@ -268,6 +269,22 @@ describe('humanInTheLoop', () => {
 
     await approveToolCall(mockAgent, { toolCallId: 'call-sugar' })
     await expect(pending).resolves.toEqual(toolCall)
+  })
+
+  it('passes a structured approval resolution through execute options', async () => {
+    const plugin = humanInTheLoop()
+    const mockAgent = createMockAgent()
+    const executeOptions = createExecuteOptions(new AbortController().signal)
+
+    await plugin.init?.(mockAgent)
+    await mockAgent.emit('apeira', { turnId: 'turn-1', type: 'turn.start' })
+
+    const pending = plugin.preToolCall?.(createToolCall(), executeOptions)
+    const resolution = { permissions: { network: { enabled: true } }, scope: 'turn' }
+    await approveToolCall(mockAgent, { resolution, toolCallId: 'call-1' })
+
+    await expect(pending).resolves.toEqual(createToolCall())
+    expect(executeOptions.approvalResolution).toEqual(resolution)
   })
 
   it('rejects via sugar function', async () => {

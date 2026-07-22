@@ -58,6 +58,20 @@ agent.emit('hitl', { reason: 'Unsafe', toolCallId: 'call_123', type: 'control.re
 
 Approval state is bound to the plugin instance (and therefore to the agent). Multiple agents do not share pending state.
 
+Approvals may carry an optional structured resolution for tools that support one:
+
+```ts
+approveToolCall(agent, {
+  resolution: {
+    permissions: { network: { enabled: true } },
+    scope: 'turn',
+  },
+  toolCallId: 'call_123',
+})
+```
+
+The resolution is delivered through the tool execution context without changing model-provided arguments. Tools that do not use structured resolutions are unaffected.
+
 ## Events
 
 The plugin emits and listens on the `hitl` channel.
