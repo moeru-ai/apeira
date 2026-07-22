@@ -44,7 +44,7 @@ agent.subscribe('hitl', (event) => {
   if (event.type !== 'hitl.request')
     return
   console.log(`Approve ${event.toolName}: ${event.toolCallId}`)
-approveToolCall(agent, { toolCallId: event.toolCallId })
+  approveToolCall(agent, { toolCallId: event.toolCallId })
   // or: rejectToolCall(agent, { toolCallId: event.toolCallId, reason: 'User rejected' })
 })
 ```
@@ -62,11 +62,11 @@ Approvals may carry an optional structured resolution for tools that support one
 
 ```ts
 approveToolCall(agent, {
-  toolCallId: 'call_123',
   resolution: {
     permissions: { network: { enabled: true } },
     scope: 'turn',
   },
+  toolCallId: 'call_123',
 })
 ```
 
